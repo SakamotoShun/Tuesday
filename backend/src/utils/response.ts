@@ -30,6 +30,9 @@ export const errors = {
   validation: (c: Context, details: Array<{ field: string; message: string }>) =>
     error(c, 'VALIDATION_ERROR', 'Invalid input', details, 400),
 
+  badRequest: (c: Context, message: string) =>
+    error(c, 'BAD_REQUEST', message, undefined, 400),
+
   unauthorized: (c: Context, message = 'Authentication required') =>
     error(c, 'UNAUTHORIZED', message, undefined, 401),
 

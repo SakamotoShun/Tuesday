@@ -1,3 +1,10 @@
 export { userRepository, UserRepository } from './user';
 export { sessionRepository, SessionRepository } from './session';
 export { settingsRepository, SettingsRepository } from './settings';
+export { projectRepository, ProjectRepository } from './project';
+export { projectMemberRepository, ProjectMemberRepository } from './projectMember';
+export { projectStatusRepository, ProjectStatusRepository } from './projectStatus';
+export { docRepository, DocRepository } from './doc';
+export { taskRepository, TaskRepository } from './task';
+export { taskAssigneeRepository, TaskAssigneeRepository } from './taskAssignee';
+export { taskStatusRepository, TaskStatusRepository } from './taskStatus';

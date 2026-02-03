@@ -65,3 +65,124 @@ export function formatValidationErrors(error: z.ZodError): Array<{ field: string
     message: err.message,
   }));
 }
+
+// Project validation schemas
+export const createProjectSchema = z.object({
+  name: z.string().min(1, 'Project name is required').max(255),
+  client: z.string().max(255).optional(),
+  statusId: uuidSchema.optional(),
+  type: z.string().max(50).optional(),
+  startDate: z.string().optional(),
+  targetEndDate: z.string().optional(),
+});
+
+export type CreateProjectInput = z.infer<typeof createProjectSchema>;
+
+export const updateProjectSchema = z.object({
+  name: z.string().min(1, 'Project name cannot be empty').max(255).optional(),
+  client: z.string().max(255).optional().nullable(),
+  statusId: uuidSchema.optional().nullable(),
+  type: z.string().max(50).optional().nullable(),
+  startDate: z.string().optional().nullable(),
+  targetEndDate: z.string().optional().nullable(),
+});
+
+export type UpdateProjectInput = z.infer<typeof updateProjectSchema>;
+
+export const addMemberSchema = z.object({
+  userId: uuidSchema,
+  role: z.enum(['owner', 'member']).default('member'),
+});
+
+export type AddMemberInput = z.infer<typeof addMemberSchema>;
+
+export const updateMemberSchema = z.object({
+  role: z.enum(['owner', 'member']),
+});
+
+export type UpdateMemberInput = z.infer<typeof updateMemberSchema>;
+
+// Status validation schemas
+export const createStatusSchema = z.object({
+  name: z.string().min(1, 'Status name is required').max(50),
+  color: z.string().max(20).default('#6b7280'),
+  sortOrder: z.number().int().default(0),
+});
+
+export type CreateStatusInput = z.infer<typeof createStatusSchema>;
+
+export const updateStatusSchema = z.object({
+  name: z.string().min(1).max(50).optional(),
+  color: z.string().max(20).optional(),
+  sortOrder: z.number().int().optional(),
+});
+
+export type UpdateStatusInput = z.infer<typeof updateStatusSchema>;
+
+export const reorderStatusSchema = z.object({
+  ids: z.array(uuidSchema),
+});
+
+export type ReorderStatusInput = z.infer<typeof reorderStatusSchema>;
+
+// Doc validation schemas
+export const createDocSchema = z.object({
+  title: z.string().min(1, 'Doc title is required').max(255),
+  contentMd: z.string().optional(),
+  parentId: uuidSchema.optional().nullable(),
+  isDatabase: z.boolean().default(false),
+  schema: z.record(z.unknown()).optional().nullable(),
+  properties: z.record(z.unknown()).optional().default({}),
+});
+
+export type CreateDocInput = z.infer<typeof createDocSchema>;
+
+export const updateDocSchema = z.object({
+  title: z.string().min(1).max(255).optional(),
+  contentMd: z.string().optional(),
+  parentId: uuidSchema.optional().nullable(),
+  schema: z.record(z.unknown()).optional().nullable(),
+  properties: z.record(z.unknown()).optional(),
+});
+
+export type UpdateDocInput = z.infer<typeof updateDocSchema>;
+
+// Task validation schemas
+export const createTaskSchema = z.object({
+  title: z.string().min(1, 'Task title is required').max(255),
+  descriptionMd: z.string().optional(),
+  statusId: uuidSchema.optional(),
+  startDate: z.string().optional(),
+  dueDate: z.string().optional(),
+  assigneeIds: z.array(uuidSchema).optional(),
+});
+
+export type CreateTaskInput = z.infer<typeof createTaskSchema>;
+
+export const updateTaskSchema = z.object({
+  title: z.string().min(1).max(255).optional(),
+  descriptionMd: z.string().optional(),
+  statusId: uuidSchema.optional().nullable(),
+  startDate: z.string().optional().nullable(),
+  dueDate: z.string().optional().nullable(),
+});
+
+export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;
+
+export const updateTaskStatusSchema = z.object({
+  statusId: uuidSchema,
+});
+
+export type UpdateTaskStatusInput = z.infer<typeof updateTaskStatusSchema>;
+
+export const updateTaskOrderSchema = z.object({
+  sortOrder: z.number().int().min(0),
+});
+
+export type UpdateTaskOrderInput = z.infer<typeof updateTaskOrderSchema>;
+
+export const updateTaskAssigneesSchema = z.object({
+  assigneeIds: z.array(uuidSchema),
+});
+
+export type UpdateTaskAssigneesInput = z.infer<typeof updateTaskAssigneesSchema>;

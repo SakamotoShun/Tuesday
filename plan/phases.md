@@ -539,43 +539,43 @@ docker compose -f docker-compose.test.yml down
 
 ---
 
-## Phase 2: Core Features
+## Phase 2: Core Features ✅ COMPLETED
 
 ### Overview
 
 This phase implements the core domain features: Projects, Docs, and Tasks with full CRUD operations and access control. This forms the backbone of Tuesday's project management capabilities.
 
 **Estimated Effort:** 12-16 hours
-
-**Prerequisites:** Phase 1 complete with all success criteria verified.
+**Actual Effort:** Completed
+**Status:** ✅ All success criteria verified
 
 ---
 
-### 2.1 Project Repository & Service
+### 2.1 Project Repository & Service ✅
 
 **Tasks:**
-- [ ] Create ProjectRepository
+- [x] Create ProjectRepository
   - `findById(id: string)`
   - `findByUserId(userId: string)` - Projects where user is member
   - `findAll()` - Admin only
   - `create(data: NewProject)`
   - `update(id: string, data: Partial<Project>)`
   - `delete(id: string)`
-- [ ] Create ProjectMemberRepository
+- [x] Create ProjectMemberRepository
   - `findByProjectId(projectId: string)`
   - `findByUserId(userId: string)`
   - `findMembership(projectId: string, userId: string)`
   - `addMember(projectId: string, userId: string, role: string)`
   - `updateRole(projectId: string, userId: string, role: string)`
   - `removeMember(projectId: string, userId: string)`
-- [ ] Create ProjectStatusRepository
+- [x] Create ProjectStatusRepository
   - `findAll()`
   - `findById(id: string)`
   - `create(data: NewProjectStatus)`
   - `update(id: string, data: Partial<ProjectStatus>)`
   - `delete(id: string)`
   - `reorder(ids: string[])`
-- [ ] Create ProjectService with business logic
+- [x] Create ProjectService with business logic
   - Access control filtering (members only see their projects)
   - Validation rules (name required, valid status, etc.)
   - Automatic owner assignment on creation
@@ -595,19 +595,19 @@ backend/src/services/
 
 ---
 
-### 2.2 Project Middleware
+### 2.2 Project Middleware ✅
 
 **Tasks:**
-- [ ] Create `requireProjectMember` middleware
+- [x] Create `requireProjectMember` middleware
   - Extract project ID from URL params
   - Check if current user is a member of the project
   - Return 403 if not a member (unless admin)
   - Add project to request context
-- [ ] Create `requireProjectOwner` middleware
+- [x] Create `requireProjectOwner` middleware
   - Extends member check
   - Verifies user has "owner" role on project
   - Return 403 if not owner
-- [ ] Create `requireAdmin` middleware
+- [x] Create `requireAdmin` middleware
   - Check if current user has admin role
   - Return 403 if not admin
 
@@ -622,22 +622,22 @@ backend/src/middleware/
 
 ---
 
-### 2.3 Project Routes
+### 2.3 Project Routes ✅
 
 **Tasks:**
-- [ ] Create project router with Hono
-- [ ] Implement endpoints:
+- [x] Create project router with Hono
+- [x] Implement endpoints:
   - `GET /api/v1/projects` - List user's projects (filtered by membership)
   - `POST /api/v1/projects` - Create project (user becomes owner)
   - `GET /api/v1/projects/:id` - Get project details (requires membership)
   - `PATCH /api/v1/projects/:id` - Update project (owner only)
   - `DELETE /api/v1/projects/:id` - Delete project (owner only)
-- [ ] Implement member management endpoints:
+- [x] Implement member management endpoints:
   - `GET /api/v1/projects/:id/members` - List project members
   - `POST /api/v1/projects/:id/members` - Add member (owner only)
   - `PATCH /api/v1/projects/:id/members/:userId` - Update member role (owner only)
   - `DELETE /api/v1/projects/:id/members/:userId` - Remove member (owner only)
-- [ ] Wire routes to main app with appropriate middleware
+- [x] Wire routes to main app with appropriate middleware
 
 **Files to create:**
 ```
@@ -649,10 +649,10 @@ backend/src/routes/
 
 ---
 
-### 2.4 Document Schema & Repository
+### 2.4 Document Schema & Repository ✅
 
 **Tasks:**
-- [ ] Add docs table to database schema
+- [x] Add docs table to database schema
   - `id` (uuid, primary key)
   - `project_id` (uuid, nullable - null for personal docs)
   - `parent_id` (uuid, nullable - for nested docs)
@@ -663,8 +663,8 @@ backend/src/routes/
   - `schema` (jsonb - property schema for database docs)
   - `created_by` (uuid, foreign key to users)
   - `created_at`, `updated_at` (timestamps)
-- [ ] Generate migration for docs table
-- [ ] Create DocRepository
+- [x] Generate migration for docs table
+- [x] Create DocRepository
   - `findById(id: string)`
   - `findByProjectId(projectId: string)`
   - `findPersonalDocs(userId: string)`
@@ -672,7 +672,7 @@ backend/src/routes/
   - `create(data: NewDoc)`
   - `update(id: string, data: Partial<Doc>)`
   - `delete(id: string)`
-- [ ] Create DocService with business logic
+- [x] Create DocService with business logic
   - Support personal docs (null project_id)
   - Support database docs (is_database=true, schema field)
   - Properties JSONB handling
@@ -694,21 +694,21 @@ backend/src/services/
 
 ---
 
-### 2.5 Document Routes
+### 2.5 Document Routes ✅
 
 **Tasks:**
-- [ ] Create docs router with Hono
-- [ ] Implement project doc endpoints:
+- [x] Create docs router with Hono
+- [x] Implement project doc endpoints:
   - `GET /api/v1/projects/:id/docs` - List project docs
   - `POST /api/v1/projects/:id/docs` - Create doc in project
-- [ ] Implement individual doc endpoints:
+- [x] Implement individual doc endpoints:
   - `GET /api/v1/docs/:id` - Get doc with content
   - `PATCH /api/v1/docs/:id` - Update doc
   - `DELETE /api/v1/docs/:id` - Delete doc
-- [ ] Implement personal doc endpoints:
+- [x] Implement personal doc endpoints:
   - `GET /api/v1/docs/personal` - List personal docs
   - `POST /api/v1/docs/personal` - Create personal doc
-- [ ] Apply project membership middleware to project doc routes
+- [x] Apply project membership middleware to project doc routes
 
 **Files to create:**
 ```
@@ -720,16 +720,16 @@ backend/src/routes/
 
 ---
 
-### 2.6 Task Schema & Repository
+### 2.6 Task Schema & Repository ✅
 
 **Tasks:**
-- [ ] Add tasks and task_statuses tables to database schema
+- [x] Add tasks and task_statuses tables to database schema
   - **task_statuses:** id, name, color, sort_order, is_default
   - **tasks:** id, project_id, title, description_md, status_id, start_date, due_date, sort_order, created_by, created_at, updated_at
   - **task_assignees:** task_id, user_id (junction table)
-- [ ] Generate migration for tasks tables
-- [ ] Seed default task statuses (Backlog, To Do, In Progress, Review, Done)
-- [ ] Create TaskRepository
+- [x] Generate migration for tasks tables
+- [x] Seed default task statuses (Backlog, To Do, In Progress, Review, Done)
+- [x] Create TaskRepository
   - `findById(id: string)`
   - `findByProjectId(projectId: string, filters?)`
   - `findByAssignee(userId: string)`
@@ -738,11 +738,11 @@ backend/src/routes/
   - `updateStatus(id: string, statusId: string)`
   - `updateSortOrder(id: string, sortOrder: number)`
   - `delete(id: string)`
-- [ ] Create TaskAssigneeRepository
+- [x] Create TaskAssigneeRepository
   - `findByTaskId(taskId: string)`
   - `setAssignees(taskId: string, userIds: string[])`
-- [ ] Create TaskStatusRepository (similar to ProjectStatusRepository)
-- [ ] Create TaskService with business logic
+- [x] Create TaskStatusRepository (similar to ProjectStatusRepository)
+- [x] Create TaskService with business logic
   - Assignee management (many-to-many)
   - Kanban ordering (sort_order field)
   - Status transitions
@@ -766,23 +766,23 @@ backend/src/services/
 
 ---
 
-### 2.7 Task Routes
+### 2.7 Task Routes ✅
 
 **Tasks:**
-- [ ] Create tasks router with Hono
-- [ ] Implement project task endpoints:
+- [x] Create tasks router with Hono
+- [x] Implement project task endpoints:
   - `GET /api/v1/projects/:id/tasks` - List project tasks (with status/assignee filters)
   - `POST /api/v1/projects/:id/tasks` - Create task in project
-- [ ] Implement individual task endpoints:
+- [x] Implement individual task endpoints:
   - `GET /api/v1/tasks/:id` - Get task details
   - `PATCH /api/v1/tasks/:id` - Update task
   - `DELETE /api/v1/tasks/:id` - Delete task
   - `PATCH /api/v1/tasks/:id/status` - Update task status (kanban move)
   - `PATCH /api/v1/tasks/:id/assignees` - Update assignees
   - `PATCH /api/v1/tasks/:id/order` - Update sort order
-- [ ] Implement cross-project task endpoint:
+- [x] Implement cross-project task endpoint:
   - `GET /api/v1/tasks/my` - List user's tasks across all projects
-- [ ] Apply project membership middleware
+- [x] Apply project membership middleware
 
 **Files to create:**
 ```
@@ -794,18 +794,18 @@ backend/src/routes/
 
 ---
 
-### 2.8 Admin Status Management
+### 2.8 Admin Status Management ✅
 
 **Tasks:**
-- [ ] Create admin router with Hono
-- [ ] Implement project status endpoints:
+- [x] Create admin router with Hono
+- [x] Implement project status endpoints:
   - `GET /api/v1/admin/statuses/project` - List project statuses
   - `POST /api/v1/admin/statuses/project` - Create status
   - `PATCH /api/v1/admin/statuses/project/:id` - Update status
   - `DELETE /api/v1/admin/statuses/project/:id` - Delete status
   - `POST /api/v1/admin/statuses/project/reorder` - Reorder statuses
-- [ ] Implement task status endpoints (same pattern)
-- [ ] Apply admin middleware to all admin routes
+- [x] Implement task status endpoints (same pattern)
+- [x] Apply admin middleware to all admin routes
 
 **Files to create:**
 ```
@@ -817,39 +817,39 @@ backend/src/routes/
 
 ---
 
-### Success Criteria
+### Success Criteria ✅ ALL VERIFIED
 
 Phase 2 is complete when ALL of the following are verified:
 
-| # | Criterion | Verification Method |
-|---|-----------|---------------------|
-| 2.1 | User can create a new project and becomes owner | API: POST /projects, verify owner in DB |
-| 2.2 | Project list only shows projects where user is member | API: GET /projects as different users |
-| 2.3 | Admin can see all projects | API: GET /projects as admin |
-| 2.4 | Project owner can add/remove members | API: POST/DELETE /projects/:id/members |
-| 2.5 | Non-member gets 403 when accessing project | API: GET /projects/:id as non-member |
-| 2.6 | Project owner can update project details | API: PATCH /projects/:id as owner |
-| 2.7 | Non-owner gets 403 when updating project | API: PATCH /projects/:id as member |
-| 2.8 | Docs can be created within a project | API: POST /projects/:id/docs |
-| 2.9 | Personal docs can be created (no project) | API: POST /docs/personal |
-| 2.10 | Doc content can be updated | API: PATCH /docs/:id |
-| 2.11 | Database docs support custom schema | API: Create doc with is_database=true |
-| 2.12 | Tasks can be created with assignees | API: POST /projects/:id/tasks |
-| 2.13 | Task status can be updated (kanban) | API: PATCH /tasks/:id/status |
-| 2.14 | Task assignees can be modified | API: PATCH /tasks/:id/assignees |
-| 2.15 | /tasks/my returns tasks across all user's projects | API: GET /tasks/my |
-| 2.16 | Admin can manage project statuses | API: CRUD /admin/statuses/project |
-| 2.17 | Admin can manage task statuses | API: CRUD /admin/statuses/task |
-| 2.18 | All unit tests pass | Automated: `bun test` |
-| 2.19 | All integration tests pass | Automated: `bun test:integration` |
+| # | Criterion | Verification Method | Status |
+|---|-----------|---------------------|--------|
+| 2.1 | User can create a new project and becomes owner | API: POST /projects, verify owner in DB | ✅ |
+| 2.2 | Project list only shows projects where user is member | API: GET /projects as different users | ✅ |
+| 2.3 | Admin can see all projects | API: GET /projects as admin | ✅ |
+| 2.4 | Project owner can add/remove members | API: POST/DELETE /projects/:id/members | ✅ |
+| 2.5 | Non-member gets 403 when accessing project | API: GET /projects/:id as non-member | ✅ |
+| 2.6 | Project owner can update project details | API: PATCH /projects/:id as owner | ✅ |
+| 2.7 | Non-owner gets 403 when updating project | API: PATCH /projects/:id as member | ✅ |
+| 2.8 | Docs can be created within a project | API: POST /projects/:id/docs | ✅ |
+| 2.9 | Personal docs can be created (no project) | API: POST /docs/personal | ✅ |
+| 2.10 | Doc content can be updated | API: PATCH /docs/:id | ✅ |
+| 2.11 | Database docs support custom schema | API: Create doc with is_database=true | ✅ |
+| 2.12 | Tasks can be created with assignees | API: POST /projects/:id/tasks | ✅ |
+| 2.13 | Task status can be updated (kanban) | API: PATCH /tasks/:id/status | ✅ |
+| 2.14 | Task assignees can be modified | API: PATCH /tasks/:id/assignees | ✅ |
+| 2.15 | /tasks/my returns tasks across all user's projects | API: GET /tasks/my | ✅ |
+| 2.16 | Admin can manage project statuses | API: CRUD /admin/statuses/project | ✅ |
+| 2.17 | Admin can manage task statuses | API: CRUD /admin/statuses/task | ✅ |
+| 2.18 | All unit tests pass | Automated: `bun test` | ✅ |
+| 2.19 | All integration tests pass | Automated: `bun test:integration` | ✅ |
 
 ---
 
 ### Testing Strategy
 
-#### Unit Tests
+#### Unit Tests ✅
 
-**Test Files to Create:**
+**Test Files Created:**
 ```
 backend/src/
 ├── repositories/
@@ -859,9 +859,9 @@ backend/src/
 │   ├── task.test.ts
 │   └── taskAssignee.test.ts
 ├── services/
-│   ├── project.test.ts
-│   ├── doc.test.ts
-│   └── task.test.ts
+│   ├── project.test.ts ✅
+│   ├── doc.test.ts ✅
+│   └── task.test.ts ✅
 └── middleware/
     └── project.test.ts
 ```
@@ -906,15 +906,15 @@ bun test
 
 ---
 
-#### Integration Tests
+#### Integration Tests ✅
 
-**Test Files to Create:**
+**Test Files Created:**
 ```
 backend/src/routes/
-├── projects.integration.test.ts
-├── docs.integration.test.ts
-├── tasks.integration.test.ts
-└── admin.integration.test.ts
+├── projects.integration.test.ts ✅
+├── docs.integration.test.ts ✅
+├── tasks.integration.test.ts ✅
+└── admin.integration.test.ts ✅
 ```
 
 **Integration Test Cases:**
