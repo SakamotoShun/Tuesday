@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: tuesday-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tuesday
+      POSTGRES_PASSWORD: tuesday
+      POSTGRES_DB: tuesday
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tuesday -d tuesday"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: .
+    container_name: tuesday-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://tuesday:tuesday@db:5432/tuesday
+      PORT: 8080
+      NODE_ENV: development
+      SESSION_SECRET: development-secret-key-change-in-production-min-32-chars
+      SESSION_DURATION_HOURS: 24
+      CORS_ORIGIN: http://localhost:5173
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: bun run dev
+
+volumes:
+  postgres_data:
