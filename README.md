@@ -1,16 +1,29 @@
-# WorkHub
+# Tuesday
 
-WorkHub is a self-hosted project management tool (Bun + React + PostgreSQL) designed for simplicity and ease of deployment.
+> A free, self-hosted alternative to Basecamp, Mattermost, Notion, and Monday.
+
+Tuesday is a self-hosted project management tool (Bun + React + PostgreSQL) designed for simplicity and ease of deployment. Run your team's work hub without per-seat SaaS pricing.
+
+## Development Status
+
+| Phase | Status | Description |
+|-------|--------|-------------|
+| Phase 1 | ✅ Complete | Backend Foundation (Auth, Database, API) |
+| Phase 2 | ✅ Complete | Core Features (Projects, Docs, Tasks APIs) |
+| Phase 3 | ✅ Complete | Frontend Foundation (React, Auth UI, Project Views) |
+| Phase 4 | 🔄 Pending | Feature Completion (Docs, Tasks, Timeline UI) |
+| Phase 5 | 🔄 Pending | Real-time & Polish (WebSocket, Chat, Notifications) |
+| Phase 6 | 🔄 Pending | Deployment (Docker, Documentation) |
 
 ## Quick Start
 
 ```bash
-# Deploy WorkHub with a single command
+# Deploy Tuesday with a single command
 docker run -d \
   -p 3000:8080 \
-  -v workhub:/app/data \
-  --name workhub \
-  ghcr.io/your-org/workhub:latest
+  -v tuesday:/app/data \
+  --name tuesday \
+  ghcr.io/your-org/tuesday:latest
 
 # Open http://localhost:3000 and complete the setup wizard
 ```
@@ -20,20 +33,28 @@ docker run -d \
 This repo includes:
 
 - **Backend**: Bun + Hono API with embedded PostgreSQL
-- **Frontend**: React + TypeScript + Vite + shadcn/ui
+- **Frontend**: React 18 + TypeScript + Vite + shadcn/ui
 - **Database**: PostgreSQL 16 (embedded in container)
 - **ORM**: Drizzle ORM with type-safe queries
-- **Real-time**: WebSockets for chat and notifications
+- **Real-time**: WebSockets for chat and notifications (coming in Phase 5)
 
 ## Features
 
+### Implemented
 - **Single Container Deployment** - Everything in one Docker container
 - **First-Time Setup Wizard** - No config files needed, just run and configure via UI
-- **Projects & Tasks** - Kanban boards, task management, timelines
+- **Authentication** - Secure session-based auth with bcrypt password hashing
+- **Projects** - Create and manage projects with members and statuses
+- **Dark Mode** - Full dark/light/system theme support
+- **Responsive Layout** - Works on desktop and mobile
+
+### Coming Soon (Phase 4-6)
+- **Tasks** - Kanban boards, task management, timelines
 - **Documentation** - Notion-style docs with BlockNote editor
 - **Whiteboards** - Collaborative drawing with Excalidraw
 - **Chat** - Real-time messaging with WebSockets
 - **Meetings** - Calendar and scheduling
+- **Notifications** - Real-time notifications with @mentions
 - **Admin Settings** - Manage users, workspace settings, and custom statuses
 
 ## Technology Stack
@@ -59,20 +80,20 @@ This repo includes:
 # Simple deployment
 docker run -d \
   -p 3000:8080 \
-  -v workhub:/app/data \
-  --name workhub \
-  ghcr.io/your-org/workhub:latest
+  -v tuesday:/app/data \
+  --name tuesday \
+  ghcr.io/your-org/tuesday:latest
 
 # With custom options
 docker run -d \
   -p 8080:8080 \
   -v /path/to/data:/app/data \
-  -e WORKHUB_BASE_URL=https://workhub.example.com \
-  --name workhub \
-  ghcr.io/your-org/workhub:latest
+  -e TUESDAY_BASE_URL=https://tuesday.example.com \
+  --name tuesday \
+  ghcr.io/your-org/tuesday:latest
 ```
 
-The first time you access WorkHub, you'll be redirected to the setup wizard where you can:
+The first time you access Tuesday, you'll be redirected to the setup wizard where you can:
 - Set your workspace/company name
 - Create the first admin user
 
@@ -84,19 +105,19 @@ If you prefer using Docker Compose:
 version: '3.8'
 
 services:
-  workhub:
-    image: ghcr.io/your-org/workhub:latest
-    container_name: workhub
+  tuesday:
+    image: ghcr.io/your-org/tuesday:latest
+    container_name: tuesday
     restart: unless-stopped
     ports:
       - "3000:8080"
     volumes:
-      - workhub-data:/app/data
+      - tuesday-data:/app/data
     environment:
-      - WORKHUB_BASE_URL=https://workhub.example.com
+      - TUESDAY_BASE_URL=https://tuesday.example.com
 
 volumes:
-  workhub-data:
+  tuesday-data:
 ```
 
 ### Environment Variables
@@ -105,9 +126,9 @@ All optional - sensible defaults provided:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `WORKHUB_PORT` | `8080` | HTTP server port |
-| `WORKHUB_BASE_URL` | `http://localhost:8080` | Public URL for links |
-| `WORKHUB_DATA_DIR` | `/app/data` | Data directory path |
+| `TUESDAY_PORT` | `8080` | HTTP server port |
+| `TUESDAY_BASE_URL` | `http://localhost:8080` | Public URL for links |
+| `TUESDAY_DATA_DIR` | `/app/data` | Data directory path |
 
 **Note**: `SESSION_SECRET` is auto-generated on first run and saved to `/app/data/.session_secret`
 
@@ -120,16 +141,16 @@ All data is stored in the `/app/data` volume:
 
 ### Reverse Proxy Setup
 
-WorkHub is designed to run behind a reverse proxy for HTTPS termination. Configure your reverse proxy to forward to `http://workhub:8080`.
+Tuesday is designed to run behind a reverse proxy for HTTPS termination. Configure your reverse proxy to forward to `http://tuesday:8080`.
 
 **Nginx Proxy Manager example:**
-- Forward Hostname/IP: `workhub`
+- Forward Hostname/IP: `tuesday`
 - Forward Port: `8080`
 - Scheme: `http`
 
 **Caddy example:**
 ```
-workhub.example.com {
+tuesday.example.com {
     reverse_proxy localhost:3000
 }
 ```
@@ -146,12 +167,12 @@ workhub.example.com {
 ```bash
 # 1. Start PostgreSQL for development
 docker run -d \
-  --name workhub-db \
-  -e POSTGRES_DB=workhub \
-  -e POSTGRES_USER=workhub \
-  -e POSTGRES_PASSWORD=workhub \
+  --name tuesday-db \
+  -e POSTGRES_DB=tuesday \
+  -e POSTGRES_USER=tuesday \
+  -e POSTGRES_PASSWORD=tuesday \
   -p 5432:5432 \
-  -v workhub-dev:/var/lib/postgresql/data \
+  -v tuesday-dev:/var/lib/postgresql/data \
   postgres:16-alpine
 
 # 2. Install dependencies
@@ -185,19 +206,28 @@ The frontend will be available at `http://localhost:5173` and proxies API calls 
 1. Visit `http://localhost:5173`
 2. You'll be redirected to `/setup` if no users exist
 3. Complete the setup wizard to create the admin account
+4. Login and start exploring!
+
+### Theme Support
+
+Tuesday supports light, dark, and system themes:
+- Click your avatar in the top-right corner
+- Select "Theme" to cycle through Light → Dark → System
+- Your preference is saved automatically
 
 ## Project Structure
 
 ```
-workhub/
+tuesday/
 ├── backend/                 # Bun + Hono backend
 │   ├── src/
 │   │   ├── index.ts         # Entry point
 │   │   ├── routes/          # API routes
 │   │   ├── services/        # Business logic
 │   │   ├── repositories/    # Database access (Drizzle)
+│   │   ├── middleware/      # Auth, rate limiting, etc.
 │   │   ├── db/              # Schema and migrations
-│   │   └── ...
+│   │   └── utils/           # Helpers
 │   ├── drizzle.config.ts
 │   └── package.json
 │
@@ -205,15 +235,23 @@ workhub/
 │   ├── src/
 │   │   ├── pages/           # Route components
 │   │   ├── components/      # UI components
+│   │   │   ├── ui/          # shadcn/ui components
+│   │   │   ├── layout/      # App layout components
+│   │   │   └── projects/    # Project-specific components
 │   │   ├── api/             # API clients
 │   │   ├── hooks/           # Custom hooks
-│   │   └── store/           # State management
+│   │   ├── store/           # Zustand state management
+│   │   └── providers/       # React context providers
 │   └── package.json
 │
+├── plan/                    # Development planning docs
+│   ├── architecture.md      # System architecture
+│   ├── phases.md            # Development phases
+│   └── scope.md             # Project scope
+│
 ├── Dockerfile               # Production build
-├── supervisord.conf         # Process management
-└── plan/
-    └── architecture.md      # Detailed architecture docs
+├── AGENTS.md                # Development guidelines
+└── README.md                # This file
 ```
 
 ## Common Commands
@@ -282,25 +320,25 @@ bunx --bun shadcn@latest add button
 
 ```bash
 # Build image
-docker build -t workhub:latest .
+docker build -t tuesday:latest .
 
 # Run container
-docker run -d -p 3000:8080 -v workhub:/app/data --name workhub workhub:latest
+docker run -d -p 3000:8080 -v tuesday:/app/data --name tuesday tuesday:latest
 
 # View logs
-docker logs -f workhub
+docker logs -f tuesday
 
 # Stop container
-docker stop workhub
+docker stop tuesday
 
 # Remove container
-docker rm workhub
+docker rm tuesday
 
 # Backup database
-docker exec workhub pg_dump -U workhub workhub > backup.sql
+docker exec tuesday pg_dump -U tuesday tuesday > backup.sql
 
 # Restore database
-cat backup.sql | docker exec -i workhub psql -U workhub workhub
+cat backup.sql | docker exec -i tuesday psql -U tuesday tuesday
 ```
 
 ## API
@@ -336,11 +374,20 @@ See `plan/architecture.md` for complete API documentation.
 
 ## Authentication
 
-WorkHub uses cookie-based sessions:
+Tuesday uses cookie-based sessions:
 - Cookie name: `session_id`
 - HTTP-only, Secure, SameSite=Strict
 - 24-hour expiry (configurable)
 - Stored in PostgreSQL `sessions` table
+- Passwords hashed with bcrypt (cost factor 12)
+
+## Security
+
+- **Rate Limiting**: Auth endpoints limited to 5 requests/minute per IP
+- **Session Management**: Secure, HTTP-only cookies with CSRF protection
+- **Access Control**: Two-level model (workspace role + project membership)
+- **SQL Injection**: Prevented via Drizzle ORM parameterized queries
+- **XSS Prevention**: React auto-escaping + content sanitization
 
 ## Architecture
 
@@ -366,29 +413,29 @@ See `AGENTS.md` for development guidelines including:
 
 ```bash
 # Check logs
-docker logs workhub
+docker logs tuesday
 
 # Check if PostgreSQL is running inside container
-docker exec workhub pg_isready -U workhub
+docker exec tuesday pg_isready -U tuesday
 ```
 
 ### Can't connect to database in development
 
 Make sure PostgreSQL is running:
 ```bash
-docker ps | grep workhub-db
+docker ps | grep tuesday-db
 ```
 
 If not, start it:
 ```bash
-docker start workhub-db
+docker start tuesday-db
 ```
 
 ### Setup page not showing
 
 Check if users exist in database:
 ```bash
-docker exec -it workhub psql -U workhub workhub -c "SELECT COUNT(*) FROM users;"
+docker exec -it tuesday psql -U tuesday tuesday -c "SELECT COUNT(*) FROM users;"
 ```
 
 ## Contributing
@@ -407,6 +454,7 @@ docker exec -it workhub psql -U workhub workhub -c "SELECT COUNT(*) FROM users;"
 
 ## Support
 
-- Issues: [GitHub Issues](https://github.com/your-org/workhub/issues)
+- Issues: [GitHub Issues](https://github.com/your-org/tuesday/issues)
 - Documentation: `plan/architecture.md`
 - Development Guide: `AGENTS.md`
+- Development Phases: `plan/phases.md`
