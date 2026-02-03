@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Custom colors matching wireframe */
+    --background: 38 35% 95%; /* #F7F4EE - Warm cream */
+    --foreground: 0 0% 9%; /* #161616 */
+    --card: 0 0% 100%; /* #FFFFFF */
+    --card-foreground: 0 0% 9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 9%;
+    --primary: 174 78% 27%; /* #0F766E - Teal */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 17 89% 40%; /* #C2410C - Burnt orange */
+    --secondary-foreground: 0 0% 100%;
+    --muted: 0 0% 42%; /* #6B6B6B */
+    --muted-foreground: 0 0% 42%;
+    --accent: 174 78% 27%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 4 90% 40%; /* #B42318 - Red */
+    --destructive-foreground: 0 0% 100%;
+    --border: 32 23% 87%; /* #E6E0D6 - Light tan */
+    --input: 32 23% 87%;
+    --ring: 174 78% 27%;
+    --radius: 0.625rem; /* 10px - matches wireframe buttons */
+    
+    /* Additional semantic colors */
+    --success: 142 76% 36%;
+    --warning: 32 95% 44%;
+    --info: 199 89% 48%;
+  }
+
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif;
+  }
+}
