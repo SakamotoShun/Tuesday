@@ -1,0 +1,4714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Work Hub - HighFi Wireframes</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Fraunces:wght@600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #F7F4EE;
+      --panel: #FFFFFF;
+      --ink: #161616;
+      --muted: #6B6B6B;
+      --border: #E6E0D6;
+      --accent: #0F766E;
+      --accent-light: #E6FFFA;
+      --accent-2: #C2410C;
+      --warn: #B42318;
+      --success: #166534;
+      --warning: #B45309;
+      --info: #0369A1;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'IBM Plex Sans', sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      min-height: 100vh;
+    }
+    
+    .wireframe-section {
+      min-height: 100vh;
+      padding: 40px;
+      border-bottom: 3px dashed var(--border);
+    }
+    
+    .section-title {
+      font-family: 'Fraunces', serif;
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--muted);
+      margin-bottom: 32px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    /* Global Shell Components */
+    .app-shell {
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 100px);
+      background: var(--panel);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+    
+    .top-bar {
+      height: 72px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      gap: 24px;
+    }
+    
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 18px;
+    }
+    
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 700;
+    }
+    
+    .global-search {
+      flex: 1;
+      max-width: 400px;
+    }
+    
+    .search-input {
+      width: 100%;
+      padding: 10px 16px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--bg);
+      color: var(--muted);
+      font-size: 14px;
+    }
+    
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+      padding: 10px 18px;
+      border-radius: 10px;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .btn-secondary {
+      background: var(--bg);
+      color: var(--ink);
+      padding: 10px 18px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      font-weight: 500;
+      cursor: pointer;
+    }
+    
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted);
+      padding: 8px;
+      border: none;
+      cursor: pointer;
+      border-radius: 8px;
+    }
+    
+    .icon-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      position: relative;
+    }
+    
+    .badge {
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      width: 18px;
+      height: 18px;
+      background: var(--accent-2);
+      color: white;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    
+    .app-body {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+    
+    .left-rail {
+      width: 84px;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px 0;
+      gap: 8px;
+    }
+    
+    .rail-item {
+      width: 60px;
+      height: 60px;
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 500;
+    }
+    
+    .rail-item.active {
+      background: var(--accent-light);
+      color: var(--accent);
+    }
+    
+    .rail-item:hover:not(.active) {
+      background: var(--bg);
+    }
+    
+    .rail-icon {
+      font-size: 20px;
+    }
+    
+    .main-canvas {
+      flex: 1;
+      padding: 24px 32px;
+      overflow-y: auto;
+    }
+    
+    .page-title {
+      font-family: 'Fraunces', serif;
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 24px;
+    }
+    
+    /* Cards & Panels */
+    .card {
+      background: var(--panel);
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      padding: 20px;
+    }
+    
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    
+    .card-title {
+      font-size: 16px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .card-subtitle {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    
+    /* Status Badges */
+    .status-badge {
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    
+    .status-active {
+      background: #DEF7EC;
+      color: var(--success);
+    }
+    
+    .status-planning {
+      background: #E0F2FE;
+      color: var(--info);
+    }
+    
+    .status-hold {
+      background: #FEF3C7;
+      color: var(--warning);
+    }
+    
+    .status-completed {
+      background: #F3F4F6;
+      color: var(--muted);
+    }
+    
+    /* Avatar Groups */
+    .avatar-group {
+      display: flex;
+    }
+    
+    .avatar-group .avatar {
+      margin-left: -8px;
+      border: 2px solid var(--panel);
+    }
+    
+    .avatar-group .avatar:first-child {
+      margin-left: 0;
+    }
+    
+    /* Tables */
+    .table-row {
+      display: flex;
+      align-items: center;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      gap: 16px;
+    }
+    
+    .table-row:last-child {
+      border-bottom: none;
+    }
+    
+    .table-row:hover {
+      background: var(--bg);
+      border-radius: 10px;
+    }
+    
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 20px;
+    }
+    
+    .tab {
+      padding: 12px 20px;
+      font-weight: 500;
+      color: var(--muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+    }
+    
+    .tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    
+    /* Kanban */
+    .kanban-board {
+      display: flex;
+      gap: 16px;
+      overflow-x: auto;
+    }
+    
+    .kanban-column {
+      min-width: 280px;
+      background: var(--bg);
+      border-radius: 14px;
+      padding: 16px;
+    }
+    
+    .kanban-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    
+    .kanban-title {
+      font-weight: 700;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .kanban-count {
+      background: var(--panel);
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+    
+    .task-card {
+      background: var(--panel);
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 10px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+    }
+    
+    .task-card:hover {
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    
+    .task-title {
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 10px;
+      line-height: 1.4;
+    }
+    
+    .task-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .due-date {
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    
+    /* Chat */
+    .chat-container {
+      display: flex;
+      height: 100%;
+    }
+    
+    .channel-list {
+      width: 240px;
+      border-right: 1px solid var(--border);
+      padding: 16px;
+    }
+    
+    .channel-section {
+      margin-bottom: 20px;
+    }
+    
+    .channel-section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    
+    .channel-item {
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .channel-item.active {
+      background: var(--accent-light);
+      color: var(--accent);
+      font-weight: 600;
+    }
+    
+    .channel-item:hover:not(.active) {
+      background: var(--bg);
+    }
+    
+    .unread-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--accent);
+      border-radius: 50%;
+      margin-left: auto;
+    }
+    
+    .chat-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .chat-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 700;
+      font-size: 16px;
+    }
+    
+    .chat-messages {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    
+    .message {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    
+    .message-content {
+      flex: 1;
+    }
+    
+    .message-header {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    
+    .message-author {
+      font-weight: 700;
+      font-size: 14px;
+    }
+    
+    .message-time {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    
+    .message-text {
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    
+    .chat-composer {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border);
+    }
+    
+    .composer-input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--bg);
+      font-size: 14px;
+      resize: none;
+      min-height: 44px;
+    }
+    
+    /* Timeline */
+    .timeline-container {
+      padding: 20px;
+    }
+    
+    .timeline-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    
+    .timeline-canvas {
+      background: var(--panel);
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      padding: 20px;
+      min-height: 400px;
+    }
+    
+    /* Calendar */
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+    }
+    
+    .calendar-day {
+      aspect-ratio: 1;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px;
+      font-size: 13px;
+    }
+    
+    .calendar-day-header {
+      text-align: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      padding: 8px;
+    }
+    
+    .meeting-chip {
+      background: var(--accent-light);
+      color: var(--accent);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-top: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    /* Inputs */
+    input, textarea, select {
+      font-family: 'IBM Plex Sans', sans-serif;
+    }
+    
+    .form-group {
+      margin-bottom: 16px;
+    }
+    
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    
+    .form-input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 14px;
+    }
+    
+    .form-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    
+    /* Filters */
+    .filter-bar {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    
+    .filter-select {
+      padding: 8px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--panel);
+      font-size: 14px;
+      min-width: 140px;
+    }
+    
+    /* Utility */
+    .text-muted {
+      color: var(--muted);
+    }
+    
+    .text-accent {
+      color: var(--accent);
+    }
+    
+    .text-warning {
+      color: var(--warn);
+    }
+    
+    .flex {
+      display: flex;
+    }
+    
+    .flex-col {
+      flex-direction: column;
+    }
+    
+    .gap-2 {
+      gap: 8px;
+    }
+    
+    .gap-3 {
+      gap: 12px;
+    }
+    
+    .gap-4 {
+      gap: 16px;
+    }
+    
+    .justify-between {
+      justify-content: space-between;
+    }
+    
+    .items-center {
+      align-items: center;
+    }
+    
+    .mb-2 {
+      margin-bottom: 8px;
+    }
+    
+    .mb-3 {
+      margin-bottom: 12px;
+    }
+    
+    .mb-4 {
+      margin-bottom: 16px;
+    }
+    
+    .w-full {
+      width: 100%;
+    }
+    
+    /* Grid Layouts */
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+    
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+    
+    /* Login specific */
+    .login-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: calc(100vh - 80px);
+    }
+    
+    .login-card {
+      background: var(--panel);
+      border-radius: 20px;
+      padding: 48px;
+      width: 100%;
+      max-width: 420px;
+      text-align: center;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+    }
+    
+    .login-logo {
+      width: 64px;
+      height: 64px;
+      background: var(--accent);
+      border-radius: 16px;
+      margin: 0 auto 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 28px;
+      font-weight: 700;
+    }
+    
+    .login-title {
+      font-family: 'Fraunces', serif;
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    
+    .login-subtitle {
+      color: var(--muted);
+      margin-bottom: 32px;
+    }
+    
+    .sso-button {
+      width: 100%;
+      padding: 14px;
+      background: var(--ink);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 15px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+    
+    .login-footer {
+      margin-top: 32px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--muted);
+    }
+    
+    /* Editor */
+    .doc-editor {
+      display: flex;
+      gap: 24px;
+    }
+    
+    .doc-sidebar {
+      width: 240px;
+      flex-shrink: 0;
+    }
+    
+    .doc-list-item {
+      padding: 10px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+    
+    .doc-list-item.active {
+      background: var(--accent-light);
+      color: var(--accent);
+      font-weight: 600;
+    }
+    
+    .doc-list-item:hover:not(.active) {
+      background: var(--bg);
+    }
+
+    /* Notion-ish tree */
+    .tree-section {
+      margin-bottom: 18px;
+    }
+
+    .tree-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .tree-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+    }
+
+    .tree-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-bottom: 4px;
+      color: var(--ink);
+    }
+
+    .tree-item.active {
+      background: var(--accent-light);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .tree-item:hover:not(.active) {
+      background: var(--bg);
+    }
+
+    .tree-caret {
+      width: 16px;
+      height: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .tree-icon {
+      width: 18px;
+      height: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 5px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .tree-label {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .tree-meta {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .tree-indent-1 { padding-left: 30px; }
+    .tree-indent-2 { padding-left: 48px; }
+
+    /* Database view */
+    .database-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .database-title {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+
+    .database-title h2 {
+      font-family: 'Fraunces', serif;
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    .view-chip {
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    .database-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    .database-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .database-table th {
+      text-align: left;
+      padding: 10px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+
+    .database-table td {
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+      font-size: 14px;
+    }
+
+    .db-row {
+      cursor: pointer;
+    }
+
+    .db-row:hover {
+      background: var(--bg);
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--muted);
+    }
+
+    .pill.green { background: #DEF7EC; color: var(--success); border-color: #B7E4D0; }
+    .pill.blue { background: #E0F2FE; color: var(--info); border-color: #BAE6FD; }
+    .pill.gray { background: #F3F4F6; color: var(--muted); border-color: #E5E7EB; }
+    .pill.orange { background: #FFEDD5; color: var(--accent-2); border-color: #FED7AA; }
+
+    /* Page properties header */
+    .page-header {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--panel);
+      padding: 18px 20px;
+      margin-bottom: 18px;
+    }
+
+    .page-header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 12px;
+    }
+
+    .page-title-input {
+      font-family: 'Fraunces', serif;
+      font-size: 28px;
+      font-weight: 700;
+      border: none;
+      outline: none;
+      width: 100%;
+      background: transparent;
+      color: var(--ink);
+    }
+
+    .property-grid {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 10px 12px;
+      align-items: center;
+    }
+
+    .property-key {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .property-value {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .mini-select {
+      padding: 6px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      font-size: 13px;
+    }
+
+    .add-property {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px dashed var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* Modals (wireframe interactions) */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(22, 22, 22, 0.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      z-index: 999;
+    }
+
+    .modal-backdrop.open {
+      display: flex;
+    }
+
+    .modal {
+      width: 100%;
+      max-width: 920px;
+      background: var(--panel);
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      box-shadow: 0 14px 50px rgba(0,0,0,0.22);
+      overflow: hidden;
+    }
+
+    .modal-header {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .modal-title {
+      font-weight: 800;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .modal-body {
+      padding: 18px;
+      background: var(--bg);
+    }
+
+    .schema-grid {
+      display: grid;
+      grid-template-columns: 1.3fr 0.9fr 1.2fr 48px;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .schema-grid.header {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-bottom: 10px;
+    }
+
+    .schema-row {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+
+    .schema-row .schema-grid {
+      grid-template-columns: 1.3fr 0.9fr 1.2fr 48px;
+    }
+
+    .schema-options {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px dashed var(--border);
+      display: none;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .schema-options.open {
+      display: flex;
+    }
+
+    .option-pill {
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .option-pill button {
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .modal-footer {
+      padding: 14px 18px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      background: var(--panel);
+    }
+
+    .template-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .template-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      cursor: pointer;
+    }
+
+    .template-card:hover {
+      box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+    }
+
+    .template-name {
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+
+    .template-desc {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 10px;
+      line-height: 1.4;
+    }
+
+    .template-meta {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    /* Whiteboards */
+    .whiteboards-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .whiteboards-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .whiteboard-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      cursor: pointer;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.04);
+    }
+
+    .whiteboard-card:hover {
+      box-shadow: 0 10px 28px rgba(0,0,0,0.08);
+    }
+
+    .whiteboard-preview {
+      height: 140px;
+      background:
+        radial-gradient(circle at 1px 1px, rgba(22,22,22,0.10) 1px, transparent 0) 0 0/18px 18px,
+        linear-gradient(180deg, rgba(247,244,238,0.70), rgba(255,255,255,0.90));
+      position: relative;
+    }
+
+    .whiteboard-preview::after {
+      content: "";
+      position: absolute;
+      inset: 18px;
+      border-radius: 12px;
+      border: 1px dashed rgba(22,22,22,0.18);
+    }
+
+    .whiteboard-card-body {
+      padding: 14px 14px 16px;
+    }
+
+    .whiteboard-card-title {
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+
+    .whiteboard-card-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .whiteboard-editor-shell {
+      height: calc(100vh - 220px);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: 64px 1fr 300px;
+    }
+
+    .whiteboard-tools {
+      border-right: 1px solid var(--border);
+      background: var(--bg);
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .tool-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-weight: 800;
+    }
+
+    .tool-btn.active {
+      background: var(--accent-light);
+      border-color: rgba(15,118,110,0.35);
+      color: var(--accent);
+    }
+
+    .whiteboard-canvas {
+      position: relative;
+      background:
+        radial-gradient(circle at 1px 1px, rgba(22,22,22,0.09) 1px, transparent 0) 0 0/20px 20px,
+        linear-gradient(180deg, rgba(255,255,255,0.96), rgba(247,244,238,0.85));
+    }
+
+    .canvas-topbar {
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 14px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255,255,255,0.85);
+      backdrop-filter: blur(8px);
+    }
+
+    .canvas-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 900;
+    }
+
+    .canvas-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .canvas-stage {
+      position: absolute;
+      inset: 56px 0 0 0;
+      padding: 24px;
+    }
+
+    .sketch {
+      width: min(760px, 92%);
+      background: rgba(255,255,255,0.78);
+      border: 1px solid rgba(22,22,22,0.16);
+      border-radius: 14px;
+      padding: 18px;
+      box-shadow: 0 8px 26px rgba(0,0,0,0.08);
+    }
+
+    .sketch h3 {
+      font-family: 'Fraunces', serif;
+      font-size: 20px;
+      margin-bottom: 8px;
+    }
+
+    .sketch p {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 10px;
+      line-height: 1.35;
+    }
+
+    .sketch-box-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .sketch-box {
+      background: var(--accent-light);
+      border: 1px solid rgba(15,118,110,0.25);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .whiteboard-sidebar {
+      border-left: 1px solid var(--border);
+      background: var(--panel);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .sidebar-block {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--bg);
+      padding: 12px;
+    }
+
+    .sidebar-block-title {
+      font-weight: 900;
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+
+    .whiteboard-embed {
+      margin-top: 18px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      background: var(--panel);
+    }
+
+    .whiteboard-embed-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+
+    .whiteboard-embed-title {
+      font-weight: 900;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .whiteboard-embed-preview {
+      height: 120px;
+      background:
+        radial-gradient(circle at 1px 1px, rgba(22,22,22,0.10) 1px, transparent 0) 0 0/18px 18px,
+        linear-gradient(180deg, rgba(247,244,238,0.72), rgba(255,255,255,0.92));
+    }
+    
+    .doc-main {
+      flex: 1;
+      background: var(--panel);
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      padding: 32px;
+    }
+    
+    .editor-toolbar {
+      display: flex;
+      gap: 8px;
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+      margin: -32px -32px 24px -32px;
+      padding-left: 32px;
+    }
+    
+    .toolbar-btn {
+      padding: 6px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--panel);
+      font-size: 13px;
+      cursor: pointer;
+    }
+    
+    .editor-content {
+      min-height: 400px;
+      font-size: 16px;
+      line-height: 1.7;
+    }
+    
+    .editor-content h1 {
+      font-family: 'Fraunces', serif;
+      font-size: 32px;
+      margin-bottom: 16px;
+    }
+    
+    .editor-content h2 {
+      font-family: 'Fraunces', serif;
+      font-size: 24px;
+      margin-top: 32px;
+      margin-bottom: 12px;
+    }
+    
+    .editor-content p {
+      margin-bottom: 16px;
+    }
+    
+    /* Admin Table */
+    .admin-table {
+      width: 100%;
+    }
+    
+    .admin-table th {
+      text-align: left;
+      padding: 12px 16px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .admin-table td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    /* Notification items */
+    .notification-item {
+      display: flex;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+    }
+    
+    .notification-item:hover {
+      background: var(--bg);
+    }
+    
+    .notification-item.unread {
+      background: var(--accent-light);
+    }
+    
+    .notification-content {
+      flex: 1;
+    }
+    
+    .notification-source {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    
+    .notification-text {
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    
+    .notification-time {
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- FRAME 1: LOGIN (SSO) -->
+  <div class="wireframe-section">
+    <div class="section-title">Frame 1: Login (SSO)</div>
+    <div class="login-container">
+      <div class="login-card">
+        <div class="login-logo">WH</div>
+        <div class="login-title">Work Hub</div>
+        <div class="login-subtitle">Sign in to your workspace</div>
+        
+        <button class="sso-button">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 15v-3m0 0V9m0 3H9m3 0h3M5 12a7 7 0 1114 0 7 7 0 01-14 0z"/>
+          </svg>
+          Sign in with SSO
+        </button>
+        
+        <div style="margin-top: 20px; font-size: 13px; color: var(--muted);">
+          <select style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg);">
+            <option>Google Workspace</option>
+            <option>Microsoft Entra</option>
+            <option>Keycloak (OIDC)</option>
+          </select>
+        </div>
+        
+        <div class="login-footer">
+          Internal workspace only • v0.1.0
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FRAME 2: HOME (Dashboard) -->
+  <div class="wireframe-section">
+    <div class="section-title">Frame 2: Home (Personal Dashboard)</div>
+    <div class="app-shell">
+      <div class="top-bar">
+        <div class="logo">
+          <div class="logo-icon">WH</div>
+          Work Hub
+        </div>
+        <div class="global-search">
+          <input type="text" class="search-input" placeholder="Search projects, docs, tasks..." disabled>
+        </div>
+        <div class="top-actions">
+          <button class="btn-primary">
+            <span>+</span> Create
+          </button>
+          <div class="icon-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+            <span class="badge">3</span>
+          </div>
+          <div class="avatar">JD</div>
+        </div>
+      </div>
+      
+      <div class="app-body">
+        <div class="left-rail">
+          <div class="rail-item active">
+            <span class="rail-icon">◈</span>
+            <span>Home</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">▣</span>
+            <span>Projects</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◎</span>
+            <span>My Work</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◉</span>
+            <span>Calendar</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◐</span>
+            <span>Chat</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◊</span>
+            <span>Admin</span>
+          </div>
+        </div>
+        
+        <div class="main-canvas">
+          <div class="page-title">Good morning, John</div>
+          
+          <div class="grid-3">
+            <!-- Notifications -->
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">
+                  <span>🔔</span> Notifications
+                </div>
+                <button class="btn-ghost" style="font-size: 12px;">Mark all read</button>
+              </div>
+              
+              <div class="notification-item unread">
+                <div class="avatar" style="width: 32px; height: 32px; font-size: 12px;">SM</div>
+                <div class="notification-content">
+                  <div class="notification-source">Website Redesign #proj-website</div>
+                  <div class="notification-text"><strong>Sarah</strong> mentioned you in <strong>"Q1 Planning Doc"</strong></div>
+                </div>
+                <div class="notification-time">2m ago</div>
+              </div>
+              
+              <div class="notification-item unread">
+                <div class="avatar" style="width: 32px; height: 32px; font-size: 12px;">MK</div>
+                <div class="notification-content">
+                  <div class="notification-source">Mobile App #proj-mobile</div>
+                  <div class="notification-text"><strong>Mike</strong> assigned you to <strong>"API Integration"</strong></div>
+                </div>
+                <div class="notification-time">1h ago</div>
+              </div>
+              
+              <div class="notification-item">
+                <div class="avatar" style="width: 32px; height: 32px; font-size: 12px;">AL</div>
+                <div class="notification-content">
+                  <div class="notification-source">Town Square</div>
+                  <div class="notification-text"><strong>Alice</strong> posted: "New design system is live! 🎉"</div>
+                </div>
+                <div class="notification-time">3h ago</div>
+              </div>
+            </div>
+            
+            <!-- My Work -->
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">
+                  <span>◎</span> My Work
+                </div>
+              </div>
+              
+              <div style="margin-bottom: 16px;">
+                <div style="font-size: 12px; font-weight: 700; color: var(--warn); margin-bottom: 8px;">OVERDUE</div>
+                <div class="task-card" style="border-left: 3px solid var(--warn);">
+                  <div class="task-title">Review Q4 financial reports</div>
+                  <div class="task-meta">
+                    <span class="due-date text-warning">Due yesterday</span>
+                    <span style="font-size: 12px; color: var(--muted);">#proj-finance</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div style="margin-bottom: 16px;">
+                <div style="font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 8px;">THIS WEEK</div>
+                <div class="task-card">
+                  <div class="task-title">Finalize homepage mockups</div>
+                  <div class="task-meta">
+                    <span class="due-date">Due Friday</span>
+                    <span style="font-size: 12px; color: var(--muted);">#proj-website</span>
+                  </div>
+                </div>
+                <div class="task-card">
+                  <div class="task-title">Update API documentation</div>
+                  <div class="task-meta">
+                    <span class="due-date">Due Thursday</span>
+                    <span style="font-size: 12px; color: var(--muted);">#proj-mobile</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div>
+                <div style="font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 8px;">LATER</div>
+                <div class="task-card">
+                  <div class="task-title">Q1 planning session prep</div>
+                  <div class="task-meta">
+                    <span class="due-date">Due Jan 15</span>
+                    <span style="font-size: 12px; color: var(--muted);">#proj-planning</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Upcoming Meetings -->
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">
+                  <span>◉</span> Upcoming Meetings
+                </div>
+              </div>
+              
+              <div class="table-row" style="padding-left: 0; padding-right: 0;">
+                <div style="flex: 1;">
+                  <div style="font-weight: 600; margin-bottom: 4px;">Daily Standup</div>
+                  <div style="font-size: 13px; color: var(--muted);">Today, 9:00 AM • 30 min</div>
+                </div>
+                <div class="avatar-group">
+                  <div class="avatar" style="width: 28px; height: 28px; font-size: 11px;">SM</div>
+                  <div class="avatar" style="width: 28px; height: 28px; font-size: 11px;">MK</div>
+                  <div class="avatar" style="width: 28px; height: 28px; font-size: 11px;">+3</div>
+                </div>
+              </div>
+              
+              <div class="table-row" style="padding-left: 0; padding-right: 0;">
+                <div style="flex: 1;">
+                  <div style="font-weight: 600; margin-bottom: 4px;">Design Review</div>
+                  <div style="font-size: 13px; color: var(--muted);">Today, 2:00 PM • 1 hour</div>
+                </div>
+                <div class="avatar-group">
+                  <div class="avatar" style="width: 28px; height: 28px; font-size: 11px;">AL</div>
+                  <div class="avatar" style="width: 28px; height: 28px; font-size: 11px;">JD</div>
+                </div>
+              </div>
+              
+              <div class="table-row" style="padding-left: 0; padding-right: 0;">
+                <div style="flex: 1;">
+                  <div style="font-weight: 600; margin-bottom: 4px;">Q1 Planning</div>
+                  <div style="font-size: 13px; color: var(--muted);">Tomorrow, 10:00 AM • 2 hours</div>
+                </div>
+                <div class="avatar-group">
+                  <div class="avatar" style="width: 28px; height: 28px; font-size: 11px;">TL</div>
+                  <div class="avatar" style="width: 28px; height: 28px; font-size: 11px;">SM</div>
+                  <div class="avatar" style="width: 28px; height: 28px; font-size: 11px;">+5</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FRAME 3: PROJECTS LIST -->
+  <div class="wireframe-section">
+    <div class="section-title">Frame 3: Projects List</div>
+    <div class="app-shell">
+      <div class="top-bar">
+        <div class="logo">
+          <div class="logo-icon">WH</div>
+          Work Hub
+        </div>
+        <div class="global-search">
+          <input type="text" class="search-input" placeholder="Search projects, docs, tasks..." disabled>
+        </div>
+        <div class="top-actions">
+          <button class="btn-primary">
+            <span>+</span> Create
+          </button>
+          <div class="icon-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+          </div>
+          <div class="avatar">JD</div>
+        </div>
+      </div>
+      
+      <div class="app-body">
+        <div class="left-rail">
+          <div class="rail-item">
+            <span class="rail-icon">◈</span>
+            <span>Home</span>
+          </div>
+          <div class="rail-item active">
+            <span class="rail-icon">▣</span>
+            <span>Projects</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◎</span>
+            <span>My Work</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◉</span>
+            <span>Calendar</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◐</span>
+            <span>Chat</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◊</span>
+            <span>Admin</span>
+          </div>
+        </div>
+        
+        <div class="main-canvas">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <div class="page-title">Projects</div>
+            <button class="btn-primary">+ New Project</button>
+          </div>
+          
+          <div class="filter-bar">
+            <select class="filter-select">
+              <option>All Statuses</option>
+              <option>Active</option>
+              <option>Planning</option>
+              <option>On Hold</option>
+              <option>Completed</option>
+            </select>
+            <select class="filter-select">
+              <option>All Owners</option>
+              <option>John Doe</option>
+              <option>Sarah Miller</option>
+            </select>
+            <select class="filter-select">
+              <option>All Types</option>
+              <option>Client Project</option>
+              <option>Internal</option>
+              <option>Research</option>
+            </select>
+          </div>
+          
+          <div class="card">
+            <div class="table-row">
+              <div style="flex: 2;">
+                <div style="font-weight: 600; margin-bottom: 4px;">Website Redesign 2024</div>
+                <div style="font-size: 13px; color: var(--muted);">Acme Corp</div>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <span class="status-badge status-active">Active</span>
+                <span class="status-badge" style="background: #F3F4F6; color: var(--muted);">Client Project</span>
+              </div>
+              <div class="avatar-group">
+                <div class="avatar" style="width: 28px; height: 28px; font-size: 11px;">JD</div>
+                <div class="avatar" style="width: 28px; height: 28px; font-size: 11px;">SM</div>
+              </div>
+              <div style="font-size: 13px; color: var(--muted); white-space: nowrap;">
+                Jan 2 → Mar 15
+              </div>
+            </div>
+            
+            <div class="table-row">
+              <div style="flex: 2;">
+                <div style="font-weight: 600; margin-bottom: 4px;">Mobile App v2.0</div>
+                <div style="font-size: 13px; color: var(--muted);">Internal</div>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <span class="status-badge status-planning">Planning</span>
+                <span class="status-badge" style="background: #F3F4F6; color: var(--muted);">Internal</span>
+              </div>
+              <div class="avatar-group">
+                <div class="avatar" style="width: 28px; height: 28px; font-size: 11px;">MK</div>
+              </div>
+              <div style="font-size: 13px; color: var(--muted); white-space: nowrap;">
+                Feb 1 → Jun 30
+              </div>
+            </div>
+            
+            <div class="table-row">
+              <div style="flex: 2;">
+                <div style="font-weight: 600; margin-bottom: 4px;">Q1 Marketing Campaign</div>
+                <div style="font-size: 13px; color: var(--muted);">Internal</div>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <span class="status-badge status-active">Active</span>
+                <span class="status-badge" style="background: #F3F4F6; color: var(--muted);">Internal</span>
+              </div>
+              <div class="avatar-group">
+                <div class="avatar" style="width: 28px; height: 28px; font-size: 11px;">AL</div>
+                <div class="avatar" style="width: 28px; height: 28px; font-size: 11px;">JD</div>
+                <div class="avatar" style="width: 28px; height: 28px; font-size: 11px;">SM</div>
+              </div>
+              <div style="font-size: 13px; color: var(--muted); white-space: nowrap;">
+                Jan 15 → Mar 31
+              </div>
+            </div>
+            
+            <div class="table-row">
+              <div style="flex: 2;">
+                <div style="font-weight: 600; margin-bottom: 4px;">Legacy System Migration</div>
+                <div style="font-size: 13px; color: var(--muted);">TechCorp Inc</div>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <span class="status-badge status-hold">On Hold</span>
+                <span class="status-badge" style="background: #F3F4F6; color: var(--muted);">Client Project</span>
+              </div>
+              <div class="avatar-group">
+                <div class="avatar" style="width: 28px; height: 28px; font-size: 11px;">TL</div>
+              </div>
+              <div style="font-size: 13px; color: var(--muted); white-space: nowrap;">
+                Dec 1 → On Hold
+              </div>
+            </div>
+            
+            <div class="table-row">
+              <div style="flex: 2;">
+                <div style="font-weight: 600; margin-bottom: 4px;">2023 Year-End Reports</div>
+                <div style="font-size: 13px; color: var(--muted);">Internal</div>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <span class="status-badge status-completed">Completed</span>
+                <span class="status-badge" style="background: #F3F4F6; color: var(--muted);">Internal</span>
+              </div>
+              <div class="avatar-group">
+                <div class="avatar" style="width: 28px; height: 28px; font-size: 11px;">JD</div>
+              </div>
+              <div style="font-size: 13px; color: var(--muted); white-space: nowrap;">
+                Dec 1 → Dec 20
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FRAME 4: PROJECT DETAIL - TASKS (Hero) -->
+  <div class="wireframe-section">
+    <div class="section-title">Frame 4: Project Detail (Tasks) - Hero</div>
+    <div class="app-shell">
+      <div class="top-bar">
+        <div class="logo">
+          <div class="logo-icon">WH</div>
+          Work Hub
+        </div>
+        <div class="global-search">
+          <input type="text" class="search-input" placeholder="Search projects, docs, tasks..." disabled>
+        </div>
+        <div class="top-actions">
+          <button class="btn-primary">
+            <span>+</span> Create
+          </button>
+          <div class="icon-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+          </div>
+          <div class="avatar">JD</div>
+        </div>
+      </div>
+      
+      <div class="app-body">
+        <div class="left-rail">
+          <div class="rail-item">
+            <span class="rail-icon">◈</span>
+            <span>Home</span>
+          </div>
+          <div class="rail-item active">
+            <span class="rail-icon">▣</span>
+            <span>Projects</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◎</span>
+            <span>My Work</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◉</span>
+            <span>Calendar</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◐</span>
+            <span>Chat</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◊</span>
+            <span>Admin</span>
+          </div>
+        </div>
+        
+        <div class="main-canvas">
+          <!-- Project Header Card -->
+          <div class="card" style="margin-bottom: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
+              <div>
+                <div style="font-family: 'Fraunces', serif; font-size: 28px; font-weight: 700; margin-bottom: 8px;">Website Redesign 2024</div>
+                <div style="font-size: 15px; color: var(--muted);">Acme Corp</div>
+              </div>
+              <div style="display: flex; gap: 12px; align-items: center;">
+                <span class="status-badge status-active">Active</span>
+                <button class="btn-secondary">Manage Members</button>
+                <button class="btn-ghost">⋯</button>
+              </div>
+            </div>
+            
+            <div style="display: flex; gap: 32px; align-items: center;">
+              <div>
+                <div style="font-size: 12px; color: var(--muted); margin-bottom: 4px;">Owners</div>
+                <div class="avatar-group">
+                  <div class="avatar" style="width: 32px; height: 32px; font-size: 12px;">JD</div>
+                  <div class="avatar" style="width: 32px; height: 32px; font-size: 12px; background: var(--accent-2);">SM</div>
+                </div>
+              </div>
+              <div>
+                <div style="font-size: 12px; color: var(--muted); margin-bottom: 4px;">Timeline</div>
+                <div style="font-size: 14px; font-weight: 600;">Jan 2 → Mar 15, 2024</div>
+              </div>
+              <div>
+                <div style="font-size: 12px; color: var(--muted); margin-bottom: 4px;">Type</div>
+                <div style="font-size: 14px; font-weight: 600;">Client Project</div>
+              </div>
+              <div>
+                <div style="font-size: 12px; color: var(--muted); margin-bottom: 4px;">Members</div>
+                <div style="font-size: 14px; font-weight: 600;">8 people</div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Tabs -->
+          <div class="tabs">
+            <div class="tab">Docs</div>
+            <div class="tab active">Tasks</div>
+            <div class="tab">Timeline</div>
+            <div class="tab">Schedule</div>
+            <div class="tab">Whiteboards</div>
+            <div class="tab">Chat</div>
+          </div>
+          
+          <!-- Tasks Toolbar -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div class="filter-bar" style="margin-bottom: 0;">
+              <select class="filter-select">
+                <option>All Statuses</option>
+                <option>Backlog</option>
+                <option>In Progress</option>
+                <option>Blocked</option>
+                <option>Done</option>
+              </select>
+              <select class="filter-select">
+                <option>All Assignees</option>
+                <option>John Doe</option>
+                <option>Sarah Miller</option>
+              </select>
+            </div>
+            <button class="btn-primary">+ New Task</button>
+          </div>
+          
+          <!-- Kanban Board -->
+          <div class="kanban-board">
+            <!-- Backlog -->
+            <div class="kanban-column">
+              <div class="kanban-header">
+                <div class="kanban-title">
+                  <span style="width: 8px; height: 8px; background: var(--muted); border-radius: 50%;"></span>
+                  Backlog
+                </div>
+                <span class="kanban-count">3</span>
+              </div>
+              
+              <div class="task-card">
+                <div class="task-title">Competitive analysis research</div>
+                <div class="task-meta">
+                  <div class="avatar" style="width: 24px; height: 24px; font-size: 10px;">MK</div>
+                </div>
+              </div>
+              
+              <div class="task-card">
+                <div class="task-title">User interview synthesis</div>
+                <div class="task-meta">
+                  <div class="avatar" style="width: 24px; height: 24px; font-size: 10px;">AL</div>
+                  <span class="due-date">Jan 20</span>
+                </div>
+              </div>
+              
+              <div class="task-card">
+                <div class="task-title">SEO audit report</div>
+                <div class="task-meta">
+                  <div class="avatar" style="width: 24px; height: 24px; font-size: 10px;">—</div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- In Progress -->
+            <div class="kanban-column">
+              <div class="kanban-header">
+                <div class="kanban-title">
+                  <span style="width: 8px; height: 8px; background: var(--info); border-radius: 50%;"></span>
+                  In Progress
+                </div>
+                <span class="kanban-count">4</span>
+              </div>
+              
+              <div class="task-card">
+                <div class="task-title">Homepage wireframes v2</div>
+                <div class="task-meta">
+                  <div class="avatar" style="width: 24px; height: 24px; font-size: 10px;">JD</div>
+                  <span class="due-date">Jan 18</span>
+                </div>
+              </div>
+              
+              <div class="task-card">
+                <div class="task-title">Navigation component library</div>
+                <div class="task-meta">
+                  <div class="avatar" style="width: 24px; height: 24px; font-size: 10px;">SM</div>
+                  <span class="due-date">Jan 22</span>
+                </div>
+              </div>
+              
+              <div class="task-card">
+                <div class="task-title">Mobile responsive layouts</div>
+                <div class="task-meta">
+                  <div class="avatar" style="width: 24px; height: 24px; font-size: 10px;">AL</div>
+                </div>
+              </div>
+              
+              <div class="task-card">
+                <div class="task-title">Analytics dashboard design</div>
+                <div class="task-meta">
+                  <div class="avatar" style="width: 24px; height: 24px; font-size: 10px;">MK</div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Blocked -->
+            <div class="kanban-column">
+              <div class="kanban-header">
+                <div class="kanban-title">
+                  <span style="width: 8px; height: 8px; background: var(--warn); border-radius: 50%;"></span>
+                  Blocked
+                </div>
+                <span class="kanban-count">1</span>
+              </div>
+              
+              <div class="task-card" style="border-left: 3px solid var(--warn);">
+                <div class="task-title">API integration - waiting for specs</div>
+                <div class="task-meta">
+                  <div class="avatar" style="width: 24px; height: 24px; font-size: 10px;">TL</div>
+                  <span class="due-date" style="color: var(--warn);">Blocked</span>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Done -->
+            <div class="kanban-column">
+              <div class="kanban-header">
+                <div class="kanban-title">
+                  <span style="width: 8px; height: 8px; background: var(--success); border-radius: 50%;"></span>
+                  Done
+                </div>
+                <span class="kanban-count">5</span>
+              </div>
+              
+              <div class="task-card" style="opacity: 0.7;">
+                <div class="task-title">✓ Kickoff meeting</div>
+                <div class="task-meta">
+                  <div class="avatar" style="width: 24px; height: 24px; font-size: 10px;">JD</div>
+                </div>
+              </div>
+              
+              <div class="task-card" style="opacity: 0.7;">
+                <div class="task-title">✓ Project brief</div>
+                <div class="task-meta">
+                  <div class="avatar" style="width: 24px; height: 24px; font-size: 10px;">SM</div>
+                </div>
+              </div>
+              
+              <div class="task-card" style="opacity: 0.7;">
+                <div class="task-title">✓ Stakeholder alignment</div>
+                <div class="task-meta">
+                  <div class="avatar" style="width: 24px; height: 24px; font-size: 10px;">JD</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FRAME 5: PROJECT DETAIL - DOCS -->
+  <div class="wireframe-section">
+    <div class="section-title">Frame 5: Project Detail (Docs)</div>
+    <div class="app-shell">
+      <div class="top-bar">
+        <div class="logo">
+          <div class="logo-icon">WH</div>
+          Work Hub
+        </div>
+        <div class="global-search">
+          <input type="text" class="search-input" placeholder="Search projects, docs, tasks..." disabled>
+        </div>
+        <div class="top-actions">
+          <button class="btn-primary">
+            <span>+</span> Create
+          </button>
+          <div class="icon-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+          </div>
+          <div class="avatar">JD</div>
+        </div>
+      </div>
+      
+      <div class="app-body">
+        <div class="left-rail">
+          <div class="rail-item">
+            <span class="rail-icon">◈</span>
+            <span>Home</span>
+          </div>
+          <div class="rail-item active">
+            <span class="rail-icon">▣</span>
+            <span>Projects</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◎</span>
+            <span>My Work</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◉</span>
+            <span>Calendar</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◐</span>
+            <span>Chat</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◊</span>
+            <span>Admin</span>
+          </div>
+        </div>
+        
+        <div class="main-canvas">
+          <!-- Project Header (Condensed) -->
+          <div style="margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+              <span style="color: var(--muted); cursor: pointer;">Projects</span>
+              <span style="color: var(--muted);">/</span>
+              <span style="font-weight: 600;">Website Redesign 2024</span>
+            </div>
+            <div style="font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700;">Website Redesign 2024</div>
+          </div>
+          
+          <!-- Tabs -->
+          <div class="tabs">
+            <div class="tab active">Docs</div>
+            <div class="tab">Tasks</div>
+            <div class="tab">Timeline</div>
+            <div class="tab">Schedule</div>
+            <div class="tab">Whiteboards</div>
+            <div class="tab">Chat</div>
+          </div>
+          
+          <!-- Docs Layout -->
+          <div class="doc-editor">
+            <div class="doc-sidebar card" style="padding: 16px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                <span style="font-weight: 800;">Docs</span>
+                <button class="btn-secondary" style="padding: 6px 10px;">New ▾</button>
+              </div>
+
+              <div class="tree-section">
+                <div class="tree-header">
+                  <div class="tree-title">Pages</div>
+                  <button class="btn-ghost" title="Collapse" style="font-size: 16px; line-height: 1;">▾</button>
+                </div>
+
+                <div class="tree-item active">
+                  <span class="tree-caret">▾</span>
+                  <span class="tree-icon">P</span>
+                  <span class="tree-label">Project Brief</span>
+                </div>
+                <div class="tree-item tree-indent-1">
+                  <span class="tree-caret">▸</span>
+                  <span class="tree-icon">P</span>
+                  <span class="tree-label">Decisions</span>
+                  <span class="tree-meta">12</span>
+                </div>
+                <div class="tree-item tree-indent-1">
+                  <span class="tree-caret">▸</span>
+                  <span class="tree-icon">P</span>
+                  <span class="tree-label">Meeting Notes</span>
+                  <span class="tree-meta">7</span>
+                </div>
+                <div class="tree-item">
+                  <span class="tree-caret">▸</span>
+                  <span class="tree-icon">P</span>
+                  <span class="tree-label">Design Principles</span>
+                </div>
+              </div>
+
+              <div class="tree-section">
+                <div class="tree-header">
+                  <div class="tree-title">Databases</div>
+                  <button class="btn-ghost" title="Collapse" style="font-size: 16px; line-height: 1;">▾</button>
+                </div>
+
+                <div class="tree-item">
+                  <span class="tree-caret">▸</span>
+                  <span class="tree-icon">DB</span>
+                  <span class="tree-label">Project Pages</span>
+                  <span class="tree-meta">48</span>
+                </div>
+                <div class="tree-item">
+                  <span class="tree-caret">▸</span>
+                  <span class="tree-icon">DB</span>
+                  <span class="tree-label">Decision Log</span>
+                  <span class="tree-meta">12</span>
+                </div>
+              </div>
+
+              <div style="margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <div style="font-weight: 700; font-size: 13px;">Templates</div>
+                  <button class="btn-ghost" style="font-size: 12px;">Manage</button>
+                </div>
+                <div class="doc-list-item" style="background: var(--bg); border: 1px solid var(--border);">
+                  <span>✨</span> Project Brief
+                </div>
+                <div class="doc-list-item" style="background: var(--bg); border: 1px solid var(--border);">
+                  <span>📝</span> Meeting Notes
+                </div>
+              </div>
+            </div>
+            
+            <div class="doc-main">
+              <div class="editor-toolbar">
+                <button class="toolbar-btn">H1</button>
+                <button class="toolbar-btn">H2</button>
+                <button class="toolbar-btn">B</button>
+                <button class="toolbar-btn">I</button>
+                <button class="toolbar-btn">• List</button>
+                <button class="toolbar-btn">1. List</button>
+                <button class="toolbar-btn">🔗 Link</button>
+                <button class="toolbar-btn"></> Code</button>
+                <div style="margin-left: auto;">
+                  <button class="btn-secondary" style="padding: 6px 14px;">Preview</button>
+                  <button class="btn-primary" style="padding: 6px 14px;">Save</button>
+                </div>
+              </div>
+              
+              <div class="editor-content">
+                <h1>Project Brief</h1>
+                <p><strong>Client:</strong> Acme Corporation</p>
+                <p><strong>Timeline:</strong> January 2 — March 15, 2024</p>
+                
+                <h2>Overview</h2>
+                <p>Complete redesign of the Acme Corp website to improve user experience, modernize the visual design, and increase conversion rates. The project includes information architecture restructuring, responsive design implementation, and a new component library.</p>
+                
+                <h2>Goals</h2>
+                <p>• Increase conversion rate by 25%</p>
+                <p>• Reduce bounce rate by 15%</p>
+                <p>• Improve mobile page speed to sub-3s load time</p>
+                <p>• Establish scalable design system for future products</p>
+                
+                <h2>Key Deliverables</h2>
+                <p>1. User research and competitive analysis</p>
+                <p>2. Information architecture and sitemap</p>
+                <p>3. Wireframes and high-fidelity mockups</p>
+                <p>4. Clickable prototype for user testing</p>
+                <p>5. Design system with component library</p>
+                <p>6. Development handoff specifications</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FRAME 6: PROJECT DOCS - DATABASE VIEW -->
+  <div class="wireframe-section">
+    <div class="section-title">Frame 6: Project Docs (Database View)</div>
+    <div class="app-shell">
+      <div class="top-bar">
+        <div class="logo">
+          <div class="logo-icon">WH</div>
+          Work Hub
+        </div>
+        <div class="global-search">
+          <input type="text" class="search-input" placeholder="Search projects, docs, tasks..." disabled>
+        </div>
+        <div class="top-actions">
+          <button class="btn-primary">
+            <span>+</span> Create
+          </button>
+          <div class="icon-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+          </div>
+          <div class="avatar">JD</div>
+        </div>
+      </div>
+
+      <div class="app-body">
+        <div class="left-rail">
+          <div class="rail-item">
+            <span class="rail-icon">◈</span>
+            <span>Home</span>
+          </div>
+          <div class="rail-item active">
+            <span class="rail-icon">▣</span>
+            <span>Projects</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◎</span>
+            <span>My Work</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◉</span>
+            <span>Calendar</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◐</span>
+            <span>Chat</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◊</span>
+            <span>Admin</span>
+          </div>
+        </div>
+
+        <div class="main-canvas">
+          <div style="margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+              <span style="color: var(--muted); cursor: pointer;">Projects</span>
+              <span style="color: var(--muted);">/</span>
+              <span style="font-weight: 600;">Website Redesign 2024</span>
+            </div>
+            <div style="font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700;">Website Redesign 2024</div>
+          </div>
+
+          <div class="tabs">
+            <div class="tab active">Docs</div>
+            <div class="tab">Tasks</div>
+            <div class="tab">Timeline</div>
+            <div class="tab">Schedule</div>
+            <div class="tab">Whiteboards</div>
+            <div class="tab">Chat</div>
+          </div>
+
+          <div class="doc-editor">
+            <div class="doc-sidebar card" style="padding: 16px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                <span style="font-weight: 800;">Docs</span>
+                <button class="btn-secondary" style="padding: 6px 10px;">New ▾</button>
+              </div>
+
+              <div class="tree-section">
+                <div class="tree-title" style="margin-bottom: 10px;">Databases</div>
+                <div class="tree-item active">
+                  <span class="tree-caret">▾</span>
+                  <span class="tree-icon">DB</span>
+                  <span class="tree-label">Project Pages</span>
+                  <span class="tree-meta">48</span>
+                </div>
+                <div class="tree-item tree-indent-1">
+                  <span class="tree-caret">▸</span>
+                  <span class="tree-icon">P</span>
+                  <span class="tree-label">Project Brief</span>
+                </div>
+                <div class="tree-item tree-indent-1">
+                  <span class="tree-caret">▸</span>
+                  <span class="tree-icon">P</span>
+                  <span class="tree-label">Design Principles</span>
+                </div>
+                <div class="tree-item tree-indent-1">
+                  <span class="tree-caret">▸</span>
+                  <span class="tree-icon">P</span>
+                  <span class="tree-label">Meeting Notes — Jan 10</span>
+                </div>
+              </div>
+
+              <div class="tree-section">
+                <div class="tree-title" style="margin-bottom: 10px;">Pages</div>
+                <div class="tree-item">
+                  <span class="tree-caret">▸</span>
+                  <span class="tree-icon">P</span>
+                  <span class="tree-label">Roadmap</span>
+                </div>
+                <div class="tree-item">
+                  <span class="tree-caret">▸</span>
+                  <span class="tree-icon">P</span>
+                  <span class="tree-label">Launch Checklist</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="doc-main" style="padding: 20px;">
+              <div class="database-header">
+                <div class="database-title">
+                  <h2>Project Pages</h2>
+                  <span class="view-chip">Table</span>
+                  <span class="view-chip">All pages</span>
+                </div>
+
+                <div class="database-controls">
+                  <span class="chip">Filter</span>
+                  <span class="chip">Sort</span>
+                  <span class="chip">Search</span>
+                  <button class="btn-secondary" data-open-modal="schema">Properties</button>
+                  <button class="btn-secondary" data-open-modal="templates">Templates</button>
+                  <button class="btn-primary" data-open-modal="templates">+ New</button>
+                </div>
+              </div>
+
+              <div class="card" style="padding: 0; overflow: hidden;">
+                <table class="database-table">
+                  <thead>
+                    <tr>
+                      <th style="width: 34%;">Name</th>
+                      <th>Status</th>
+                      <th>Owner</th>
+                      <th>Tags</th>
+                      <th>Due</th>
+                      <th style="width: 16%;">Last edited</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr class="db-row">
+                      <td style="font-weight: 700;">Project Brief</td>
+                      <td><span class="pill.green">Final</span></td>
+                      <td><span class="pill.gray">JD</span></td>
+                      <td><span class="pill.blue">Planning</span> <span class="pill.gray">Client</span></td>
+                      <td>Jan 18</td>
+                      <td class="text-muted">Today 9:40 AM</td>
+                    </tr>
+                    <tr class="db-row">
+                      <td style="font-weight: 700;">Design Principles</td>
+                      <td><span class="pill.blue">Review</span></td>
+                      <td><span class="pill.gray">SM</span></td>
+                      <td><span class="pill.orange">Design</span></td>
+                      <td>Jan 22</td>
+                      <td class="text-muted">Yesterday</td>
+                    </tr>
+                    <tr class="db-row">
+                      <td style="font-weight: 700;">Decision: Navigation IA</td>
+                      <td><span class="pill.gray">Draft</span></td>
+                      <td><span class="pill.gray">AL</span></td>
+                      <td><span class="pill.gray">Decision</span></td>
+                      <td>—</td>
+                      <td class="text-muted">2 days ago</td>
+                    </tr>
+                    <tr class="db-row">
+                      <td style="font-weight: 700;">Meeting Notes — Jan 10</td>
+                      <td><span class="pill.green">Final</span></td>
+                      <td><span class="pill.gray">MK</span></td>
+                      <td><span class="pill.gray">Meeting</span></td>
+                      <td>—</td>
+                      <td class="text-muted">Jan 10</td>
+                    </tr>
+                    <tr class="db-row">
+                      <td style="font-weight: 700;">Spec: Components + Tokens</td>
+                      <td><span class="pill.blue">Review</span></td>
+                      <td><span class="pill.gray">JD</span></td>
+                      <td><span class="pill.orange">Engineering</span></td>
+                      <td>Feb 2</td>
+                      <td class="text-muted">Jan 12</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div style="margin-top: 10px; font-size: 12px; color: var(--muted);">
+                Tip: Click a row to open the page. Use <strong>Properties</strong> to add/rename fields; use <strong>Templates</strong> to create pages with defaults.
+              </div>
+            </div>
+          </div>
+
+          <!-- Modal: Properties schema editor -->
+          <div class="modal-backdrop" data-modal="schema">
+            <div class="modal">
+              <div class="modal-header">
+                <div class="modal-title">▦ Database properties — Project Pages</div>
+                <button class="btn-ghost" data-close-modal aria-label="Close">✕</button>
+              </div>
+              <div class="modal-body">
+                <div class="schema-grid header">
+                  <div>Name</div>
+                  <div>Type</div>
+                  <div>Options / Notes</div>
+                  <div></div>
+                </div>
+
+                <div class="schema-row" data-schema-row>
+                  <div class="schema-grid">
+                    <input class="form-input" value="Name" aria-label="Property name">
+                    <select class="filter-select" data-property-type>
+                      <option selected>Title</option>
+                      <option>Select</option>
+                      <option>Multi-select</option>
+                      <option>People</option>
+                      <option>Date</option>
+                      <option>Checkbox</option>
+                      <option>Number</option>
+                      <option>URL</option>
+                      <option>Relation</option>
+                    </select>
+                    <div style="font-size: 13px; color: var(--muted);">Primary page title</div>
+                    <button class="btn-ghost" data-remove-schema-row title="Remove">🗑</button>
+                  </div>
+                </div>
+
+                <div class="schema-row" data-schema-row>
+                  <div class="schema-grid">
+                    <input class="form-input" value="Status" aria-label="Property name">
+                    <select class="filter-select" data-property-type>
+                      <option>Title</option>
+                      <option selected>Select</option>
+                      <option>Multi-select</option>
+                      <option>People</option>
+                      <option>Date</option>
+                      <option>Checkbox</option>
+                      <option>Number</option>
+                      <option>URL</option>
+                      <option>Relation</option>
+                    </select>
+                    <div style="font-size: 13px; color: var(--muted);">Draft / Review / Final</div>
+                    <button class="btn-ghost" data-remove-schema-row title="Remove">🗑</button>
+                  </div>
+                  <div class="schema-options open" data-schema-options>
+                    <span class="option-pill">Draft <button title="Remove">×</button></span>
+                    <span class="option-pill">Review <button title="Remove">×</button></span>
+                    <span class="option-pill">Final <button title="Remove">×</button></span>
+                    <button class="btn-secondary" style="padding: 6px 10px;">+ Add option</button>
+                  </div>
+                </div>
+
+                <div class="schema-row" data-schema-row>
+                  <div class="schema-grid">
+                    <input class="form-input" value="Owner" aria-label="Property name">
+                    <select class="filter-select" data-property-type>
+                      <option>Title</option>
+                      <option>Select</option>
+                      <option>Multi-select</option>
+                      <option selected>People</option>
+                      <option>Date</option>
+                      <option>Checkbox</option>
+                      <option>Number</option>
+                      <option>URL</option>
+                      <option>Relation</option>
+                    </select>
+                    <div style="font-size: 13px; color: var(--muted);">Assignee / editor</div>
+                    <button class="btn-ghost" data-remove-schema-row title="Remove">🗑</button>
+                  </div>
+                </div>
+
+                <div class="schema-row" data-schema-row>
+                  <div class="schema-grid">
+                    <input class="form-input" value="Tags" aria-label="Property name">
+                    <select class="filter-select" data-property-type>
+                      <option>Title</option>
+                      <option>Select</option>
+                      <option selected>Multi-select</option>
+                      <option>People</option>
+                      <option>Date</option>
+                      <option>Checkbox</option>
+                      <option>Number</option>
+                      <option>URL</option>
+                      <option>Relation</option>
+                    </select>
+                    <div style="font-size: 13px; color: var(--muted);">Design / Meeting / Decision</div>
+                    <button class="btn-ghost" data-remove-schema-row title="Remove">🗑</button>
+                  </div>
+                  <div class="schema-options open" data-schema-options>
+                    <span class="option-pill">Design <button title="Remove">×</button></span>
+                    <span class="option-pill">Meeting <button title="Remove">×</button></span>
+                    <span class="option-pill">Decision <button title="Remove">×</button></span>
+                    <span class="option-pill">Engineering <button title="Remove">×</button></span>
+                    <button class="btn-secondary" style="padding: 6px 10px;">+ Add option</button>
+                  </div>
+                </div>
+
+                <div class="schema-row" data-schema-row>
+                  <div class="schema-grid">
+                    <input class="form-input" value="Due" aria-label="Property name">
+                    <select class="filter-select" data-property-type>
+                      <option>Title</option>
+                      <option>Select</option>
+                      <option>Multi-select</option>
+                      <option>People</option>
+                      <option selected>Date</option>
+                      <option>Checkbox</option>
+                      <option>Number</option>
+                      <option>URL</option>
+                      <option>Relation</option>
+                    </select>
+                    <div style="font-size: 13px; color: var(--muted);">Target date</div>
+                    <button class="btn-ghost" data-remove-schema-row title="Remove">🗑</button>
+                  </div>
+                </div>
+
+                <div class="schema-row" data-schema-row>
+                  <div class="schema-grid">
+                    <input class="form-input" value="Related Tasks" aria-label="Property name">
+                    <select class="filter-select" data-property-type>
+                      <option>Title</option>
+                      <option>Select</option>
+                      <option>Multi-select</option>
+                      <option>People</option>
+                      <option>Date</option>
+                      <option>Checkbox</option>
+                      <option>Number</option>
+                      <option>URL</option>
+                      <option selected>Relation</option>
+                    </select>
+                    <div style="font-size: 13px; color: var(--muted);">Relation → Tasks (many)</div>
+                    <button class="btn-ghost" data-remove-schema-row title="Remove">🗑</button>
+                  </div>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button class="btn-secondary" data-add-schema-row>+ Add property</button>
+                <div style="display: flex; gap: 10px;">
+                  <button class="btn-secondary" data-close-modal>Cancel</button>
+                  <button class="btn-primary" data-close-modal>Save</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Modal: Templates picker -->
+          <div class="modal-backdrop" data-modal="templates">
+            <div class="modal">
+              <div class="modal-header">
+                <div class="modal-title">✨ Templates — Project Pages</div>
+                <button class="btn-ghost" data-close-modal aria-label="Close">✕</button>
+              </div>
+              <div class="modal-body">
+                <div class="template-grid">
+                  <div class="template-card">
+                    <div class="template-name">Project Brief</div>
+                    <div class="template-desc">Goals, timeline, deliverables, stakeholders, risks.</div>
+                    <div class="template-meta">
+                      <span class="pill.gray">Status: Draft</span>
+                      <span class="pill.blue">Tags: Planning</span>
+                    </div>
+                  </div>
+                  <div class="template-card">
+                    <div class="template-name">Meeting Notes</div>
+                    <div class="template-desc">Attendees, agenda, notes, action items, decisions.</div>
+                    <div class="template-meta">
+                      <span class="pill.gray">Status: Draft</span>
+                      <span class="pill.gray">Tags: Meeting</span>
+                    </div>
+                  </div>
+                  <div class="template-card">
+                    <div class="template-name">Decision</div>
+                    <div class="template-desc">Context, options, decision, tradeoffs, follow-ups.</div>
+                    <div class="template-meta">
+                      <span class="pill.gray">Status: Draft</span>
+                      <span class="pill.gray">Tags: Decision</span>
+                    </div>
+                  </div>
+                </div>
+                <div style="margin-top: 14px; font-size: 12px; color: var(--muted);">
+                  In v1, templates can set default properties and starter content.
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button class="btn-secondary">+ New template</button>
+                <div style="display: flex; gap: 10px;">
+                  <button class="btn-secondary" data-close-modal>Close</button>
+                  <button class="btn-primary" data-close-modal>Use template</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FRAME 7: PROJECT DOCS - PAGE (Properties + Template) -->
+  <div class="wireframe-section">
+    <div class="section-title">Frame 7: Project Docs (Page + Properties)</div>
+    <div class="app-shell">
+      <div class="top-bar">
+        <div class="logo">
+          <div class="logo-icon">WH</div>
+          Work Hub
+        </div>
+        <div class="global-search">
+          <input type="text" class="search-input" placeholder="Search projects, docs, tasks..." disabled>
+        </div>
+        <div class="top-actions">
+          <button class="btn-primary">
+            <span>+</span> Create
+          </button>
+          <div class="icon-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+          </div>
+          <div class="avatar">JD</div>
+        </div>
+      </div>
+
+      <div class="app-body">
+        <div class="left-rail">
+          <div class="rail-item">
+            <span class="rail-icon">◈</span>
+            <span>Home</span>
+          </div>
+          <div class="rail-item active">
+            <span class="rail-icon">▣</span>
+            <span>Projects</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◎</span>
+            <span>My Work</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◉</span>
+            <span>Calendar</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◐</span>
+            <span>Chat</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◊</span>
+            <span>Admin</span>
+          </div>
+        </div>
+
+        <div class="main-canvas">
+          <div style="margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+              <span style="color: var(--muted); cursor: pointer;">Projects</span>
+              <span style="color: var(--muted);">/</span>
+              <span style="font-weight: 600;">Website Redesign 2024</span>
+            </div>
+            <div style="font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700;">Website Redesign 2024</div>
+          </div>
+
+          <div class="tabs">
+            <div class="tab active">Docs</div>
+            <div class="tab">Tasks</div>
+            <div class="tab">Timeline</div>
+            <div class="tab">Schedule</div>
+            <div class="tab">Whiteboards</div>
+            <div class="tab">Chat</div>
+          </div>
+
+          <div class="doc-editor">
+            <div class="doc-sidebar card" style="padding: 16px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                <span style="font-weight: 800;">Docs</span>
+                <button class="btn-secondary" style="padding: 6px 10px;">New ▾</button>
+              </div>
+
+              <div class="tree-section">
+                <div class="tree-title" style="margin-bottom: 10px;">Databases</div>
+                <div class="tree-item">
+                  <span class="tree-caret">▸</span>
+                  <span class="tree-icon">DB</span>
+                  <span class="tree-label">Project Pages</span>
+                  <span class="tree-meta">48</span>
+                </div>
+              </div>
+
+              <div class="tree-section">
+                <div class="tree-title" style="margin-bottom: 10px;">Pages</div>
+                <div class="tree-item active">
+                  <span class="tree-caret">▸</span>
+                  <span class="tree-icon">P</span>
+                  <span class="tree-label">Design Principles</span>
+                </div>
+                <div class="tree-item">
+                  <span class="tree-caret">▸</span>
+                  <span class="tree-icon">P</span>
+                  <span class="tree-label">Decision: Navigation IA</span>
+                </div>
+                <div class="tree-item">
+                  <span class="tree-caret">▸</span>
+                  <span class="tree-icon">P</span>
+                  <span class="tree-label">Meeting Notes — Jan 10</span>
+                </div>
+              </div>
+
+              <div style="margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border);">
+                <div style="font-weight: 800; font-size: 13px; margin-bottom: 8px;">Templates</div>
+                <div class="doc-list-item" style="background: var(--bg); border: 1px solid var(--border);">
+                  <span>✨</span> Meeting Notes
+                </div>
+                <div class="doc-list-item" style="background: var(--bg); border: 1px solid var(--border);">
+                  <span>✨</span> Decision
+                </div>
+              </div>
+            </div>
+
+            <div class="doc-main" style="padding: 0; border: none; background: transparent;">
+              <div class="page-header">
+                <div class="page-header-top">
+                  <div style="flex: 1;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                      <span class="pill.gray">From template</span>
+                      <span class="pill.orange">Design</span>
+                      <span class="pill.gray">In: Project Pages</span>
+                    </div>
+                    <input class="page-title-input" value="Design Principles" aria-label="Page title">
+                  </div>
+                  <div style="display: flex; gap: 10px; align-items: center;">
+                    <button class="btn-secondary" data-open-modal="schema">Edit properties</button>
+                    <button class="btn-secondary" data-open-modal="templates">Templates</button>
+                    <button class="btn-ghost">⋯</button>
+                  </div>
+                </div>
+
+                <div class="property-grid">
+                  <div class="property-key">Status</div>
+                  <div class="property-value">
+                    <select class="mini-select">
+                      <option>Draft</option>
+                      <option selected>Review</option>
+                      <option>Final</option>
+                    </select>
+                    <span class="text-muted">(editable like Notion)</span>
+                  </div>
+
+                  <div class="property-key">Owner</div>
+                  <div class="property-value">
+                    <span class="pill.gray">SM</span>
+                    <button class="btn-secondary" style="padding: 6px 10px;">+ Add person</button>
+                  </div>
+
+                  <div class="property-key">Tags</div>
+                  <div class="property-value">
+                    <span class="pill.orange">Design</span>
+                    <span class="pill.gray">Client</span>
+                    <button class="btn-secondary" style="padding: 6px 10px;">+ Add tag</button>
+                  </div>
+
+                  <div class="property-key">Due</div>
+                  <div class="property-value">
+                    <input class="mini-select" style="width: 160px;" value="2024-01-22" aria-label="Due date">
+                  </div>
+
+                  <div class="property-key">Related Tasks</div>
+                  <div class="property-value">
+                    <span class="pill.blue">#124 Navigation component library</span>
+                    <span class="pill.blue">#131 Mobile responsive layouts</span>
+                    <button class="btn-secondary" style="padding: 6px 10px;">+ Link task</button>
+                  </div>
+                </div>
+
+                <div class="add-property">
+                  <button class="btn-secondary" data-open-modal="schema">+ Add / modify properties</button>
+                  <div class="text-muted" style="font-size: 12px;">Database schema changes affect all pages in this database.</div>
+                </div>
+              </div>
+
+              <div class="doc-main" style="margin-top: 0;">
+                <div class="editor-toolbar">
+                  <button class="toolbar-btn">H1</button>
+                  <button class="toolbar-btn">H2</button>
+                  <button class="toolbar-btn">B</button>
+                  <button class="toolbar-btn">I</button>
+                  <button class="toolbar-btn">• List</button>
+                  <button class="toolbar-btn">1. List</button>
+                  <button class="toolbar-btn">🔗 Link</button>
+                  <button class="toolbar-btn"></> Code</button>
+                  <div style="margin-left: auto;">
+                    <button class="btn-secondary" style="padding: 6px 14px;">Preview</button>
+                    <button class="btn-primary" style="padding: 6px 14px;">Save</button>
+                  </div>
+                </div>
+
+                <div class="editor-content">
+                  <h1>Design Principles</h1>
+                  <p><strong>Purpose:</strong> Align the team on a shared design direction for the website redesign.</p>
+
+                  <h2>Principles</h2>
+                  <p>• Clarity over cleverness</p>
+                  <p>• Speed is a feature</p>
+                  <p>• Accessible by default</p>
+                  <p>• Consistent components, flexible layouts</p>
+
+                  <h2>Notes</h2>
+                  <p>These principles apply to marketing pages, docs pages, and internal tools views. For exceptions, log a decision in the Decision Log database.</p>
+
+                  <div class="whiteboard-embed">
+                    <div class="whiteboard-embed-head">
+                      <div class="whiteboard-embed-title">
+                        <span class="tree-icon">WB</span>
+                        Whiteboard: Sitemap exploration
+                      </div>
+                      <div style="display: flex; gap: 10px; align-items: center;">
+                        <span class="text-muted" style="font-size: 12px;">Updated 20m ago</span>
+                        <button class="btn-secondary" style="padding: 6px 10px;">Open</button>
+                      </div>
+                    </div>
+                    <div class="whiteboard-embed-preview"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Modal: Properties schema editor (same DB) -->
+              <div class="modal-backdrop" data-modal="schema">
+                <div class="modal">
+                  <div class="modal-header">
+                    <div class="modal-title">▦ Database properties — Project Pages</div>
+                    <button class="btn-ghost" data-close-modal aria-label="Close">✕</button>
+                  </div>
+                  <div class="modal-body">
+                    <div class="schema-grid header">
+                      <div>Name</div>
+                      <div>Type</div>
+                      <div>Options / Notes</div>
+                      <div></div>
+                    </div>
+
+                    <div class="schema-row" data-schema-row>
+                      <div class="schema-grid">
+                        <input class="form-input" value="Name" aria-label="Property name">
+                        <select class="filter-select" data-property-type>
+                          <option selected>Title</option>
+                          <option>Select</option>
+                          <option>Multi-select</option>
+                          <option>People</option>
+                          <option>Date</option>
+                          <option>Checkbox</option>
+                          <option>Number</option>
+                          <option>URL</option>
+                          <option>Relation</option>
+                        </select>
+                        <div style="font-size: 13px; color: var(--muted);">Primary page title</div>
+                        <button class="btn-ghost" data-remove-schema-row title="Remove">🗑</button>
+                      </div>
+                    </div>
+
+                    <div class="schema-row" data-schema-row>
+                      <div class="schema-grid">
+                        <input class="form-input" value="Status" aria-label="Property name">
+                        <select class="filter-select" data-property-type>
+                          <option>Title</option>
+                          <option selected>Select</option>
+                          <option>Multi-select</option>
+                          <option>People</option>
+                          <option>Date</option>
+                          <option>Checkbox</option>
+                          <option>Number</option>
+                          <option>URL</option>
+                          <option>Relation</option>
+                        </select>
+                        <div style="font-size: 13px; color: var(--muted);">Draft / Review / Final</div>
+                        <button class="btn-ghost" data-remove-schema-row title="Remove">🗑</button>
+                      </div>
+                      <div class="schema-options open" data-schema-options>
+                        <span class="option-pill">Draft <button title="Remove">×</button></span>
+                        <span class="option-pill">Review <button title="Remove">×</button></span>
+                        <span class="option-pill">Final <button title="Remove">×</button></span>
+                        <button class="btn-secondary" style="padding: 6px 10px;">+ Add option</button>
+                      </div>
+                    </div>
+
+                    <div class="schema-row" data-schema-row>
+                      <div class="schema-grid">
+                        <input class="form-input" value="Owner" aria-label="Property name">
+                        <select class="filter-select" data-property-type>
+                          <option>Title</option>
+                          <option>Select</option>
+                          <option>Multi-select</option>
+                          <option selected>People</option>
+                          <option>Date</option>
+                          <option>Checkbox</option>
+                          <option>Number</option>
+                          <option>URL</option>
+                          <option>Relation</option>
+                        </select>
+                        <div style="font-size: 13px; color: var(--muted);">Assignee / editor</div>
+                        <button class="btn-ghost" data-remove-schema-row title="Remove">🗑</button>
+                      </div>
+                    </div>
+
+                    <div class="schema-row" data-schema-row>
+                      <div class="schema-grid">
+                        <input class="form-input" value="Tags" aria-label="Property name">
+                        <select class="filter-select" data-property-type>
+                          <option>Title</option>
+                          <option>Select</option>
+                          <option selected>Multi-select</option>
+                          <option>People</option>
+                          <option>Date</option>
+                          <option>Checkbox</option>
+                          <option>Number</option>
+                          <option>URL</option>
+                          <option>Relation</option>
+                        </select>
+                        <div style="font-size: 13px; color: var(--muted);">Design / Meeting / Decision</div>
+                        <button class="btn-ghost" data-remove-schema-row title="Remove">🗑</button>
+                      </div>
+                      <div class="schema-options open" data-schema-options>
+                        <span class="option-pill">Design <button title="Remove">×</button></span>
+                        <span class="option-pill">Meeting <button title="Remove">×</button></span>
+                        <span class="option-pill">Decision <button title="Remove">×</button></span>
+                        <span class="option-pill">Engineering <button title="Remove">×</button></span>
+                        <button class="btn-secondary" style="padding: 6px 10px;">+ Add option</button>
+                      </div>
+                    </div>
+
+                    <div class="schema-row" data-schema-row>
+                      <div class="schema-grid">
+                        <input class="form-input" value="Due" aria-label="Property name">
+                        <select class="filter-select" data-property-type>
+                          <option>Title</option>
+                          <option>Select</option>
+                          <option>Multi-select</option>
+                          <option>People</option>
+                          <option selected>Date</option>
+                          <option>Checkbox</option>
+                          <option>Number</option>
+                          <option>URL</option>
+                          <option>Relation</option>
+                        </select>
+                        <div style="font-size: 13px; color: var(--muted);">Target date</div>
+                        <button class="btn-ghost" data-remove-schema-row title="Remove">🗑</button>
+                      </div>
+                    </div>
+
+                    <div class="schema-row" data-schema-row>
+                      <div class="schema-grid">
+                        <input class="form-input" value="Related Tasks" aria-label="Property name">
+                        <select class="filter-select" data-property-type>
+                          <option>Title</option>
+                          <option>Select</option>
+                          <option>Multi-select</option>
+                          <option>People</option>
+                          <option>Date</option>
+                          <option>Checkbox</option>
+                          <option>Number</option>
+                          <option>URL</option>
+                          <option selected>Relation</option>
+                        </select>
+                        <div style="font-size: 13px; color: var(--muted);">Relation → Tasks (many)</div>
+                        <button class="btn-ghost" data-remove-schema-row title="Remove">🗑</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="modal-footer">
+                    <button class="btn-secondary" data-add-schema-row>+ Add property</button>
+                    <div style="display: flex; gap: 10px;">
+                      <button class="btn-secondary" data-close-modal>Cancel</button>
+                      <button class="btn-primary" data-close-modal>Save</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Modal: Templates picker -->
+              <div class="modal-backdrop" data-modal="templates">
+                <div class="modal">
+                  <div class="modal-header">
+                    <div class="modal-title">✨ Templates — Project Pages</div>
+                    <button class="btn-ghost" data-close-modal aria-label="Close">✕</button>
+                  </div>
+                  <div class="modal-body">
+                    <div class="template-grid">
+                      <div class="template-card">
+                        <div class="template-name">Project Brief</div>
+                        <div class="template-desc">Goals, timeline, deliverables, stakeholders, risks.</div>
+                        <div class="template-meta">
+                          <span class="pill.gray">Status: Draft</span>
+                          <span class="pill.blue">Tags: Planning</span>
+                        </div>
+                      </div>
+                      <div class="template-card">
+                        <div class="template-name">Meeting Notes</div>
+                        <div class="template-desc">Attendees, agenda, notes, action items, decisions.</div>
+                        <div class="template-meta">
+                          <span class="pill.gray">Status: Draft</span>
+                          <span class="pill.gray">Tags: Meeting</span>
+                        </div>
+                      </div>
+                      <div class="template-card">
+                        <div class="template-name">Decision</div>
+                        <div class="template-desc">Context, options, decision, tradeoffs, follow-ups.</div>
+                        <div class="template-meta">
+                          <span class="pill.gray">Status: Draft</span>
+                          <span class="pill.gray">Tags: Decision</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="modal-footer">
+                    <button class="btn-secondary">+ New template</button>
+                    <div style="display: flex; gap: 10px;">
+                      <button class="btn-secondary" data-close-modal>Close</button>
+                      <button class="btn-primary" data-close-modal>Use template</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FRAME 8: PROJECT WHITEBOARDS (List) -->
+  <div class="wireframe-section">
+    <div class="section-title">Frame 8: Project Whiteboards (List)</div>
+    <div class="app-shell">
+      <div class="top-bar">
+        <div class="logo">
+          <div class="logo-icon">WH</div>
+          Work Hub
+        </div>
+        <div class="global-search">
+          <input type="text" class="search-input" placeholder="Search projects, docs, tasks..." disabled>
+        </div>
+        <div class="top-actions">
+          <button class="btn-primary">
+            <span>+</span> Create
+          </button>
+          <div class="icon-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+          </div>
+          <div class="avatar">JD</div>
+        </div>
+      </div>
+
+      <div class="app-body">
+        <div class="left-rail">
+          <div class="rail-item">
+            <span class="rail-icon">◈</span>
+            <span>Home</span>
+          </div>
+          <div class="rail-item active">
+            <span class="rail-icon">▣</span>
+            <span>Projects</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◎</span>
+            <span>My Work</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◉</span>
+            <span>Calendar</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◐</span>
+            <span>Chat</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◊</span>
+            <span>Admin</span>
+          </div>
+        </div>
+
+        <div class="main-canvas">
+          <div style="margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+              <span style="color: var(--muted); cursor: pointer;">Projects</span>
+              <span style="color: var(--muted);">/</span>
+              <span style="font-weight: 600;">Website Redesign 2024</span>
+            </div>
+            <div style="font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700;">Website Redesign 2024</div>
+          </div>
+
+          <div class="tabs">
+            <div class="tab">Docs</div>
+            <div class="tab">Tasks</div>
+            <div class="tab">Timeline</div>
+            <div class="tab">Schedule</div>
+            <div class="tab active">Whiteboards</div>
+            <div class="tab">Chat</div>
+          </div>
+
+          <div class="whiteboards-header">
+            <div>
+              <div style="font-family: 'Fraunces', serif; font-size: 26px; font-weight: 700;">Whiteboards</div>
+              <div style="font-size: 13px; color: var(--muted);">Project-scoped boards • Create as many as you need</div>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <select class="filter-select" style="min-width: 160px;">
+                <option>Sort: Recently edited</option>
+                <option>Sort: Title</option>
+                <option>Sort: Created</option>
+              </select>
+              <button class="btn-primary">+ New Board</button>
+            </div>
+          </div>
+
+          <div class="whiteboards-grid">
+            <div class="whiteboard-card">
+              <div class="whiteboard-preview"></div>
+              <div class="whiteboard-card-body">
+                <div class="whiteboard-card-title">Sitemap exploration</div>
+                <div class="whiteboard-card-meta">
+                  <span>Edited 20m ago</span>
+                  <span class="pill.gray">JD</span>
+                </div>
+              </div>
+            </div>
+            <div class="whiteboard-card">
+              <div class="whiteboard-preview"></div>
+              <div class="whiteboard-card-body">
+                <div class="whiteboard-card-title">Homepage layout ideas</div>
+                <div class="whiteboard-card-meta">
+                  <span>Edited yesterday</span>
+                  <span class="pill.gray">AL</span>
+                </div>
+              </div>
+            </div>
+            <div class="whiteboard-card">
+              <div class="whiteboard-preview"></div>
+              <div class="whiteboard-card-body">
+                <div class="whiteboard-card-title">User flow: checkout</div>
+                <div class="whiteboard-card-meta">
+                  <span>Edited 2 days ago</span>
+                  <span class="pill.gray">SM</span>
+                </div>
+              </div>
+            </div>
+            <div class="whiteboard-card">
+              <div class="whiteboard-preview"></div>
+              <div class="whiteboard-card-body">
+                <div class="whiteboard-card-title">Component brainstorm</div>
+                <div class="whiteboard-card-meta">
+                  <span>Edited Jan 12</span>
+                  <span class="pill.gray">MK</span>
+                </div>
+              </div>
+            </div>
+            <div class="whiteboard-card">
+              <div class="whiteboard-preview"></div>
+              <div class="whiteboard-card-body">
+                <div class="whiteboard-card-title">Architecture sketch</div>
+                <div class="whiteboard-card-meta">
+                  <span>Edited Jan 10</span>
+                  <span class="pill.gray">TL</span>
+                </div>
+              </div>
+            </div>
+            <div class="whiteboard-card" style="border-style: dashed; box-shadow: none; background: transparent; display: flex; align-items: center; justify-content: center;">
+              <div style="text-align: center; padding: 18px; color: var(--muted);">
+                <div style="font-weight: 900; margin-bottom: 6px;">Start from a template</div>
+                <div style="font-size: 13px; margin-bottom: 12px;">Blank • Flowchart • Wireframe • Retro</div>
+                <button class="btn-secondary">Browse templates</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FRAME 9: PROJECT WHITEBOARD (Editor) -->
+  <div class="wireframe-section">
+    <div class="section-title">Frame 9: Whiteboard Editor (Excalidraw)</div>
+    <div class="app-shell">
+      <div class="top-bar">
+        <div class="logo">
+          <div class="logo-icon">WH</div>
+          Work Hub
+        </div>
+        <div class="global-search">
+          <input type="text" class="search-input" placeholder="Search projects, docs, tasks..." disabled>
+        </div>
+        <div class="top-actions">
+          <button class="btn-primary">
+            <span>+</span> Create
+          </button>
+          <div class="icon-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+          </div>
+          <div class="avatar">JD</div>
+        </div>
+      </div>
+
+      <div class="app-body">
+        <div class="left-rail">
+          <div class="rail-item">
+            <span class="rail-icon">◈</span>
+            <span>Home</span>
+          </div>
+          <div class="rail-item active">
+            <span class="rail-icon">▣</span>
+            <span>Projects</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◎</span>
+            <span>My Work</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◉</span>
+            <span>Calendar</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◐</span>
+            <span>Chat</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◊</span>
+            <span>Admin</span>
+          </div>
+        </div>
+
+        <div class="main-canvas">
+          <div style="margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+              <span style="color: var(--muted); cursor: pointer;">Projects</span>
+              <span style="color: var(--muted);">/</span>
+              <span style="font-weight: 600;">Website Redesign 2024</span>
+              <span style="color: var(--muted);">/</span>
+              <span style="font-weight: 700;">Whiteboards</span>
+            </div>
+            <div style="font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700;">Website Redesign 2024</div>
+          </div>
+
+          <div class="tabs">
+            <div class="tab">Docs</div>
+            <div class="tab">Tasks</div>
+            <div class="tab">Timeline</div>
+            <div class="tab">Schedule</div>
+            <div class="tab active">Whiteboards</div>
+            <div class="tab">Chat</div>
+          </div>
+
+          <div class="whiteboard-editor-shell">
+            <div class="whiteboard-tools">
+              <div class="tool-btn active" title="Select">↖</div>
+              <div class="tool-btn" title="Rectangle">▭</div>
+              <div class="tool-btn" title="Diamond">◆</div>
+              <div class="tool-btn" title="Arrow">➝</div>
+              <div class="tool-btn" title="Text">T</div>
+              <div class="tool-btn" title="Pen">✎</div>
+              <div class="tool-btn" title="Eraser">⌫</div>
+              <div class="tool-btn" title="Sticky">▣</div>
+            </div>
+
+            <div class="whiteboard-canvas">
+              <div class="canvas-topbar">
+                <div class="canvas-title">
+                  <span class="tree-icon" style="background: var(--panel);">WB</span>
+                  <span>Sitemap exploration</span>
+                  <span class="pill.gray">Autosave</span>
+                </div>
+                <div class="canvas-actions">
+                  <div class="avatar-group" title="Collaborators">
+                    <div class="avatar" style="width: 28px; height: 28px; font-size: 11px;">JD</div>
+                    <div class="avatar" style="width: 28px; height: 28px; font-size: 11px; background: var(--accent-2);">SM</div>
+                    <div class="avatar" style="width: 28px; height: 28px; font-size: 11px; background: var(--info);">AL</div>
+                  </div>
+                  <button class="btn-secondary" style="padding: 8px 12px;">Export</button>
+                  <button class="btn-primary" style="padding: 8px 12px;">Save</button>
+                </div>
+              </div>
+
+              <div class="canvas-stage">
+                <div class="sketch">
+                  <h3>Website Sitemap</h3>
+                  <p>Rough structure sketch. In v1, boards are stored per project and can be embedded into docs.</p>
+                  <div class="sketch-box-row">
+                    <div class="sketch-box">Home</div>
+                    <div class="sketch-box">Products</div>
+                    <div class="sketch-box">Pricing</div>
+                    <div class="sketch-box">About</div>
+                    <div class="sketch-box">Contact</div>
+                  </div>
+                  <div class="sketch-box-row" style="margin-top: 12px;">
+                    <div class="sketch-box" style="background: #E0F2FE; border-color: rgba(3,105,161,0.25); color: var(--info);">Product Detail</div>
+                    <div class="sketch-box" style="background: #FFEDD5; border-color: rgba(194,65,12,0.22); color: var(--accent-2);">Checkout</div>
+                    <div class="sketch-box" style="background: #FCE7F3; border-color: rgba(157,23,77,0.20); color: #9D174D;">FAQ</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="whiteboard-sidebar">
+              <div class="sidebar-block">
+                <div class="sidebar-block-title">Board info</div>
+                <div style="font-size: 13px; color: var(--muted); line-height: 1.5;">
+                  <div><strong>Project:</strong> Website Redesign 2024</div>
+                  <div><strong>Created:</strong> Jan 12</div>
+                  <div><strong>Last edited:</strong> 20m ago</div>
+                  <div><strong>Owner:</strong> JD</div>
+                </div>
+              </div>
+              <div class="sidebar-block">
+                <div class="sidebar-block-title">Embed</div>
+                <div style="font-size: 13px; color: var(--muted); margin-bottom: 10px;">Insert this board into a doc page as a block.</div>
+                <button class="btn-secondary" style="width: 100%;">Copy embed link</button>
+              </div>
+              <div class="sidebar-block">
+                <div class="sidebar-block-title">Templates</div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                  <span class="pill.gray">Blank</span>
+                  <span class="pill.gray">Flow</span>
+                  <span class="pill.gray">Wireframe</span>
+                  <span class="pill.gray">Retro</span>
+                </div>
+                <div style="margin-top: 10px;">
+                  <button class="btn-secondary" style="width: 100%;">New from template</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FRAME 10: PROJECT DETAIL - TIMELINE -->
+  <div class="wireframe-section">
+    <div class="section-title">Frame 10: Project Detail (Timeline)</div>
+    <div class="app-shell">
+      <div class="top-bar">
+        <div class="logo">
+          <div class="logo-icon">WH</div>
+          Work Hub
+        </div>
+        <div class="global-search">
+          <input type="text" class="search-input" placeholder="Search projects, docs, tasks..." disabled>
+        </div>
+        <div class="top-actions">
+          <button class="btn-primary">
+            <span>+</span> Create
+          </button>
+          <div class="icon-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+          </div>
+          <div class="avatar">JD</div>
+        </div>
+      </div>
+      
+      <div class="app-body">
+        <div class="left-rail">
+          <div class="rail-item">
+            <span class="rail-icon">◈</span>
+            <span>Home</span>
+          </div>
+          <div class="rail-item active">
+            <span class="rail-icon">▣</span>
+            <span>Projects</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◎</span>
+            <span>My Work</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◉</span>
+            <span>Calendar</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◐</span>
+            <span>Chat</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◊</span>
+            <span>Admin</span>
+          </div>
+        </div>
+        
+        <div class="main-canvas">
+          <!-- Project Header (Condensed) -->
+          <div style="margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+              <span style="color: var(--muted); cursor: pointer;">Projects</span>
+              <span style="color: var(--muted);">/</span>
+              <span style="font-weight: 600;">Website Redesign 2024</span>
+            </div>
+            <div style="font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700;">Website Redesign 2024</div>
+          </div>
+          
+          <!-- Tabs -->
+          <div class="tabs">
+            <div class="tab">Docs</div>
+            <div class="tab">Tasks</div>
+            <div class="tab active">Timeline</div>
+            <div class="tab">Schedule</div>
+            <div class="tab">Whiteboards</div>
+            <div class="tab">Chat</div>
+          </div>
+          
+          <!-- Timeline Controls -->
+          <div class="timeline-header">
+            <div class="filter-bar" style="margin-bottom: 0;">
+              <button class="btn-secondary">◀ Previous</button>
+              <span style="font-weight: 700; font-size: 16px;">Q1 2024</span>
+              <button class="btn-secondary">Next ▶</button>
+            </div>
+            <div class="filter-bar" style="margin-bottom: 0;">
+              <select class="filter-select">
+                <option>View: By Status</option>
+                <option>View: By Assignee</option>
+              </select>
+              <select class="filter-select">
+                <option>All Tasks</option>
+                <option>My Tasks</option>
+              </select>
+            </div>
+          </div>
+          
+          <!-- Timeline Canvas -->
+          <div class="timeline-canvas">
+            <!-- Month Headers -->
+            <div style="display: grid; grid-template-columns: 200px repeat(12, 1fr); gap: 4px; margin-bottom: 16px;">
+              <div></div>
+              <div style="font-size: 12px; font-weight: 700; color: var(--muted); text-align: center;">JAN</div>
+              <div style="font-size: 12px; font-weight: 700; color: var(--muted); text-align: center;"></div>
+              <div style="font-size: 12px; font-weight: 700; color: var(--muted); text-align: center;"></div>
+              <div style="font-size: 12px; font-weight: 700; color: var(--muted); text-align: center;">FEB</div>
+              <div style="font-size: 12px; font-weight: 700; color: var(--muted); text-align: center;"></div>
+              <div style="font-size: 12px; font-weight: 700; color: var(--muted); text-align: center;"></div>
+              <div style="font-size: 12px; font-weight: 700; color: var(--muted); text-align: center;">MAR</div>
+              <div style="font-size: 12px; font-weight: 700; color: var(--muted); text-align: center;"></div>
+              <div style="font-size: 12px; font-weight: 700; color: var(--muted); text-align: center;"></div>
+              <div style="font-size: 12px; font-weight: 700; color: var(--muted); text-align: center;">APR</div>
+              <div style="font-size: 12px; font-weight: 700; color: var(--muted); text-align: center;"></div>
+              <div style="font-size: 12px; font-weight: 700; color: var(--muted); text-align: center;"></div>
+            </div>
+            
+            <!-- Week Headers -->
+            <div style="display: grid; grid-template-columns: 200px repeat(12, 1fr); gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+              <div style="font-size: 11px; color: var(--muted); font-weight: 600;">TASK</div>
+              <div style="font-size: 11px; color: var(--muted); text-align: center;">W1</div>
+              <div style="font-size: 11px; color: var(--muted); text-align: center;">W2</div>
+              <div style="font-size: 11px; color: var(--muted); text-align: center;">W3</div>
+              <div style="font-size: 11px; color: var(--muted); text-align: center;">W4</div>
+              <div style="font-size: 11px; color: var(--muted); text-align: center;">W5</div>
+              <div style="font-size: 11px; color: var(--muted); text-align: center;">W6</div>
+              <div style="font-size: 11px; color: var(--muted); text-align: center;">W7</div>
+              <div style="font-size: 11px; color: var(--muted); text-align: center;">W8</div>
+              <div style="font-size: 11px; color: var(--muted); text-align: center;">W9</div>
+              <div style="font-size: 11px; color: var(--muted); text-align: center;">W10</div>
+              <div style="font-size: 11px; color: var(--muted); text-align: center;">W11</div>
+              <div style="font-size: 11px; color: var(--muted); text-align: center;">W12</div>
+            </div>
+            
+            <!-- Timeline Rows -->
+            <div style="display: grid; grid-template-columns: 200px repeat(12, 1fr); gap: 4px; align-items: center; margin-bottom: 12px;">
+              <div style="font-size: 13px; font-weight: 600;">Research Phase</div>
+              <div style="grid-column: 1 / 3; background: var(--accent-light); border-radius: 4px; padding: 6px 10px; font-size: 12px;">
+                <div style="font-weight: 600;">Research Phase</div>
+                <div style="font-size: 11px; color: var(--muted);">JD, SM</div>
+              </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 200px repeat(12, 1fr); gap: 4px; align-items: center; margin-bottom: 12px;">
+              <div style="font-size: 13px; font-weight: 600;">Design Phase</div>
+              <div style="grid-column: 3 / 7; background: #E0F2FE; border-radius: 4px; padding: 6px 10px; font-size: 12px;">
+                <div style="font-weight: 600;">Design Phase</div>
+                <div style="font-size: 11px; color: var(--muted);">AL, MK</div>
+              </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 200px repeat(12, 1fr); gap: 4px; align-items: center; margin-bottom: 12px;">
+              <div style="font-size: 13px; font-weight: 600;">Development</div>
+              <div style="grid-column: 5 / 10; background: #FEF3C7; border-radius: 4px; padding: 6px 10px; font-size: 12px;">
+                <div style="font-weight: 600;">Development</div>
+                <div style="font-size: 11px; color: var(--muted);">TL, Dev Team</div>
+              </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 200px repeat(12, 1fr); gap: 4px; align-items: center; margin-bottom: 12px;">
+              <div style="font-size: 13px; font-weight: 600;">User Testing</div>
+              <div style="grid-column: 8 / 10; background: #FCE7F3; border-radius: 4px; padding: 6px 10px; font-size: 12px;">
+                <div style="font-weight: 600;">User Testing</div>
+                <div style="font-size: 11px; color: var(--muted);">SM, AL</div>
+              </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 200px repeat(12, 1fr); gap: 4px; align-items: center; margin-bottom: 12px;">
+              <div style="font-size: 13px; font-weight: 600;">Launch</div>
+              <div style="grid-column: 10; background: var(--accent); border-radius: 4px; padding: 6px 10px; font-size: 12px; color: white; text-align: center;">
+                <div style="font-weight: 700;">LAUNCH</div>
+              </div>
+            </div>
+            
+            <!-- Milestones -->
+            <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border);">
+              <div style="font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 12px;">MILESTONES</div>
+              <div style="display: flex; gap: 24px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="width: 12px; height: 12px; background: var(--success); transform: rotate(45deg);"></span>
+                  <span style="font-size: 13px;">Research Complete — Jan 15</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="width: 12px; height: 12px; background: var(--info); transform: rotate(45deg);"></span>
+                  <span style="font-size: 13px;">Design Complete — Feb 15</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="width: 12px; height: 12px; background: var(--accent); transform: rotate(45deg);"></span>
+                  <span style="font-size: 13px;">Launch — Mar 15</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FRAME 11: PROJECT DETAIL - SCHEDULE -->
+  <div class="wireframe-section">
+    <div class="section-title">Frame 11: Project Detail (Schedule)</div>
+    <div class="app-shell">
+      <div class="top-bar">
+        <div class="logo">
+          <div class="logo-icon">WH</div>
+          Work Hub
+        </div>
+        <div class="global-search">
+          <input type="text" class="search-input" placeholder="Search projects, docs, tasks..." disabled>
+        </div>
+        <div class="top-actions">
+          <button class="btn-primary">
+            <span>+</span> Create
+          </button>
+          <div class="icon-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+          </div>
+          <div class="avatar">JD</div>
+        </div>
+      </div>
+      
+      <div class="app-body">
+        <div class="left-rail">
+          <div class="rail-item">
+            <span class="rail-icon">◈</span>
+            <span>Home</span>
+          </div>
+          <div class="rail-item active">
+            <span class="rail-icon">▣</span>
+            <span>Projects</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◎</span>
+            <span>My Work</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◉</span>
+            <span>Calendar</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◐</span>
+            <span>Chat</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◊</span>
+            <span>Admin</span>
+          </div>
+        </div>
+        
+        <div class="main-canvas">
+          <!-- Project Header (Condensed) -->
+          <div style="margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+              <span style="color: var(--muted); cursor: pointer;">Projects</span>
+              <span style="color: var(--muted);">/</span>
+              <span style="font-weight: 600;">Website Redesign 2024</span>
+            </div>
+            <div style="font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700;">Website Redesign 2024</div>
+          </div>
+          
+          <!-- Tabs -->
+          <div class="tabs">
+            <div class="tab">Docs</div>
+            <div class="tab">Tasks</div>
+            <div class="tab">Timeline</div>
+            <div class="tab active">Schedule</div>
+            <div class="tab">Whiteboards</div>
+            <div class="tab">Chat</div>
+          </div>
+          
+          <!-- Schedule Header -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div style="display: flex; gap: 8px;">
+              <button class="btn-secondary">◀</button>
+              <span style="font-weight: 700; font-size: 18px;">January 2024</span>
+              <button class="btn-secondary">▶</button>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn-secondary">Month</button>
+              <button class="btn-secondary" style="background: transparent; color: var(--muted);">Week</button>
+              <button class="btn-primary">+ New Meeting</button>
+            </div>
+          </div>
+          
+          <!-- Calendar Grid -->
+          <div class="card" style="padding: 24px;">
+            <!-- Day Headers -->
+            <div class="calendar-grid" style="margin-bottom: 8px;">
+              <div class="calendar-day-header">Sun</div>
+              <div class="calendar-day-header">Mon</div>
+              <div class="calendar-day-header">Tue</div>
+              <div class="calendar-day-header">Wed</div>
+              <div class="calendar-day-header">Thu</div>
+              <div class="calendar-day-header">Fri</div>
+              <div class="calendar-day-header">Sat</div>
+            </div>
+            
+            <!-- Calendar Days -->
+            <div class="calendar-grid">
+              <!-- Week 1 -->
+              <div class="calendar-day" style="opacity: 0.4;">
+                <div style="font-weight: 600; margin-bottom: 8px;">31</div>
+              </div>
+              <div class="calendar-day">
+                <div style="font-weight: 600; margin-bottom: 8px;">1</div>
+              </div>
+              <div class="calendar-day" style="background: var(--accent-light);">
+                <div style="font-weight: 600; margin-bottom: 8px; color: var(--accent);">2</div>
+                <div class="meeting-chip">Kickoff</div>
+              </div>
+              <div class="calendar-day">
+                <div style="font-weight: 600; margin-bottom: 8px;">3</div>
+              </div>
+              <div class="calendar-day">
+                <div style="font-weight: 600; margin-bottom: 8px;">4</div>
+              </div>
+              <div class="calendar-day">
+                <div style="font-weight: 600; margin-bottom: 8px;">5</div>
+              </div>
+              <div class="calendar-day">
+                <div style="font-weight: 600; margin-bottom: 8px;">6</div>
+              </div>
+              
+              <!-- Week 2 -->
+              <div class="calendar-day">
+                <div style="font-weight: 600; margin-bottom: 8px;">7</div>
+              </div>
+              <div class="calendar-day">
+                <div style="font-weight: 600; margin-bottom: 8px;">8</div>
+              </div>
+              <div class="calendar-day">
+                <div style="font-weight: 600; margin-bottom: 8px;">9</div>
+              </div>
+              <div class="calendar-day" style="background: #E0F2FE;">
+                <div style="font-weight: 600; margin-bottom: 8px;">10</div>
+                <div class="meeting-chip" style="background: #BAE6FD; color: var(--info);">Review</div>
+              </div>
+              <div class="calendar-day">
+                <div style="font-weight: 600; margin-bottom: 8px;">11</div>
+              </div>
+              <div class="calendar-day">
+                <div style="font-weight: 600; margin-bottom: 8px;">12</div>
+              </div>
+              <div class="calendar-day">
+                <div style="font-weight: 600; margin-bottom: 8px;">13</div>
+              </div>
+              
+              <!-- Week 3 -->
+              <div class="calendar-day">
+                <div style="font-weight: 600; margin-bottom: 8px;">14</div>
+              </div>
+              <div class="calendar-day" style="background: #FCE7F3;">
+                <div style="font-weight: 600; margin-bottom: 8px;">15</div>
+                <div class="meeting-chip" style="background: #F9A8D4; color: #9D174D;">Research Sync</div>
+              </div>
+              <div class="calendar-day">
+                <div style="font-weight: 600; margin-bottom: 8px;">16</div>
+              </div>
+              <div class="calendar-day">
+                <div style="font-weight: 600; margin-bottom: 8px;">17</div>
+              </div>
+              <div class="calendar-day">
+                <div style="font-weight: 600; margin-bottom: 8px;">18</div>
+              </div>
+              <div class="calendar-day">
+                <div style="font-weight: 600; margin-bottom: 8px;">19</div>
+              </div>
+              <div class="calendar-day">
+                <div style="font-weight: 600; margin-bottom: 8px;">20</div>
+              </div>
+              
+              <!-- Week 4 -->
+              <div class="calendar-day">
+                <div style="font-weight: 600; margin-bottom: 8px;">21</div>
+              </div>
+              <div class="calendar-day">
+                <div style="font-weight: 600; margin-bottom: 8px;">22</div>
+              </div>
+              <div class="calendar-day">
+                <div style="font-weight: 600; margin-bottom: 8px;">23</div>
+              </div>
+              <div class="calendar-day">
+                <div style="font-weight: 600; margin-bottom: 8px;">24</div>
+              </div>
+              <div class="calendar-day">
+                <div style="font-weight: 600; margin-bottom: 8px;">25</div>
+              </div>
+              <div class="calendar-day">
+                <div style="font-weight: 600; margin-bottom: 8px;">26</div>
+              </div>
+              <div class="calendar-day">
+                <div style="font-weight: 600; margin-bottom: 8px;">27</div>
+              </div>
+              
+              <!-- Week 5 -->
+              <div class="calendar-day">
+                <div style="font-weight: 600; margin-bottom: 8px;">28</div>
+              </div>
+              <div class="calendar-day">
+                <div style="font-weight: 600; margin-bottom: 8px;">29</div>
+              </div>
+              <div class="calendar-day">
+                <div style="font-weight: 600; margin-bottom: 8px;">30</div>
+              </div>
+              <div class="calendar-day">
+                <div style="font-weight: 600; margin-bottom: 8px;">31</div>
+              </div>
+              <div class="calendar-day" style="opacity: 0.4;">
+                <div style="font-weight: 600; margin-bottom: 8px;">1</div>
+              </div>
+              <div class="calendar-day" style="opacity: 0.4;">
+                <div style="font-weight: 600; margin-bottom: 8px;">2</div>
+              </div>
+              <div class="calendar-day" style="opacity: 0.4;">
+                <div style="font-weight: 600; margin-bottom: 8px;">3</div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Meeting List Preview -->
+          <div style="margin-top: 24px;">
+            <div style="font-weight: 700; font-size: 16px; margin-bottom: 16px;">Upcoming Meetings</div>
+            <div class="card">
+              <div class="table-row">
+                <div style="font-weight: 600;">Project Kickoff</div>
+                <div style="font-size: 13px; color: var(--muted);">Jan 2, 9:00 AM • 1 hour</div>
+                <div style="font-size: 13px; color: var(--muted);">Conference Room A</div>
+                <div class="avatar-group">
+                  <div class="avatar" style="width: 28px; height: 28px; font-size: 11px;">JD</div>
+                  <div class="avatar" style="width: 28px; height: 28px; font-size: 11px;">SM</div>
+                  <div class="avatar" style="width: 28px; height: 28px; font-size: 11px;">+6</div>
+                </div>
+              </div>
+              <div class="table-row">
+                <div style="font-weight: 600;">Design Review</div>
+                <div style="font-size: 13px; color: var(--muted);">Jan 10, 2:00 PM • 1 hour</div>
+                <div style="font-size: 13px; color: var(--muted);">Zoom</div>
+                <div class="avatar-group">
+                  <div class="avatar" style="width: 28px; height: 28px; font-size: 11px;">AL</div>
+                  <div class="avatar" style="width: 28px; height: 28px; font-size: 11px;">MK</div>
+                </div>
+              </div>
+              <div class="table-row">
+                <div style="font-weight: 600;">Research Synthesis Sync</div>
+                <div style="font-size: 13px; color: var(--muted);">Jan 15, 11:00 AM • 45 min</div>
+                <div style="font-size: 13px; color: var(--muted);">Google Meet</div>
+                <div class="avatar-group">
+                  <div class="avatar" style="width: 28px; height: 28px; font-size: 11px;">SM</div>
+                  <div class="avatar" style="width: 28px; height: 28px; font-size: 11px;">JD</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FRAME 12: PROJECT DETAIL - CHAT -->
+  <div class="wireframe-section">
+    <div class="section-title">Frame 12: Project Detail (Chat)</div>
+    <div class="app-shell">
+      <div class="top-bar">
+        <div class="logo">
+          <div class="logo-icon">WH</div>
+          Work Hub
+        </div>
+        <div class="global-search">
+          <input type="text" class="search-input" placeholder="Search projects, docs, tasks..." disabled>
+        </div>
+        <div class="top-actions">
+          <button class="btn-primary">
+            <span>+</span> Create
+          </button>
+          <div class="icon-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+            <span class="badge">1</span>
+          </div>
+          <div class="avatar">JD</div>
+        </div>
+      </div>
+      
+      <div class="app-body">
+        <div class="left-rail">
+          <div class="rail-item">
+            <span class="rail-icon">◈</span>
+            <span>Home</span>
+          </div>
+          <div class="rail-item active">
+            <span class="rail-icon">▣</span>
+            <span>Projects</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◎</span>
+            <span>My Work</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◉</span>
+            <span>Calendar</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◐</span>
+            <span>Chat</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◊</span>
+            <span>Admin</span>
+          </div>
+        </div>
+        
+        <div class="main-canvas" style="padding: 0; overflow: hidden;">
+          <div class="chat-container" style="height: 100%;">
+            <!-- Channel List -->
+            <div class="channel-list">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <span style="font-weight: 700;">Channels</span>
+                <button class="btn-ghost" style="font-size: 18px;">+</button>
+              </div>
+              
+              <div class="channel-section">
+                <div class="channel-section-title">Workspace</div>
+                <div class="channel-item">
+                  <span>#</span> town-square
+                </div>
+                <div class="channel-item">
+                  <span>#</span> announcements
+                  <span style="font-size: 10px; margin-left: auto; padding: 2px 6px; background: var(--warn); color: white; border-radius: 4px;">ADMIN</span>
+                </div>
+              </div>
+              
+              <div class="channel-section">
+                <div class="channel-section-title">Website Redesign</div>
+                <div class="channel-item active">
+                  <span>#</span> proj-website
+                  <span class="unread-dot"></span>
+                </div>
+                <div class="channel-item">
+                  <span>#</span> design
+                </div>
+                <div class="channel-item">
+                  <span>#</span> qa
+                </div>
+              </div>
+              
+              <div class="channel-section">
+                <div class="channel-section-title">Other Projects</div>
+                <div class="channel-item">
+                  <span>#</span> proj-mobile
+                </div>
+                <div class="channel-item">
+                  <span>#</span> proj-marketing
+                </div>
+              </div>
+            </div>
+            
+            <!-- Chat Main -->
+            <div class="chat-main">
+              <div class="chat-header">
+                # proj-website
+                <span style="margin-left: 12px; font-size: 13px; font-weight: 400; color: var(--muted);">Website Redesign 2024 • 8 members</span>
+              </div>
+              
+              <div class="chat-messages">
+                <div style="text-align: center; margin: 20px 0;">
+                  <span style="font-size: 12px; color: var(--muted); background: var(--bg); padding: 4px 12px; border-radius: 12px;">Today</span>
+                </div>
+                
+                <div class="message">
+                  <div class="avatar" style="width: 36px; height: 36px; font-size: 13px; flex-shrink: 0;">SM</div>
+                  <div class="message-content">
+                    <div class="message-header">
+                      <span class="message-author">Sarah Miller</span>
+                      <span class="message-time">9:30 AM</span>
+                    </div>
+                    <div class="message-text">
+                      Good morning team! Just uploaded the competitive analysis to the docs. <strong>@john</strong> can you take a look when you have a moment? Would love your feedback on the findings.
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="message">
+                  <div class="avatar" style="width: 36px; height: 36px; font-size: 13px; flex-shrink: 0;">JD</div>
+                  <div class="message-content">
+                    <div class="message-header">
+                      <span class="message-author">John Doe</span>
+                      <span class="message-time">9:45 AM</span>
+                    </div>
+                    <div class="message-text">
+                      Thanks Sarah! I'll review it this afternoon. Quick question - did we get the new brand guidelines from the client yet?
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="message">
+                  <div class="avatar" style="width: 36px; height: 36px; font-size: 13px; flex-shrink: 0; background: var(--accent-2);">AL</div>
+                  <div class="message-content">
+                    <div class="message-header">
+                      <span class="message-author">Alice Lee</span>
+                      <span class="message-time">10:02 AM</span>
+                    </div>
+                    <div class="message-text">
+                      Yes! They sent them over yesterday. I added them to the shared folder and referenced them in the design principles doc.
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="message">
+                  <div class="avatar" style="width: 36px; height: 36px; font-size: 13px; flex-shrink: 0;">MK</div>
+                  <div class="message-content">
+                    <div class="message-header">
+                      <span class="message-author">Mike Kim</span>
+                      <span class="message-time">10:15 AM</span>
+                    </div>
+                    <div class="message-text">
+                      Heads up - the daily standup got moved to 9:30 tomorrow because of the design review conflict. Calendar should be updated.
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="message">
+                  <div class="avatar" style="width: 36px; height: 36px; font-size: 13px; flex-shrink: 0;">SM</div>
+                  <div class="message-content">
+                    <div class="message-header">
+                      <span class="message-author">Sarah Miller</span>
+                      <span class="message-time">11:30 AM</span>
+                    </div>
+                    <div class="message-text">
+                      Also FYI - I created a new task for the API integration work. <strong>@tom</strong> you're tagged as lead on that one.
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="chat-composer">
+                <textarea class="composer-input" rows="2" placeholder="Message #proj-website... Use @ to mention someone"></textarea>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+                  <div style="font-size: 12px; color: var(--muted);">
+                    Markdown supported • Press Enter to send
+                  </div>
+                  <button class="btn-primary">Send</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FRAME 13: NOTIFICATIONS INBOX -->
+  <div class="wireframe-section">
+    <div class="section-title">Frame 13: Notifications Inbox</div>
+    <div class="app-shell">
+      <div class="top-bar">
+        <div class="logo">
+          <div class="logo-icon">WH</div>
+          Work Hub
+        </div>
+        <div class="global-search">
+          <input type="text" class="search-input" placeholder="Search projects, docs, tasks..." disabled>
+        </div>
+        <div class="top-actions">
+          <button class="btn-primary">
+            <span>+</span> Create
+          </button>
+          <div class="icon-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+            <span class="badge">3</span>
+          </div>
+          <div class="avatar">JD</div>
+        </div>
+      </div>
+      
+      <div class="app-body">
+        <div class="left-rail">
+          <div class="rail-item">
+            <span class="rail-icon">◈</span>
+            <span>Home</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">▣</span>
+            <span>Projects</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◎</span>
+            <span>My Work</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◉</span>
+            <span>Calendar</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◐</span>
+            <span>Chat</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◊</span>
+            <span>Admin</span>
+          </div>
+        </div>
+        
+        <div class="main-canvas">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <div class="page-title">Notifications</div>
+            <button class="btn-secondary">Mark all as read</button>
+          </div>
+          
+          <!-- Filter Tabs -->
+          <div class="tabs" style="margin-bottom: 20px;">
+            <div class="tab active">All (12)</div>
+            <div class="tab">Mentions (3)</div>
+            <div class="tab">Assignments (2)</div>
+            <div class="tab">Updates (7)</div>
+          </div>
+          
+          <div class="card">
+            <!-- Unread Notifications -->
+            <div class="notification-item unread">
+              <div class="avatar" style="width: 40px; height: 40px; font-size: 14px;">SM</div>
+              <div class="notification-content">
+                <div class="notification-source">#proj-website • Q1 Planning Doc</div>
+                <div class="notification-text">
+                  <strong>Sarah Miller</strong> mentioned you: "<strong>@john</strong> please review the timeline section and let me know if the dates work for you."
+                </div>
+              </div>
+              <div class="notification-time">2m ago</div>
+              <button class="btn-ghost">Go to →</button>
+            </div>
+            
+            <div class="notification-item unread">
+              <div class="avatar" style="width: 40px; height: 40px; font-size: 14px; background: var(--accent-2);">MK</div>
+              <div class="notification-content">
+                <div class="notification-source">#proj-mobile • Task assigned</div>
+                <div class="notification-text">
+                  <strong>Mike Kim</strong> assigned you to <strong>"API Integration"</strong> — Due Jan 22
+                </div>
+              </div>
+              <div class="notification-time">1h ago</div>
+              <button class="btn-ghost">View →</button>
+            </div>
+            
+            <div class="notification-item unread">
+              <div class="avatar" style="width: 40px; height: 40px; font-size: 14px;">AL</div>
+              <div class="notification-content">
+                <div class="notification-source">#town-square</div>
+                <div class="notification-text">
+                  <strong>Alice Lee</strong> mentioned you: "Thanks <strong>@john</strong> for the quick turnaround on the review!"
+                </div>
+              </div>
+              <div class="notification-time">3h ago</div>
+              <button class="btn-ghost">Go to →</button>
+            </div>
+            
+            <!-- Read Notifications -->
+            <div class="notification-item">
+              <div class="avatar" style="width: 40px; height: 40px; font-size: 14px;">TL</div>
+              <div class="notification-content">
+                <div class="notification-source">#proj-website • Task completed</div>
+                <div class="notification-text">
+                  <strong>Tom Lee</strong> completed <strong>"Homepage wireframes v1"</strong>
+                </div>
+              </div>
+              <div class="notification-time">Yesterday</div>
+              <button class="btn-ghost">View →</button>
+            </div>
+            
+            <div class="notification-item">
+              <div class="avatar" style="width: 40px; height: 40px; font-size: 14px;">SM</div>
+              <div class="notification-content">
+                <div class="notification-source">#proj-website • Meeting reminder</div>
+                <div class="notification-text">
+                  <strong>Design Review</strong> starts in 30 minutes (2:00 PM)
+                </div>
+              </div>
+              <div class="notification-time">Yesterday</div>
+              <button class="btn-ghost">Join →</button>
+            </div>
+            
+            <div class="notification-item">
+              <div class="avatar" style="width: 40px; height: 40px; font-size: 14px; background: var(--accent-2);">JS</div>
+              <div class="notification-content">
+                <div class="notification-source">System</div>
+                <div class="notification-text">
+                  <strong>Jane Smith</strong> joined the workspace
+                </div>
+              </div>
+              <div class="notification-time">2 days ago</div>
+            </div>
+            
+            <div class="notification-item">
+              <div class="avatar" style="width: 40px; height: 40px; font-size: 14px;">JD</div>
+              <div class="notification-content">
+                <div class="notification-source">#proj-marketing • Task assigned</div>
+                <div class="notification-text">
+                  You were assigned to <strong>"Q1 Campaign Assets"</strong> — Due Feb 1
+                </div>
+              </div>
+              <div class="notification-time">3 days ago</div>
+              <button class="btn-ghost">View →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FRAME 14: ADMIN -->
+  <div class="wireframe-section">
+    <div class="section-title">Frame 14: Admin</div>
+    <div class="app-shell">
+      <div class="top-bar">
+        <div class="logo">
+          <div class="logo-icon">WH</div>
+          Work Hub
+        </div>
+        <div class="global-search">
+          <input type="text" class="search-input" placeholder="Search projects, docs, tasks..." disabled>
+        </div>
+        <div class="top-actions">
+          <button class="btn-primary">
+            <span>+</span> Create
+          </button>
+          <div class="icon-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+          </div>
+          <div class="avatar">JD</div>
+        </div>
+      </div>
+      
+      <div class="app-body">
+        <div class="left-rail">
+          <div class="rail-item">
+            <span class="rail-icon">◈</span>
+            <span>Home</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">▣</span>
+            <span>Projects</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◎</span>
+            <span>My Work</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◉</span>
+            <span>Calendar</span>
+          </div>
+          <div class="rail-item">
+            <span class="rail-icon">◐</span>
+            <span>Chat</span>
+          </div>
+          <div class="rail-item active">
+            <span class="rail-icon">◊</span>
+            <span>Admin</span>
+          </div>
+        </div>
+        
+        <div class="main-canvas">
+          <div class="page-title">Admin</div>
+          
+          <!-- Admin Tabs -->
+          <div class="tabs" style="margin-bottom: 24px;">
+            <div class="tab active">Users</div>
+            <div class="tab">Workspace</div>
+            <div class="tab">Security</div>
+            <div class="tab">Integrations</div>
+          </div>
+          
+          <!-- Users Section -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div class="filter-bar" style="margin-bottom: 0;">
+              <input type="text" class="form-input" style="width: 300px;" placeholder="Search users...">
+              <select class="filter-select">
+                <option>All Roles</option>
+                <option>Admin</option>
+                <option>Member</option>
+              </select>
+              <select class="filter-select">
+                <option>All Status</option>
+                <option>Active</option>
+                <option>Disabled</option>
+              </select>
+            </div>
+            <button class="btn-primary">+ Invite User</button>
+          </div>
+          
+          <div class="card" style="padding: 0;">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Role</th>
+                  <th>Status</th>
+                  <th>Last Login</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                      <div class="avatar" style="width: 36px; height: 36px; font-size: 13px;">JD</div>
+                      <div>
+                        <div style="font-weight: 600;">John Doe</div>
+                        <div style="font-size: 13px; color: var(--muted);">john.doe@company.com</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span class="status-badge" style="background: var(--accent-light); color: var(--accent);">Admin</span></td>
+                  <td><span class="status-badge status-active">Active</span></td>
+                  <td style="font-size: 14px; color: var(--muted);">Today, 9:30 AM</td>
+                  <td><button class="btn-ghost">⋯</button></td>
+                </tr>
+                <tr>
+                  <td>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                      <div class="avatar" style="width: 36px; height: 36px; font-size: 13px; background: var(--accent-2);">SM</div>
+                      <div>
+                        <div style="font-weight: 600;">Sarah Miller</div>
+                        <div style="font-size: 13px; color: var(--muted);">sarah.miller@company.com</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span class="status-badge" style="background: #F3F4F6; color: var(--muted);">Member</span></td>
+                  <td><span class="status-badge status-active">Active</span></td>
+                  <td style="font-size: 14px; color: var(--muted);">Today, 8:45 AM</td>
+                  <td><button class="btn-ghost">⋯</button></td>
+                </tr>
+                <tr>
+                  <td>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                      <div class="avatar" style="width: 36px; height: 36px; font-size: 13px;">MK</div>
+                      <div>
+                        <div style="font-weight: 600;">Mike Kim</div>
+                        <div style="font-size: 13px; color: var(--muted);">mike.kim@company.com</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span class="status-badge" style="background: #F3F4F6; color: var(--muted);">Member</span></td>
+                  <td><span class="status-badge status-active">Active</span></td>
+                  <td style="font-size: 14px; color: var(--muted);">Yesterday</td>
+                  <td><button class="btn-ghost">⋯</button></td>
+                </tr>
+                <tr>
+                  <td>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                      <div class="avatar" style="width: 36px; height: 36px; font-size: 13px;">AL</div>
+                      <div>
+                        <div style="font-weight: 600;">Alice Lee</div>
+                        <div style="font-size: 13px; color: var(--muted);">alice.lee@company.com</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span class="status-badge" style="background: #F3F4F6; color: var(--muted);">Member</span></td>
+                  <td><span class="status-badge status-active">Active</span></td>
+                  <td style="font-size: 14px; color: var(--muted);">2 days ago</td>
+                  <td><button class="btn-ghost">⋯</button></td>
+                </tr>
+                <tr>
+                  <td>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                      <div class="avatar" style="width: 36px; height: 36px; font-size: 13px;">TL</div>
+                      <div>
+                        <div style="font-weight: 600;">Tom Lee</div>
+                        <div style="font-size: 13px; color: var(--muted);">tom.lee@company.com</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span class="status-badge" style="background: #F3F4F6; color: var(--muted);">Member</span></td>
+                  <td><span class="status-badge status-completed">Disabled</span></td>
+                  <td style="font-size: 14px; color: var(--muted);">Jan 10, 2024</td>
+                  <td><button class="btn-ghost">⋯</button></td>
+                </tr>
+                <tr>
+                  <td>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                      <div class="avatar" style="width: 36px; height: 36px; font-size: 13px; background: var(--info);">JS</div>
+                      <div>
+                        <div style="font-weight: 600;">Jane Smith</div>
+                        <div style="font-size: 13px; color: var(--muted);">jane.smith@company.com</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span class="status-badge" style="background: #F3F4F6; color: var(--muted);">Member</span></td>
+                  <td><span class="status-badge status-planning">Pending</span></td>
+                  <td style="font-size: 14px; color: var(--muted);">—</td>
+                  <td><button class="btn-ghost">⋯</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          
+          <!-- Workspace Settings Preview -->
+          <div style="margin-top: 32px;">
+            <div style="font-family: 'Fraunces', serif; font-size: 20px; font-weight: 700; margin-bottom: 16px;">Workspace Settings</div>
+            <div class="grid-2">
+              <div class="card">
+                <div class="card-title">Branding</div>
+                <div style="margin-bottom: 16px;">
+                  <div style="font-size: 13px; font-weight: 600; margin-bottom: 6px;">Workspace Name</div>
+                  <input type="text" class="form-input" value="Work Hub">
+                </div>
+                <div style="margin-bottom: 16px;">
+                  <div style="font-size: 13px; font-weight: 600; margin-bottom: 6px;">Logo</div>
+                  <div style="display: flex; align-items: center; gap: 12px;">
+                    <div class="logo-icon">WH</div>
+                    <button class="btn-secondary">Upload new</button>
+                  </div>
+                </div>
+                <div>
+                  <div style="font-size: 13px; font-weight: 600; margin-bottom: 6px;">Accent Color</div>
+                  <div style="display: flex; gap: 8px;">
+                    <div style="width: 32px; height: 32px; background: var(--accent); border-radius: 8px; border: 2px solid var(--ink);"></div>
+                    <div style="width: 32px; height: 32px; background: #7C3AED; border-radius: 8px;"></div>
+                    <div style="width: 32px; height: 32px; background: #DC2626; border-radius: 8px;"></div>
+                    <div style="width: 32px; height: 32px; background: #2563EB; border-radius: 8px;"></div>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="card">
+                <div class="card-title">Security</div>
+                <div style="margin-bottom: 16px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-weight: 600;">Require SSO</span>
+                    <span style="width: 44px; height: 24px; background: var(--accent); border-radius: 12px; position: relative;">
+                      <span style="position: absolute; right: 2px; top: 2px; width: 20px; height: 20px; background: white; border-radius: 50%;"></span>
+                    </span>
+                  </div>
+                  <div style="font-size: 13px; color: var(--muted);">All users must sign in via SSO</div>
+                </div>
+                <div style="margin-bottom: 16px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-weight: 600;">Session timeout</span>
+                    <span style="width: 44px; height: 24px; background: var(--border); border-radius: 12px; position: relative;">
+                      <span style="position: absolute; left: 2px; top: 2px; width: 20px; height: 20px; background: white; border-radius: 50%;"></span>
+                    </span>
+                  </div>
+                  <div style="font-size: 13px; color: var(--muted);">Auto-logout after 8 hours</div>
+                </div>
+                <div>
+                  <div style="font-size: 13px; font-weight: 600; margin-bottom: 6px;">SSO Provider</div>
+                  <select class="filter-select" style="width: 100%;">
+                    <option>Google Workspace</option>
+                    <option>Microsoft Entra</option>
+                    <option>Keycloak (OIDC)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+
+<script>
+  (function () {
+    function closestWireframeSection(element) {
+      return element.closest('.wireframe-section') || document;
+    }
+
+    function openModalWithinSection(trigger, modalName) {
+      const section = closestWireframeSection(trigger);
+      const modal = section.querySelector('.modal-backdrop[data-modal="' + modalName + '"]');
+      if (!modal) return;
+      modal.classList.add('open');
+    }
+
+    function closeModal(modalBackdrop) {
+      modalBackdrop.classList.remove('open');
+    }
+
+    document.addEventListener('click', function (event) {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+
+      const open = target.closest('[data-open-modal]');
+      if (open) {
+        const modalName = open.getAttribute('data-open-modal');
+        if (modalName) openModalWithinSection(open, modalName);
+        return;
+      }
+
+      const close = target.closest('[data-close-modal]');
+      if (close) {
+        const backdrop = close.closest('.modal-backdrop');
+        if (backdrop) closeModal(backdrop);
+        return;
+      }
+
+      // Click outside modal to close
+      const backdrop = target.classList.contains('modal-backdrop') ? target : null;
+      if (backdrop) {
+        closeModal(backdrop);
+        return;
+      }
+
+      const removeRow = target.closest('[data-remove-schema-row]');
+      if (removeRow) {
+        const row = removeRow.closest('[data-schema-row]');
+        if (row) row.remove();
+        return;
+      }
+
+      const addRow = target.closest('[data-add-schema-row]');
+      if (addRow) {
+        const section = closestWireframeSection(addRow);
+        const modal = section.querySelector('.modal-backdrop[data-modal="schema"]');
+        if (!modal) return;
+        const body = modal.querySelector('.modal-body');
+        if (!body) return;
+
+        const row = document.createElement('div');
+        row.className = 'schema-row';
+        row.setAttribute('data-schema-row', '');
+        row.innerHTML =
+          '<div class="schema-grid">' +
+          '  <input class="form-input" value="New property" aria-label="Property name">' +
+          '  <select class="filter-select" data-property-type>' +
+          '    <option>Title</option>' +
+          '    <option>Select</option>' +
+          '    <option>Multi-select</option>' +
+          '    <option>People</option>' +
+          '    <option>Date</option>' +
+          '    <option>Checkbox</option>' +
+          '    <option>Number</option>' +
+          '    <option>URL</option>' +
+          '    <option>Relation</option>' +
+          '  </select>' +
+          '  <div style="font-size: 13px; color: var(--muted);">Configure…</div>' +
+          '  <button class="btn-ghost" data-remove-schema-row title="Remove">🗑</button>' +
+          '</div>' +
+          '<div class="schema-options" data-schema-options></div>';
+
+        body.appendChild(row);
+        return;
+      }
+    });
+
+    document.addEventListener('change', function (event) {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (!target.matches('[data-property-type]')) return;
+
+      const row = target.closest('[data-schema-row]');
+      if (!row) return;
+      const options = row.querySelector('[data-schema-options]');
+      if (!options) return;
+
+      const type = String(target.value || '').toLowerCase();
+      const isOptionType = type === 'select' || type === 'multi-select';
+      options.classList.toggle('open', isOptionType);
+
+      if (isOptionType && options.children.length === 0) {
+        options.innerHTML =
+          '<span class="option-pill">Option A <button title="Remove">×</button></span>' +
+          '<span class="option-pill">Option B <button title="Remove">×</button></span>' +
+          '<button class="btn-secondary" style="padding: 6px 10px;">+ Add option</button>';
+      }
+    });
+  })();
+</script>
+</html>
