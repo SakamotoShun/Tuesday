@@ -15,8 +15,8 @@
     --primary-foreground: 0 0% 100%;
     --secondary: 17 89% 40%; /* #C2410C - Burnt orange */
     --secondary-foreground: 0 0% 100%;
-    --muted: 0 0% 42%; /* #6B6B6B */
-    --muted-foreground: 0 0% 42%;
+    --muted: 0 0% 92%; /* Light gray background */
+    --muted-foreground: 0 0% 45%; /* Darker text for contrast */
     --accent: 174 78% 27%;
     --accent-foreground: 0 0% 100%;
     --destructive: 4 90% 40%; /* #B42318 - Red */
