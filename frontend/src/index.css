@@ -25,11 +25,39 @@
     --input: 32 23% 87%;
     --ring: 174 78% 27%;
     --radius: 0.625rem; /* 10px - matches wireframe buttons */
-    
+
     /* Additional semantic colors */
     --success: 142 76% 36%;
     --warning: 32 95% 44%;
     --info: 199 89% 48%;
+  }
+
+  .dark {
+    /* Dark mode colors */
+    --background: 0 0% 9%; /* #161616 - Dark background */
+    --foreground: 38 35% 95%; /* #F7F4EE - Warm cream text */
+    --card: 0 0% 12%; /* #1F1F1F - Slightly lighter */
+    --card-foreground: 38 35% 95%;
+    --popover: 0 0% 12%;
+    --popover-foreground: 38 35% 95%;
+    --primary: 174 78% 37%; /* Brighter teal for dark mode */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 17 89% 50%; /* Brighter orange */
+    --secondary-foreground: 0 0% 100%;
+    --muted: 0 0% 55%; /* Lighter muted text */
+    --muted-foreground: 0 0% 60%;
+    --accent: 174 78% 37%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 4 90% 50%; /* Brighter red */
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 20%; /* Dark border */
+    --input: 0 0% 20%;
+    --ring: 174 78% 37%;
+
+    /* Additional semantic colors - brighter versions for dark mode */
+    --success: 142 76% 46%;
+    --warning: 32 95% 54%;
+    --info: 199 89% 58%;
   }
 
   * {

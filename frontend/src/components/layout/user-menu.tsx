@@ -1,5 +1,6 @@
-import { LogOut, User } from "lucide-react"
+import { LogOut, Moon, Sun, User, Monitor } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
+import { useUIStore } from "@/store/ui-store"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -11,6 +12,7 @@ import {
 
 export function UserMenu() {
   const { user, logout } = useAuth()
+  const { theme, setTheme } = useUIStore()
 
   if (!user) return null
 
@@ -19,6 +21,15 @@ export function UserMenu() {
     .map((n) => n[0])
     .join("")
     .toUpperCase()
+
+  const cycleTheme = () => {
+    if (theme === "light") setTheme("dark")
+    else if (theme === "dark") setTheme("system")
+    else setTheme("light")
+  }
+
+  const ThemeIcon = theme === "light" ? Sun : theme === "dark" ? Moon : Monitor
+  const themeLabel = theme === "light" ? "Light" : theme === "dark" ? "Dark" : "System"
 
   return (
     <DropdownMenu>
@@ -46,6 +57,11 @@ export function UserMenu() {
           <User className="h-4 w-4" />
           Profile
         </DropdownMenuItem>
+        <DropdownMenuItem className="gap-2" onClick={cycleTheme}>
+          <ThemeIcon className="h-4 w-4" />
+          Theme: {themeLabel}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem
           className="gap-2 text-destructive"
           onClick={() => logout.mutate()}

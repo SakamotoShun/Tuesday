@@ -1465,7 +1465,9 @@ Phase 3 is complete when ALL of the following are verified:
 | 3.15 | User menu shows and logout works | Manual: Click avatar, click logout | ✅ |
 | 3.16 | Loading skeletons appear while fetching | Manual: Throttle network, observe | ✅ |
 | 3.17 | 404 page appears for unknown routes | Manual: Visit /unknown-route | ✅ |
-| 3.18 | All component tests pass | Automated: `bun test` | ⏳ |
+| 3.18 | Dark mode toggle works and persists | Manual: Click theme in UserMenu | ✅ |
+| 3.19 | Dark mode respects system preference | Manual: Set system theme, verify | ✅ |
+| 3.20 | All component tests pass | Automated: `bun test` | ⏳ |
 
 ---
 
@@ -1506,6 +1508,12 @@ frontend/src/
    - Click-outside-to-close functionality
    - Escape key support for closing
    - Proper `asChild` prop support on trigger for flexibility
+
+4. **Dark Mode Support**: Implemented full dark mode with system preference detection:
+   - CSS variables for both light and dark themes in `index.css`
+   - Theme state management in UI store (`light` | `dark` | `system`)
+   - `ThemeProvider` component that syncs theme with DOM and respects system preferences
+   - Theme toggle in UserMenu dropdown with visual feedback (Sun/Moon/Monitor icons)
 
 **Test Setup:**
 ```typescript
@@ -1635,6 +1643,9 @@ bunx playwright test --ui
 - [x] Form inputs have focus states
 - [x] Toast notifications appear
 - [x] Loading states are smooth
+- [x] Dark mode toggle works in UserMenu
+- [x] Dark mode respects system preference when set to "System"
+- [x] Dark mode colors applied correctly across all components
 
 ---
 
