@@ -44,8 +44,8 @@
     --primary-foreground: 0 0% 100%;
     --secondary: 17 89% 50%; /* Brighter orange */
     --secondary-foreground: 0 0% 100%;
-    --muted: 0 0% 55%; /* Lighter muted text */
-    --muted-foreground: 0 0% 60%;
+    --muted: 0 0% 18%; /* Darker muted background */
+    --muted-foreground: 0 0% 70%; /* Much lighter text for contrast */
     --accent: 174 78% 37%;
     --accent-foreground: 0 0% 100%;
     --destructive: 4 90% 50%; /* Brighter red */
