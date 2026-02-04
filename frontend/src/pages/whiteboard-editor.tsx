@@ -111,12 +111,15 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
       pendingSyncRef.current = scene
       return
     }
+    const files = scene.files ?? {}
+    if (Object.keys(files).length > 0 && typeof excalidrawAPI.current.addFiles === "function") {
+      excalidrawAPI.current.addFiles(files)
+    }
     excalidrawAPI.current.updateScene({
       elements: scene.elements,
-      files: scene.files ?? {},
     })
     sceneRef.current = scene
-    const signature = JSON.stringify(scene.elements)
+    const signature = JSON.stringify({ elements: scene.elements, files: scene.files ?? {} })
     lastSentSignatureRef.current = signature
     lastRemoteSignatureRef.current = signature
   }, [])
@@ -283,7 +286,7 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
               files: files as Record<string, unknown>,
             }
             sceneRef.current = scene
-            const signature = JSON.stringify(elements)
+            const signature = JSON.stringify({ elements, files: files ?? {} })
             if (signature === lastRemoteSignatureRef.current) {
               return
             }

@@ -2162,6 +2162,7 @@ backend/src/
   - Autosave with debounce
   - Save indicator
   - Back navigation
+- [x] Restore Excalidraw files cache on load to avoid image placeholders
 - [ ] Create `WhiteboardEmbed` component:
   - Embed whiteboard in docs
   - Preview card with "Open" button
@@ -2215,7 +2216,7 @@ Phase 4 is complete when ALL of the following are verified:
 | 4.15 | Calendar shows meetings in day/week/month | Manual: Toggle views | ⏳ |
 | 4.16 | "My Calendar" shows user's meetings | Manual: View my calendar page | ⏳ |
 | 4.17 | Whiteboards list displays in project | Manual: View whiteboards tab | ⏳ |
-| 4.18 | Excalidraw editor loads and saves | Manual: Draw, save, refresh | ⏳ |
+| 4.18 | Excalidraw editor loads and saves (including images) | Manual: Draw, save, refresh | ✅ |
 | 4.19 | Whiteboard autosave works | Manual: Draw, wait, verify saved | ⏳ |
 | 4.20 | Whiteboard can be exported to PNG/SVG | Manual: Use export menu | ⏳ |
 | 4.21 | All component tests pass | Automated: `bun test` | ⏳ |
