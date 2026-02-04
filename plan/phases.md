@@ -1712,64 +1712,65 @@ bunx playwright test --ui
 
 ---
 
-## Phase 4: Feature Completion
+## Phase 4: Feature Completion (IN PROGRESS)
 
 ### Overview
 
 This phase completes the full feature set: Documents UI with BlockNote editor, Tasks UI with Kanban board, Timeline view, Meetings/Calendar, and Whiteboards with Excalidraw. This is the largest phase and represents the core user-facing functionality.
 
 **Estimated Effort:** 20-28 hours
+**Status:** 🔄 In Progress (4.1-4.5 complete, 4.3 includes real-time collaboration)
 
 **Prerequisites:** Phase 3 complete with frontend foundation working.
 
 ---
 
-### 4.1 Docs UI - List & Navigation
+### 4.1 Docs UI - List & Navigation ✅
 
 **Tasks:**
-- [ ] Create `useDocs` hook:
+- [x] Create `useDocs` hook:
   - `docs(projectId)` - list docs in project
   - `personalDocs()` - list personal docs
   - `doc(id)` - single doc query
   - `createDoc` - mutation
   - `updateDoc` - mutation
   - `deleteDoc` - mutation
-- [ ] Create API functions for docs
-- [ ] Create `DocList` component:
+- [x] Create API functions for docs
+- [x] Create `DocList` component:
   - Tree view for nested docs
   - Expand/collapse folders
   - Doc type indicators (doc vs database)
-- [ ] Create `DocTreeItem` component:
+- [x] Create `DocTreeItem` component:
   - Title, icon, indent level
   - Click to navigate
   - Context menu (rename, delete)
-- [ ] Create `NewDocDialog`:
+- [x] Create `NewDocDialog`:
   - Title input
   - Doc type selector (doc/database)
   - Parent selector (optional)
-- [ ] Add docs tab to project detail page
+- [x] Add docs tab to project detail page
 
-**Files to create:**
+**Files created:**
 ```
 frontend/src/
 ├── api/
 │   └── docs.ts
 ├── hooks/
-│   └── useDocs.ts
+│   └── use-docs.ts
 ├── pages/
-│   └── ProjectDocs.tsx
+│   └── project-docs.tsx (via project detail tabs)
 └── components/
     └── docs/
-        ├── DocList.tsx
-        ├── DocTreeItem.tsx
-        └── NewDocDialog.tsx
+        ├── doc-list.tsx
+        ├── doc-tree-item.tsx
+        └── new-doc-dialog.tsx
 ```
 
 **Estimated:** 2-2.5 hours
 
 ---
 
-### 4.2 Docs UI - BlockNote Editor
+### 4.2 Docs UI - BlockNote Editor ✅
 
 **Tasks:**
 - [x] Install BlockNote packages (`@blocknote/core`, `@blocknote/react`, `@blocknote/shadcn`)
@@ -1780,19 +1781,19 @@ frontend/src/
 - [x] Create `BlockNoteEditor` wrapper:
   - Configure BlockNote with shadcn UI
   - Handle JSON content serialization
+  - **Added:** Real-time collaboration with Yjs (see 4.3)
 - [x] Implement autosave with debounce (500ms):
   - Track dirty state
   - Save on blur or after debounce
   - Show save indicator
+  - **Updated:** Now handled via Yjs collaboration layer
 - [x] Create `DocToolbar` component:
   - Breadcrumb navigation
   - Save status indicator
   - Delete button
   - Share/export (future)
 
-**Note:** Doc properties panel deferred to 4.3 (Database View).
-
-**Files to create:**
+**Files created:**
 ```
 frontend/src/
 ├── pages/
@@ -1809,25 +1810,25 @@ frontend/src/
 
 ---
 
-### 4.3 Docs UI - Database View
+### 4.3 Docs UI - Database View & Real-Time Collaboration ✅
 
 **Tasks:**
-- [ ] Create `DatabaseView` component:
+- [x] Create `DatabaseView` component:
   - Table layout with columns from schema
   - Rows are child docs with properties
   - Inline editing of property values
-- [ ] Create `PropertyCell` component:
+- [x] Create `PropertyCell` component:
   - Render based on property type (text, number, date, select, etc.)
   - Inline edit mode
   - Validation per type
-- [ ] Create `SchemaEditor` dialog:
+- [x] Create `SchemaEditor` dialog:
   - Add/remove/reorder columns
   - Set property types
   - Set column width
-- [ ] Create "New Row" functionality:
+- [x] Create "New Row" functionality:
   - Add row button
   - Create child doc with properties
-- [ ] Support property types:
+- [x] Support property types:
   - Text (string)
   - Number
   - Date
@@ -1835,18 +1836,40 @@ frontend/src/
   - Multi-select
   - Checkbox (boolean)
   - URL
+- [x] **Real-Time Collaboration with Yjs:**
+  - WebSocket-based real-time sync for doc editing
+  - Live cursors with user names (Google Docs/Notion style)
+  - Backend collab hub for managing doc rooms and presence
+  - Yjs CRDT for conflict-free editing
+  - Database snapshots and incremental updates stored in PostgreSQL
+  - Reconnection handling with hasOpened guard
 
-**Files to create:**
+**Files created:**
 ```
 frontend/src/components/docs/
-├── DatabaseView.tsx
-├── PropertyCell.tsx
-├── SchemaEditor.tsx
-├── PropertyTypeSelector.tsx
-└── NewRowButton.tsx
+├── database-view.tsx
+├── property-cell.tsx
+├── schema-editor.tsx
+├── property-type-selector.tsx
+├── properties-panel.tsx
+└── new-row-button.tsx
+
+frontend/src/hooks/
+└── use-doc-collaboration.ts
+
+backend/src/
+├── collab/
+│   └── hub.ts
+├── repositories/
+│   └── docCollab.ts
+├── routes/
+│   └── collab.ts
+├── websocket.ts
+└── db/migrations/
+    └── 0005_doc_collab.sql
 ```
 
-**Estimated:** 4-5 hours
+**Estimated:** 4-5 hours (actual: ~6 hours including real-time collaboration)
 
 ---
 
@@ -2173,29 +2196,31 @@ frontend/src/
 
 Phase 4 is complete when ALL of the following are verified:
 
-| # | Criterion | Verification Method |
-|---|-----------|---------------------|
-| 4.1 | Docs list displays in project with tree structure | Manual: View project docs tab |
-| 4.2 | New doc can be created in project | Manual: Create doc via dialog |
-| 4.3 | BlockNote editor loads and saves content | Manual: Edit doc, refresh, verify |
-| 4.4 | Autosave works with debounce | Manual: Edit, wait, check save indicator |
-| 4.5 | Database docs show table view | Manual: Create database doc, view |
-| 4.6 | Database properties can be edited inline | Manual: Click cell, edit, save |
-| 4.7 | Database schema can be modified | Manual: Add/remove columns |
-| 4.8 | Kanban board displays with columns | Manual: View project tasks tab |
-| 4.9 | Tasks can be dragged between columns | Manual: Drag task, verify status update |
-| 4.10 | Task detail dialog shows all fields | Manual: Click task, view dialog |
-| 4.11 | Task can be created via quick add | Manual: Type in column, press enter |
-| 4.12 | Timeline view displays tasks with dates | Manual: View timeline tab |
-| 4.13 | Timeline filters work correctly | Manual: Filter by status/assignee |
-| 4.14 | Meetings can be created in project | Manual: Create meeting in calendar |
-| 4.15 | Calendar shows meetings in day/week/month | Manual: Toggle views |
-| 4.16 | "My Calendar" shows user's meetings | Manual: View my calendar page |
-| 4.17 | Whiteboards list displays in project | Manual: View whiteboards tab |
-| 4.18 | Excalidraw editor loads and saves | Manual: Draw, save, refresh |
-| 4.19 | Whiteboard autosave works | Manual: Draw, wait, verify saved |
-| 4.20 | Whiteboard can be exported to PNG/SVG | Manual: Use export menu |
-| 4.21 | All component tests pass | Automated: `bun test` |
+| # | Criterion | Verification Method | Status |
+|---|-----------|---------------------|--------|
+| 4.1 | Docs list displays in project with tree structure | Manual: View project docs tab | ✅ |
+| 4.2 | New doc can be created in project | Manual: Create doc via dialog | ✅ |
+| 4.3 | BlockNote editor loads and saves content | Manual: Edit doc, refresh, verify | ✅ |
+| 4.4 | Autosave works with debounce | Manual: Edit, wait, check save indicator | ✅ |
+| 4.5 | Database docs show table view | Manual: Create database doc, view | ✅ |
+| 4.6 | Database properties can be edited inline | Manual: Click cell, edit, save | ✅ |
+| 4.7 | Database schema can be modified | Manual: Add/remove columns | ✅ |
+| 4.8 | Kanban board displays with columns | Manual: View project tasks tab | ✅ |
+| 4.9 | Tasks can be dragged between columns | Manual: Drag task, verify status update | ✅ |
+| 4.10 | Task detail dialog shows all fields | Manual: Click task, view dialog | ✅ |
+| 4.11 | Task can be created via quick add | Manual: Type in column, press enter | ✅ |
+| 4.12 | Timeline view displays tasks with dates | Manual: View timeline tab | ⏳ |
+| 4.13 | Timeline filters work correctly | Manual: Filter by status/assignee | ⏳ |
+| 4.14 | Meetings can be created in project | Manual: Create meeting in calendar | ⏳ |
+| 4.15 | Calendar shows meetings in day/week/month | Manual: Toggle views | ⏳ |
+| 4.16 | "My Calendar" shows user's meetings | Manual: View my calendar page | ⏳ |
+| 4.17 | Whiteboards list displays in project | Manual: View whiteboards tab | ⏳ |
+| 4.18 | Excalidraw editor loads and saves | Manual: Draw, save, refresh | ⏳ |
+| 4.19 | Whiteboard autosave works | Manual: Draw, wait, verify saved | ⏳ |
+| 4.20 | Whiteboard can be exported to PNG/SVG | Manual: Use export menu | ⏳ |
+| 4.21 | All component tests pass | Automated: `bun test` | ⏳ |
+| 4.22 | **Real-time collaboration syncs edits** | Manual: Open doc in 2 browsers, edit | ✅ |
+| 4.23 | **Live cursors show collaborator names** | Manual: Edit simultaneously, see cursors | ✅ |
 
 ---
 
@@ -2291,26 +2316,28 @@ backend/src/routes/
 #### Manual Verification Checklist
 
 **Documents:**
-- [ ] Create doc in project - appears in list
-- [ ] Create nested doc (with parent) - hierarchy shown
-- [ ] Edit doc content - BlockNote editor works
-- [ ] Save and refresh - content persists
-- [ ] Autosave triggers after typing stops
-- [ ] Create database doc - table view shown
-- [ ] Add column to database - appears in table
-- [ ] Edit cell value - saves correctly
-- [ ] Delete doc - removed from list
+- [x] Create doc in project - appears in list
+- [x] Create nested doc (with parent) - hierarchy shown
+- [x] Edit doc content - BlockNote editor works
+- [x] Save and refresh - content persists
+- [x] Autosave triggers after typing stops (via Yjs collaboration)
+- [x] Create database doc - table view shown
+- [x] Add column to database - appears in table
+- [x] Edit cell value - saves correctly
+- [x] Delete doc - removed from list
+- [x] **Real-time sync** - edits appear in other browsers instantly
+- [x] **Live cursors** - collaborator names shown above cursors
 
 **Tasks/Kanban:**
-- [ ] View kanban board - columns for each status
-- [ ] Drag task to different column - status updates
-- [ ] Drag task within column - order updates
-- [ ] Quick add task - appears in column
-- [ ] Click task - detail dialog opens
-- [ ] Edit task in dialog - changes save
-- [ ] Add assignee - avatar appears on card
-- [ ] Set due date - badge appears on card
-- [ ] Overdue task shows warning styling
+- [x] View kanban board - columns for each status
+- [x] Drag task to different column - status updates
+- [x] Drag task within column - order updates
+- [x] Quick add task - appears in column
+- [x] Click task - detail dialog opens
+- [x] Edit task in dialog - changes save
+- [x] Add assignee - avatar appears on card
+- [x] Set due date - badge appears on card
+- [x] Overdue task shows warning styling
 
 **Timeline:**
 - [ ] View timeline - tasks with dates shown
