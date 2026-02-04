@@ -97,3 +97,59 @@ export interface UpdateProjectInput {
   startDate?: string | null
   targetEndDate?: string | null
 }
+
+// Task types
+export interface TaskStatus {
+  id: string
+  name: string
+  color: string
+  sortOrder: number
+  isDefault: boolean
+}
+
+export interface Task {
+  id: string
+  projectId: string
+  title: string
+  description: string | null
+  statusId: string | null
+  startDate: string | null
+  dueDate: string | null
+  sortOrder: number
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+  status?: TaskStatus
+  assignees?: User[]
+  createdByUser?: User
+}
+
+export interface CreateTaskInput {
+  title: string
+  description?: string
+  statusId?: string
+  startDate?: string
+  dueDate?: string
+  assigneeIds?: string[]
+}
+
+export interface UpdateTaskInput {
+  title?: string
+  description?: string | null
+  statusId?: string | null
+  startDate?: string | null
+  dueDate?: string | null
+  assigneeIds?: string[]
+}
+
+export interface UpdateTaskStatusInput {
+  statusId: string
+}
+
+export interface UpdateTaskOrderInput {
+  sortOrder: number
+}
+
+export interface UpdateTaskAssigneesInput {
+  assigneeIds: string[]
+}

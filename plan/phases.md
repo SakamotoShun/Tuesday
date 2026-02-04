@@ -1848,11 +1848,11 @@ frontend/src/components/docs/
 
 ---
 
-### 4.4 Tasks UI - Kanban Board
+### 4.4 Tasks UI - Kanban Board ✅
 
 **Tasks:**
-- [ ] Install dnd-kit packages (`@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`)
-- [ ] Create `useTasks` hook:
+- [x] Install dnd-kit packages (`@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`)
+- [x] Create `useTasks` hook:
   - `tasks(projectId, filters?)` - list tasks
   - `myTasks()` - user's tasks across projects
   - `task(id)` - single task
@@ -1861,22 +1861,22 @@ frontend/src/components/docs/
   - `updateTaskStatus` - mutation
   - `updateTaskOrder` - mutation
   - `deleteTask` - mutation
-- [ ] Create API functions for tasks
-- [ ] Create `KanbanBoard` component:
+- [x] Create API functions for tasks
+- [x] Create `KanbanBoard` component:
   - Columns from task statuses
   - DnD context provider
   - Handle drag end (update status/order)
-- [ ] Create `KanbanColumn` component:
+- [x] Create `KanbanColumn` component:
   - Status header with color
   - Droppable area
   - Task count badge
   - "Add task" button
-- [ ] Create `TaskCard` component:
+- [x] Create `TaskCard` component:
   - Draggable wrapper
   - Title, assignee avatars
   - Due date badge (with overdue styling)
   - Click to open detail
-- [ ] Create `AddTaskForm` component:
+- [x] Create `AddTaskForm` component:
   - Inline form in column
   - Quick add (title only)
   - Enter to submit, Escape to cancel
@@ -1902,10 +1902,10 @@ frontend/src/
 
 ---
 
-### 4.5 Tasks UI - Task Detail
+### 4.5 Tasks UI - Task Detail ✅
 
 **Tasks:**
-- [ ] Create `TaskDetailDialog` component:
+- [x] Create `TaskDetailDialog` component:
   - Full task view in dialog/drawer
   - Editable title
   - Description with markdown editor
@@ -1913,15 +1913,12 @@ frontend/src/
   - Assignee picker (multi-select)
   - Date pickers (start date, due date)
   - Delete action with confirmation
-- [ ] Create `AssigneePicker` component:
+- [x] Create `AssigneePicker` component:
   - Search/filter project members
   - Multi-select with avatars
   - Clear selection option
-- [ ] Create `DatePicker` component (or use shadcn):
-  - Calendar popup
-  - Clear date option
-  - Date range support (optional)
-- [ ] Add task detail route or handle via URL param
+- [x] Use native date inputs for start/due dates
+- [x] Add task detail route or handle via URL param
 
 **Files to create:**
 ```

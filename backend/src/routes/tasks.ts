@@ -1,11 +1,10 @@
 import { Hono } from 'hono';
 import { taskService } from '../services';
-import { auth, requireProjectAccess } from '../middleware';
+import { auth } from '../middleware';
 import { success, errors } from '../utils/response';
 import { 
   validateBody, 
   formatValidationErrors,
-  createTaskSchema, 
   updateTaskSchema, 
   updateTaskStatusSchema,
   updateTaskOrderSchema,
@@ -16,53 +15,6 @@ const tasks = new Hono();
 
 // All task routes require authentication
 tasks.use('*', auth);
-
-// GET /api/v1/projects/:id/tasks - List project tasks
-tasks.get('/projects/:id/tasks', requireProjectAccess, async (c) => {
-  try {
-    const user = c.get('user');
-    const projectId = c.req.param('id');
-    
-    // Parse query filters
-    const query = c.req.query();
-    const filters = {
-      statusId: query.statusId,
-      assigneeId: query.assigneeId,
-    };
-
-    const projectTasks = await taskService.getProjectTasks(projectId, user, filters);
-    return success(c, projectTasks);
-  } catch (error) {
-    if (error instanceof Error) {
-      return errors.forbidden(c, error.message);
-    }
-    console.error('Error fetching tasks:', error);
-    return errors.internal(c, 'Failed to fetch tasks');
-  }
-});
-
-// POST /api/v1/projects/:id/tasks - Create task in project
-tasks.post('/projects/:id/tasks', requireProjectAccess, async (c) => {
-  try {
-    const user = c.get('user');
-    const projectId = c.req.param('id');
-    const body = await c.req.json();
-
-    const validation = validateBody(createTaskSchema, body);
-    if (!validation.success) {
-      return errors.validation(c, formatValidationErrors(validation.errors));
-    }
-
-    const task = await taskService.createTask(projectId, validation.data, user);
-    return success(c, task, undefined, 201);
-  } catch (error) {
-    if (error instanceof Error) {
-      return errors.badRequest(c, error.message);
-    }
-    console.error('Error creating task:', error);
-    return errors.internal(c, 'Failed to create task');
-  }
-});
 
 // GET /api/v1/tasks/my - List user's tasks across all projects
 tasks.get('/my', async (c) => {

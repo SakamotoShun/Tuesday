@@ -1,18 +1,85 @@
+import { useState } from "react"
 import { Link, useParams, useNavigate } from "react-router-dom"
-import { ArrowLeft, MoreHorizontal } from "lucide-react"
+import { ArrowLeft, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useProject } from "@/hooks/use-projects"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
+import { useProject, useProjects, useProjectStatuses } from "@/hooks/use-projects"
+import { useTasks, useTaskStatuses } from "@/hooks/use-tasks"
 import { StatusBadge } from "@/components/projects/status-badge"
+import { EditProjectDialog } from "@/components/projects/edit-project-dialog"
+import { DeleteProjectDialog } from "@/components/projects/delete-project-dialog"
+import { KanbanBoard } from "@/components/tasks/kanban-board"
+import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog"
+import type { Task, UpdateProjectInput, UpdateTaskInput, User } from "@/api/types"
 
 export function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { data: project, isLoading } = useProject(id || "")
+  const { data: project, isLoading: isProjectLoading } = useProject(id || "")
+  const { tasks, isLoading: isTasksLoading, createTask, updateTaskStatus, updateTaskOrder, updateTask, deleteTask, updateTaskAssignees } = useTasks(id || "")
+  const { data: taskStatuses, isLoading: isTaskStatusesLoading } = useTaskStatuses()
+  const { data: projectStatuses, isLoading: isProjectStatusesLoading } = useProjectStatuses()
+  const { updateProject, deleteProject } = useProjects()
+  
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false)
+
+  const isLoading = isProjectLoading || isTasksLoading || isTaskStatusesLoading || isProjectStatusesLoading
+
+  const handleTaskMove = (taskId: string, statusId: string) => {
+    updateTaskStatus.mutate({ taskId, data: { statusId } })
+  }
+
+  const handleTaskReorder = (taskId: string, sortOrder: number) => {
+    updateTaskOrder.mutate({ taskId, data: { sortOrder } })
+  }
+
+  const handleAddTask = (title: string, statusId: string) => {
+    createTask.mutate({ title, statusId })
+  }
+
+  const handleTaskClick = (task: Task) => {
+    setSelectedTask(task)
+    setIsTaskDialogOpen(true)
+  }
+
+  const handleUpdateTask = async (taskId: string, data: UpdateTaskInput) => {
+    const { assigneeIds, ...taskData } = data
+    await updateTask.mutateAsync({ taskId, data: taskData })
+    if (assigneeIds) {
+      await updateTaskAssignees.mutateAsync({ taskId, data: { assigneeIds } })
+    }
+  }
+
+  const handleDeleteTask = async (taskId: string) => {
+    await deleteTask.mutateAsync(taskId)
+    setSelectedTask(null)
+    setIsTaskDialogOpen(false)
+  }
+
+  const handleEditProject = async (data: UpdateProjectInput) => {
+    if (!project) return
+    await updateProject.mutateAsync({ id: project.id, data })
+  }
+
+  const handleDeleteProject = async () => {
+    if (!project) return
+    await deleteProject.mutateAsync(project.id)
+    navigate("/projects")
+  }
 
   if (isLoading) {
     return (
@@ -47,6 +114,15 @@ export function ProjectDetailPage() {
     return `${startStr} → ${endStr}`
   }
 
+  const isOwner = project.members?.some(
+    (m) => m.userId === "current-user-id" && m.role === "owner"
+  )
+
+  // Extract project members as User objects for assignee picker
+  const projectMembers: User[] = project.members
+    ?.map((m) => m.user)
+    .filter((user): user is User => user !== undefined) || []
+
   return (
     <div className="space-y-6">
       {/* Breadcrumb */}
@@ -72,9 +148,27 @@ export function ProjectDetailPage() {
           <div className="flex items-center gap-3">
             <StatusBadge status={project.status?.name} />
             <Button variant="outline">Manage Members</Button>
-            <Button variant="ghost" size="icon">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => setIsEditDialogOpen(true)}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit Project
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  onClick={() => setIsDeleteDialogOpen(true)}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Project
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -144,7 +238,19 @@ export function ProjectDetailPage() {
         </TabsContent>
 
         <TabsContent value="tasks" className="mt-6">
-          <PlaceholderContent title="Tasks" phase="Phase 4" />
+          {taskStatuses && (
+            <div className="h-[calc(100vh-400px)] min-h-[500px]">
+              <KanbanBoard
+                tasks={tasks}
+                statuses={taskStatuses}
+                onTaskMove={handleTaskMove}
+                onTaskReorder={handleTaskReorder}
+                onAddTask={handleAddTask}
+                onTaskClick={handleTaskClick}
+                isLoading={createTask.isPending || updateTaskStatus.isPending}
+              />
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="timeline" className="mt-6">
@@ -163,6 +269,39 @@ export function ProjectDetailPage() {
           <PlaceholderContent title="Chat" phase="Phase 5" />
         </TabsContent>
       </Tabs>
+
+      {/* Edit Project Dialog */}
+      <EditProjectDialog
+        project={project}
+        statuses={projectStatuses || []}
+        open={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        onSubmit={handleEditProject}
+      />
+
+      {/* Delete Project Dialog */}
+      <DeleteProjectDialog
+        project={project}
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        onConfirm={handleDeleteProject}
+      />
+
+      {/* Task Detail Dialog */}
+      <TaskDetailDialog
+        task={selectedTask}
+        statuses={taskStatuses || []}
+        members={projectMembers}
+        open={isTaskDialogOpen}
+        onOpenChange={setIsTaskDialogOpen}
+        onSubmit={async (data) => {
+          if (selectedTask) {
+            await handleUpdateTask(selectedTask.id, data)
+          }
+        }}
+        onDelete={selectedTask ? () => handleDeleteTask(selectedTask.id) : null}
+        isSubmitting={updateTask.isPending || deleteTask.isPending}
+      />
     </div>
   )
 }

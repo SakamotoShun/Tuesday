@@ -1,8 +1,16 @@
 import { Hono } from 'hono';
-import { projectService } from '../services';
+import { projectService, taskService } from '../services';
 import { auth, requireProjectMember, requireProjectOwner } from '../middleware';
 import { success, errors } from '../utils/response';
-import { validateBody, formatValidationErrors, createProjectSchema, updateProjectSchema, addMemberSchema, updateMemberSchema } from '../utils/validation';
+import { 
+  validateBody, 
+  formatValidationErrors, 
+  createProjectSchema, 
+  updateProjectSchema, 
+  addMemberSchema, 
+  updateMemberSchema,
+  createTaskSchema,
+} from '../utils/validation';
 
 const projects = new Hono();
 
@@ -202,6 +210,53 @@ projects.delete('/:id/members/:userId', requireProjectOwner, async (c) => {
       return errors.badRequest(c, error.message);
     }
     return errors.internal(c, 'Failed to remove member');
+  }
+});
+
+// GET /api/v1/projects/:id/tasks - List project tasks
+projects.get('/:id/tasks', requireProjectMember, async (c) => {
+  try {
+    const user = c.get('user');
+    const projectId = c.req.param('id');
+    
+    // Parse query filters
+    const query = c.req.query();
+    const filters = {
+      statusId: query.statusId,
+      assigneeId: query.assigneeId,
+    };
+
+    const projectTasks = await taskService.getProjectTasks(projectId, user, filters);
+    return success(c, projectTasks);
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.forbidden(c, error.message);
+    }
+    console.error('Error fetching tasks:', error);
+    return errors.internal(c, 'Failed to fetch tasks');
+  }
+});
+
+// POST /api/v1/projects/:id/tasks - Create task in project
+projects.post('/:id/tasks', requireProjectMember, async (c) => {
+  try {
+    const user = c.get('user');
+    const projectId = c.req.param('id');
+    const body = await c.req.json();
+
+    const validation = validateBody(createTaskSchema, body);
+    if (!validation.success) {
+      return errors.validation(c, formatValidationErrors(validation.errors));
+    }
+
+    const task = await taskService.createTask(projectId, validation.data, user);
+    return success(c, task, undefined, 201);
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error creating task:', error);
+    return errors.internal(c, 'Failed to create task');
   }
 });
 
