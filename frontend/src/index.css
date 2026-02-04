@@ -82,29 +82,6 @@
   border-radius: 3px 3px 3px 0;
 }
 
-.timeline-gantt .gantt-container {
-  border: none;
-  background: transparent;
-}
-
-.timeline-gantt .bar-label {
-  font-family: inherit;
-  fill: currentColor;
-}
-
-.timeline-gantt .grid-background,
-.timeline-gantt .grid-header {
-  fill: hsl(var(--card));
-}
-
-.timeline-gantt .grid-row:nth-child(odd) {
-  fill: hsl(var(--muted));
-}
-
-.timeline-gantt .gantt .bar {
-  rx: 6;
-}
-
 .fc {
   --fc-border-color: hsl(var(--border));
   --fc-page-bg-color: transparent;

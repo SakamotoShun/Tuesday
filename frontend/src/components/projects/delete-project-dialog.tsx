@@ -1,6 +1,8 @@
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Dialog,
   DialogContent,
@@ -27,6 +29,26 @@ export function DeleteProjectDialog({
 }: DeleteProjectDialogProps) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [confirmationValue, setConfirmationValue] = useState("")
+
+  const normalizedProjectName = useMemo(() => {
+    return project?.name.trim().toLowerCase() || ""
+  }, [project?.name])
+
+  const normalizedConfirmation = useMemo(() => {
+    return confirmationValue.trim().toLowerCase()
+  }, [confirmationValue])
+
+  const isConfirmationValid = normalizedConfirmation.length > 0 && normalizedConfirmation === normalizedProjectName
+
+  useEffect(() => {
+    if (!open) {
+      setConfirmationValue("")
+      setError(null)
+      return
+    }
+    setConfirmationValue("")
+  }, [open, project?.name])
 
   const handleDelete = async () => {
     try {
@@ -57,14 +79,33 @@ export function DeleteProjectDialog({
           </DialogTitle>
           <DialogDescription>
             Are you sure you want to delete <strong>{project.name}</strong>? This action cannot be undone.
+            Type the project name to confirm.
           </DialogDescription>
         </DialogHeader>
 
-        {error && (
-          <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">
-            {error}
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="project-delete-confirmation">Project name</Label>
+            <Input
+              id="project-delete-confirmation"
+              value={confirmationValue}
+              onChange={(event) => setConfirmationValue(event.target.value)}
+              placeholder={project.name}
+              disabled={isDeleting}
+            />
+            {confirmationValue.length > 0 && !isConfirmationValid && (
+              <p className="text-sm text-muted-foreground">
+                Enter the exact project name to enable deletion.
+              </p>
+            )}
           </div>
-        )}
+
+          {error && (
+            <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">
+              {error}
+            </div>
+          )}
+        </div>
 
         <DialogFooter>
           <Button
@@ -79,7 +120,7 @@ export function DeleteProjectDialog({
             type="button"
             variant="destructive"
             onClick={handleDelete}
-            disabled={isDeleting}
+            disabled={!isConfirmationValid || isDeleting}
           >
             {isDeleting ? "Deleting..." : "Delete Project"}
           </Button>

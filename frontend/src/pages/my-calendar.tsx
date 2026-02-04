@@ -48,7 +48,7 @@ export function MyCalendarPage() {
 
       <CalendarView
         meetings={meetings}
-        onSelectDate={() => undefined}
+        onSelectDate={() => {}}
         onSelectMeeting={(meeting) => setSelectedMeeting(meeting)}
         showProject
       />

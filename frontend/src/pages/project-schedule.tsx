@@ -33,11 +33,15 @@ export function ProjectSchedulePage({ projectId }: ProjectSchedulePageProps) {
 
   const defaultDate = useMemo(() => new Date(), [])
 
-  const openCreateDialog = (startDate?: Date) => {
+  const openCreateDialog = (startDate?: Date, allDay = true) => {
     const base = startDate ?? defaultDate
     const start = new Date(base)
-    start.setMinutes(0, 0, 0)
-    start.setHours(9)
+    if (allDay) {
+      start.setMinutes(0, 0, 0)
+      start.setHours(9)
+    } else {
+      start.setSeconds(0, 0)
+    }
     const end = withHourOffset(start, 1)
     setDraftStart(start)
     setDraftEnd(end)
@@ -70,7 +74,7 @@ export function ProjectSchedulePage({ projectId }: ProjectSchedulePageProps) {
 
       <CalendarView
         meetings={meetings}
-        onSelectDate={(date) => openCreateDialog(date)}
+        onSelectDate={(date, allDay) => openCreateDialog(date, allDay)}
         onSelectMeeting={handleSelectMeeting}
       />
 

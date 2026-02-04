@@ -21,14 +21,17 @@ import { DeleteProjectDialog } from "@/components/projects/delete-project-dialog
 import { KanbanBoard } from "@/components/tasks/kanban-board"
 import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog"
 import { ProjectDocsPage } from "@/pages/project-docs"
-import { ProjectTimelinePage } from "@/pages/project-timeline"
 import { ProjectSchedulePage } from "@/pages/project-schedule"
 import { ProjectWhiteboardsPage } from "@/pages/project-whiteboards"
 import type { Task, UpdateProjectInput, UpdateTaskInput, User } from "@/api/types"
 
+const PROJECT_TABS = new Set(["docs", "tasks", "schedule", "whiteboards", "chat"])
+
 export function ProjectDetailPage() {
-  const { id } = useParams<{ id: string }>()
+  const { id, "*": tabPath } = useParams<{ id: string; "*"?: string }>()
   const navigate = useNavigate()
+  const tabFromPath = tabPath?.split("/")[0]
+  const defaultTab = tabFromPath && PROJECT_TABS.has(tabFromPath) ? tabFromPath : "docs"
   const { data: project, isLoading: isProjectLoading } = useProject(id || "")
   const { tasks, isLoading: isTasksLoading, createTask, updateTaskStatus, updateTaskOrder, updateTask, deleteTask, updateTaskAssignees } = useTasks(id || "")
   const { data: taskStatuses, isLoading: isTaskStatusesLoading } = useTaskStatuses()
@@ -226,11 +229,10 @@ export function ProjectDetailPage() {
       </Card>
 
       {/* Tabs */}
-      <Tabs defaultValue="docs">
+      <Tabs defaultValue={defaultTab}>
         <TabsList>
           <TabsTrigger value="docs">Docs</TabsTrigger>
           <TabsTrigger value="tasks">Tasks</TabsTrigger>
-          <TabsTrigger value="timeline">Timeline</TabsTrigger>
           <TabsTrigger value="schedule">Schedule</TabsTrigger>
           <TabsTrigger value="whiteboards">Whiteboards</TabsTrigger>
           <TabsTrigger value="chat">Chat</TabsTrigger>
@@ -254,10 +256,6 @@ export function ProjectDetailPage() {
               />
             </div>
           )}
-        </TabsContent>
-
-        <TabsContent value="timeline" className="mt-6">
-          <ProjectTimelinePage projectId={project.id} />
         </TabsContent>
 
         <TabsContent value="schedule" className="mt-6">

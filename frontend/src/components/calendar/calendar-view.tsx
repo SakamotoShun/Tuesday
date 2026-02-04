@@ -8,7 +8,7 @@ import type { Meeting } from "@/api/types"
 
 interface CalendarViewProps {
   meetings: Meeting[]
-  onSelectDate: (date: Date) => void
+  onSelectDate: (date: Date, allDay: boolean) => void
   onSelectMeeting: (meeting: Meeting) => void
   showProject?: boolean
 }
@@ -46,7 +46,7 @@ export function CalendarView({
             onSelectMeeting(meeting)
           }
         }}
-        dateClick={(info: DateClickArg) => onSelectDate(info.date)}
+        dateClick={(info: DateClickArg) => onSelectDate(info.date, info.allDay)}
         height="auto"
         eventContent={(arg: EventContentArg) => {
           const title = document.createElement("div")

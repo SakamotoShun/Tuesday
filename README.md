@@ -49,7 +49,7 @@ This repo includes:
 - **Responsive Layout** - Works on desktop and mobile
 
 ### Coming Soon (Phase 4-6)
-- **Tasks** - Kanban boards, task management, timelines
+- **Tasks** - Kanban boards, task management
 - **Documentation** - Notion-style docs with BlockNote editor
 - **Whiteboards** - Collaborative drawing with Excalidraw
 - **Chat** - Real-time messaging with WebSockets

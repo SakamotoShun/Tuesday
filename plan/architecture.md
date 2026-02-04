@@ -218,7 +218,6 @@ src/
 │   ├── layout/              # Sidebar, header, navigation
 │   ├── docs/                # BlockNote editor, database views
 │   ├── tasks/               # Kanban board, task cards
-│   ├── timeline/            # Gantt/timeline view
 │   ├── calendar/            # Calendar components
 │   ├── whiteboard/          # Excalidraw wrapper
 │   └── chat/                # Channel list, message list

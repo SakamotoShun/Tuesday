@@ -23,6 +23,19 @@ const toInputValue = (date: Date) => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
+const splitDateTime = (value: string) => {
+  const [datePart = "", timePart = ""] = value.split("T")
+  return { datePart, timePart }
+}
+
+const mergeDateTime = (current: string, next: { date?: string; time?: string }) => {
+  const { datePart, timePart } = splitDateTime(current)
+  const mergedDate = next.date ?? datePart
+  const mergedTime = next.time ?? timePart
+  if (!mergedDate) return ""
+  return `${mergedDate}T${mergedTime || "00:00"}`
+}
+
 export function MeetingDialog({
   open,
   onOpenChange,
@@ -55,6 +68,9 @@ export function MeetingDialog({
   const [location, setLocation] = useState("")
   const [notes, setNotes] = useState("")
   const [attendeeIds, setAttendeeIds] = useState<string[]>([])
+
+  const startParts = splitDateTime(startTime)
+  const endParts = splitDateTime(endTime)
 
   useEffect(() => {
     if (!open) return
@@ -95,12 +111,39 @@ export function MeetingDialog({
 
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Start</label>
-              <Input type="datetime-local" value={startTime} onChange={(event) => setStartTime(event.target.value)} />
+              <label className="text-sm font-medium">Start date</label>
+              <Input
+                type="date"
+                value={startParts.datePart}
+                onChange={(event) => setStartTime(mergeDateTime(startTime, { date: event.target.value }))}
+              />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">End</label>
-              <Input type="datetime-local" value={endTime} onChange={(event) => setEndTime(event.target.value)} />
+              <label className="text-sm font-medium">Start time</label>
+              <Input
+                type="time"
+                value={startParts.timePart}
+                onChange={(event) => setStartTime(mergeDateTime(startTime, { time: event.target.value }))}
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">End date</label>
+              <Input
+                type="date"
+                value={endParts.datePart}
+                onChange={(event) => setEndTime(mergeDateTime(endTime, { date: event.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">End time</label>
+              <Input
+                type="time"
+                value={endParts.timePart}
+                onChange={(event) => setEndTime(mergeDateTime(endTime, { time: event.target.value }))}
+              />
             </div>
           </div>
 

@@ -43,7 +43,7 @@ export const tasksApi = {
 
   // Get task statuses
   listStatuses: (): Promise<TaskStatus[]> => {
-    return api.get<TaskStatus[]>("/admin/statuses/task")
+    return api.get<TaskStatus[]>("/statuses/task")
   },
 
   // Get single task

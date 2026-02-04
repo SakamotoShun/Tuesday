@@ -1,7 +1,27 @@
 import { useState } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
+import { Plus } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { ApiErrorResponse } from "@/api/client"
+
+const whiteboardSchema = z.object({
+  name: z.string().min(1, "Name is required").max(255),
+})
+
+type WhiteboardForm = z.infer<typeof whiteboardSchema>
 
 interface NewWhiteboardDialogProps {
   onCreate: (name: string) => Promise<unknown>
@@ -9,40 +29,75 @@ interface NewWhiteboardDialogProps {
 
 export function NewWhiteboardDialog({ onCreate }: NewWhiteboardDialogProps) {
   const [open, setOpen] = useState(false)
-  const [name, setName] = useState("")
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const handleCreate = async () => {
-    if (!name.trim()) return
-    setIsSubmitting(true)
-    await onCreate(name.trim())
-    setIsSubmitting(false)
-    setName("")
-    setOpen(false)
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<WhiteboardForm>({
+    resolver: zodResolver(whiteboardSchema),
+    defaultValues: {
+      name: "",
+    },
+  })
+
+  const handleCreate = async (data: WhiteboardForm) => {
+    try {
+      setError(null)
+      await onCreate(data.name.trim())
+      reset()
+      setOpen(false)
+    } catch (err) {
+      if (err instanceof ApiErrorResponse) {
+        setError(err.message)
+      } else {
+        setError("Failed to create whiteboard")
+      }
+    }
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>Create Whiteboard</Button>
+        <Button className="gap-1">
+          <Plus className="h-4 w-4" />
+          New Whiteboard
+        </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle>New Whiteboard</DialogTitle>
+          <DialogDescription>Start a fresh canvas for sketches and ideas.</DialogDescription>
         </DialogHeader>
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Name</label>
-          <Input
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="Product brainstorm"
-          />
-        </div>
-        <DialogFooter>
-          <Button onClick={handleCreate} disabled={isSubmitting || !name.trim()}>
-            Create
-          </Button>
-        </DialogFooter>
+        <form onSubmit={handleSubmit(handleCreate)} className="space-y-4 py-4">
+          {error && (
+            <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">
+              {error}
+            </div>
+          )}
+          <div className="space-y-2">
+            <Label htmlFor="whiteboard-name">Name *</Label>
+            <Input
+              id="whiteboard-name"
+              placeholder="Product brainstorm"
+              {...register("name")}
+              className={errors.name ? "border-destructive" : ""}
+            />
+            {errors.name && (
+              <p className="text-sm text-destructive">{errors.name.message}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Creating..." : "Create Whiteboard"}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   )

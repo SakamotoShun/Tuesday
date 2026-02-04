@@ -35,8 +35,35 @@ const mergeElements = (base: WhiteboardScene["elements"], incoming: WhiteboardSc
 
 const mergeScene = (base: WhiteboardScene, update: WhiteboardScene) => ({
   elements: mergeElements(base.elements, update.elements),
-  files: { ...(base.files ?? {}), ...(update.files ?? {}) },
+  files: update.files ?? base.files ?? {},
 })
+
+const getReferencedFileIds = (elements: WhiteboardScene["elements"]) => {
+  const ids = new Set<string>()
+  for (const element of elements) {
+    if (element.isDeleted) continue
+    const fileId = (element as { fileId?: unknown }).fileId
+    if (typeof fileId === "string") {
+      ids.add(fileId)
+    }
+  }
+  return ids
+}
+
+const filterReferencedFiles = (
+  elements: WhiteboardScene["elements"],
+  files: Record<string, unknown> = {}
+) => {
+  const referencedIds = getReferencedFileIds(elements)
+  if (referencedIds.size === 0) return {}
+  const filtered: Record<string, unknown> = {}
+  for (const fileId of referencedIds) {
+    if (files[fileId] !== undefined) {
+      filtered[fileId] = files[fileId]
+    }
+  }
+  return filtered
+}
 
 const LoadingState = () => (
   <div className="min-h-[60vh] bg-background flex items-center justify-center">
@@ -149,9 +176,11 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
 
   const getSnapshot = useCallback(() => {
     if (!excalidrawAPI.current) return null
+    const elements = excalidrawAPI.current.getSceneElements()
+    const files = excalidrawAPI.current.getFiles()
     return {
-      elements: excalidrawAPI.current.getSceneElements(),
-      files: excalidrawAPI.current.getFiles(),
+      elements,
+      files: filterReferencedFiles(elements, files),
     }
   }, [])
 
@@ -241,7 +270,10 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
     <div className="flex h-full flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={() => navigate(-1)}>
+          <Button
+            variant="outline"
+            onClick={() => navigate(`/projects/${whiteboard.projectId}/whiteboards`)}
+          >
             Back
           </Button>
           <Input
@@ -281,12 +313,16 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
               ignoreAppStateChangeRef.current = false
               return
             }
+            const filteredFiles = filterReferencedFiles(
+              elements as WhiteboardScene["elements"],
+              files as Record<string, unknown>
+            )
             const scene = {
               elements: elements as WhiteboardScene["elements"],
-              files: files as Record<string, unknown>,
+              files: filteredFiles,
             }
             sceneRef.current = scene
-            const signature = JSON.stringify({ elements, files: files ?? {} })
+            const signature = JSON.stringify({ elements, files: filteredFiles })
             if (signature === lastRemoteSignatureRef.current) {
               return
             }

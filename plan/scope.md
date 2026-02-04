@@ -13,7 +13,7 @@ Build a self-hosted internal "work hub" that combines Notion-style markdown docs
 ## Core Objects (Mental Model)
 - Project: container for work
 - Doc: markdown page (project or personal)
-- Task: work item (kanban + timeline)
+- Task: work item (kanban)
 - Meeting: scheduled event (project calendar)
 - Whiteboard: Excalidraw-style canvas (project-scoped; embeddable in docs)
 - Channel: chat space (workspace-wide or project-scoped)
@@ -61,7 +61,6 @@ Build a self-hosted internal "work hub" that combines Notion-style markdown docs
 - "My work" view: tasks assigned to me across projects
 
 ### 5) Timeline View
-- Project timeline using task start/due (or due-only displayed as milestone)
 - Filtering by status/assignee
 
 ### 6) Meetings / Project Calendar
