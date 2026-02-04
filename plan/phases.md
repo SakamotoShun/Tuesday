@@ -1772,35 +1772,37 @@ frontend/src/
 ### 4.2 Docs UI - BlockNote Editor
 
 **Tasks:**
-- [ ] Install BlockNote packages (`@blocknote/core`, `@blocknote/react`, `@blocknote/mantine`)
-- [ ] Create `DocPage` component:
+- [x] Install BlockNote packages (`@blocknote/core`, `@blocknote/react`, `@blocknote/shadcn`)
+- [x] Create `DocPage` component:
   - Load doc content
   - Display title (editable inline)
   - BlockNote editor for content
-  - Properties panel (for database rows)
-- [ ] Create `BlockNoteEditor` wrapper:
-  - Configure BlockNote with custom blocks (if needed)
-  - Handle content serialization (JSON to/from markdown)
-- [ ] Implement autosave with debounce (500ms):
+- [x] Create `BlockNoteEditor` wrapper:
+  - Configure BlockNote with shadcn UI
+  - Handle JSON content serialization
+- [x] Implement autosave with debounce (500ms):
   - Track dirty state
   - Save on blur or after debounce
   - Show save indicator
-- [ ] Create `DocToolbar` component:
+- [x] Create `DocToolbar` component:
   - Breadcrumb navigation
   - Save status indicator
   - Delete button
   - Share/export (future)
 
+**Note:** Doc properties panel deferred to 4.3 (Database View).
+
 **Files to create:**
 ```
 frontend/src/
 ├── pages/
-│   └── DocPage.tsx
-└── components/
-    └── docs/
-        ├── BlockNoteEditor.tsx
-        ├── DocToolbar.tsx
-        └── DocProperties.tsx
+│   └── doc-page.tsx
+├── components/
+│   └── docs/
+│       ├── block-note-editor.tsx
+│       └── doc-toolbar.tsx
+└── hooks/
+    └── use-debounce.ts
 ```
 
 **Estimated:** 3-4 hours
@@ -2206,6 +2208,7 @@ Phase 4 is complete when ALL of the following are verified:
 frontend/src/
 ├── hooks/
 │   ├── useDocs.test.ts
+│   ├── use-debounce.test.tsx
 │   ├── useTasks.test.ts
 │   ├── useMeetings.test.ts
 │   └── useWhiteboards.test.ts
@@ -2213,6 +2216,7 @@ frontend/src/
 │   ├── docs/
 │   │   ├── DocList.test.tsx
 │   │   ├── BlockNoteEditor.test.tsx
+│   │   ├── DocToolbar.test.tsx
 │   │   └── DatabaseView.test.tsx
 │   ├── tasks/
 │   │   ├── KanbanBoard.test.tsx
@@ -2237,6 +2241,9 @@ frontend/src/
 | `DocList.test.tsx` | should expand/collapse folders | Verify toggle works |
 | `BlockNoteEditor.test.tsx` | should load content | Verify content displayed |
 | `BlockNoteEditor.test.tsx` | should call onChange | Verify change callback |
+| `DocToolbar.test.tsx` | should render breadcrumb | Verify title and path shown |
+| `DocToolbar.test.tsx` | should confirm delete | Verify delete flow |
+| `use-debounce.test.tsx` | should delay updates | Verify debounced value timing |
 | `DatabaseView.test.tsx` | should render columns from schema | Verify table headers |
 | `DatabaseView.test.tsx` | should render rows as docs | Verify data rows |
 | `KanbanBoard.test.tsx` | should render columns | Verify status columns |

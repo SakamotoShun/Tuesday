@@ -128,7 +128,7 @@ export type ReorderStatusInput = z.infer<typeof reorderStatusSchema>;
 // Doc validation schemas
 export const createDocSchema = z.object({
   title: z.string().min(1, 'Doc title is required').max(255),
-  contentMd: z.string().optional(),
+  content: z.array(z.record(z.unknown())).optional(),
   parentId: uuidSchema.optional().nullable(),
   isDatabase: z.boolean().default(false),
   schema: z.record(z.unknown()).optional().nullable(),
@@ -139,7 +139,7 @@ export type CreateDocInput = z.infer<typeof createDocSchema>;
 
 export const updateDocSchema = z.object({
   title: z.string().min(1).max(255).optional(),
-  contentMd: z.string().optional(),
+  content: z.array(z.record(z.unknown())).optional(),
   parentId: uuidSchema.optional().nullable(),
   schema: z.record(z.unknown()).optional().nullable(),
   properties: z.record(z.unknown()).optional(),

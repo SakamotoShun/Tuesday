@@ -1,3 +1,5 @@
+import type { Block } from "@blocknote/core"
+
 // User types
 export interface User {
   id: string
@@ -152,4 +154,37 @@ export interface UpdateTaskOrderInput {
 
 export interface UpdateTaskAssigneesInput {
   assigneeIds: string[]
+}
+
+// Doc types
+export interface Doc {
+  id: string
+  projectId: string | null
+  parentId: string | null
+  title: string
+  content: Block[]
+  properties: Record<string, unknown> | null
+  isDatabase: boolean
+  schema: Record<string, unknown> | null
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+  createdByUser?: User
+}
+
+export interface CreateDocInput {
+  title: string
+  content?: Block[]
+  parentId?: string | null
+  isDatabase?: boolean
+  schema?: Record<string, unknown> | null
+  properties?: Record<string, unknown>
+}
+
+export interface UpdateDocInput {
+  title?: string
+  content?: Block[]
+  parentId?: string | null
+  schema?: Record<string, unknown> | null
+  properties?: Record<string, unknown>
 }

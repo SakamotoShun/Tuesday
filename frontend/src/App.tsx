@@ -9,6 +9,7 @@ import { RegisterPage } from "@/pages/register"
 import { HomePage } from "@/pages/home"
 import { ProjectsPage } from "@/pages/projects"
 import { ProjectDetailPage } from "@/pages/project-detail"
+import { DocPage } from "@/pages/doc-page"
 import { NotFoundPage } from "@/pages/not-found"
 import { PlaceholderPage } from "@/pages/placeholder"
 
@@ -56,6 +57,7 @@ function AppRoutes() {
         >
           <Route index element={<HomePage />} />
           <Route path="projects" element={<ProjectsPage />} />
+          <Route path="projects/:id/docs/:docId" element={<DocPage />} />
           <Route path="projects/:id/*" element={<ProjectDetailPage />} />
           <Route path="my-work" element={<PlaceholderPage title="My Work" />} />
           <Route path="my-calendar" element={<PlaceholderPage title="My Calendar" />} />

@@ -3,7 +3,6 @@ import { Link, useParams, useNavigate } from "react-router-dom"
 import { ArrowLeft, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -21,6 +20,7 @@ import { EditProjectDialog } from "@/components/projects/edit-project-dialog"
 import { DeleteProjectDialog } from "@/components/projects/delete-project-dialog"
 import { KanbanBoard } from "@/components/tasks/kanban-board"
 import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog"
+import { ProjectDocsPage } from "@/pages/project-docs"
 import type { Task, UpdateProjectInput, UpdateTaskInput, User } from "@/api/types"
 
 export function ProjectDetailPage() {
@@ -234,7 +234,7 @@ export function ProjectDetailPage() {
         </TabsList>
 
         <TabsContent value="docs" className="mt-6">
-          <PlaceholderContent title="Docs" phase="Phase 4" />
+          <ProjectDocsPage projectId={project.id} />
         </TabsContent>
 
         <TabsContent value="tasks" className="mt-6">

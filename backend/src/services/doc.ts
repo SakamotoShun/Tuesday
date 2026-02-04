@@ -5,7 +5,7 @@ import type { User } from '../types';
 
 export interface CreateDocInput {
   title: string;
-  contentMd?: string;
+  content?: Array<Record<string, unknown>>;
   projectId?: string | null;
   parentId?: string | null;
   isDatabase?: boolean;
@@ -15,7 +15,7 @@ export interface CreateDocInput {
 
 export interface UpdateDocInput {
   title?: string;
-  contentMd?: string;
+  content?: Array<Record<string, unknown>>;
   parentId?: string | null;
   schema?: Record<string, unknown> | null;
   properties?: Record<string, unknown>;
@@ -121,7 +121,7 @@ export class DocService {
 
     const doc = await docRepository.create({
       title: input.title.trim(),
-      contentMd: input.contentMd || '',
+      content: input.content ?? [],
       projectId: input.projectId || null,
       parentId: input.parentId || null,
       isDatabase: input.isDatabase || false,
@@ -181,8 +181,8 @@ export class DocService {
       updateData.title = input.title.trim();
     }
 
-    if (input.contentMd !== undefined) {
-      updateData.contentMd = input.contentMd;
+    if (input.content !== undefined) {
+      updateData.content = input.content;
     }
 
     if (input.parentId !== undefined) {

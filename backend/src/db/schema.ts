@@ -87,7 +87,7 @@ export const docs = pgTable('docs', {
   projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
   parentId: uuid('parent_id'),
   title: varchar('title', { length: 255 }).notNull(),
-  contentMd: text('content_md').default(''),
+  content: jsonb('content').notNull().default([]),
   properties: jsonb('properties').default({}),
   isDatabase: boolean('is_database').notNull().default(false),
   schema: jsonb('schema'),
