@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { projectStatusRepository, taskStatusRepository } from '../repositories';
+import { projectStatusRepository, taskStatusRepository, settingsRepository } from '../repositories';
 import { auth, requireAdmin } from '../middleware';
 import { success, errors } from '../utils/response';
 import { 
@@ -9,11 +9,65 @@ import {
   updateStatusSchema,
   reorderStatusSchema,
 } from '../utils/validation';
+import { z } from 'zod';
+
+// Schema for updating admin settings
+const updateSettingsSchema = z.object({
+  allowRegistration: z.boolean().optional(),
+});
 
 const admin = new Hono();
 
 // All admin routes require authentication and admin role
 admin.use('*', auth, requireAdmin);
+
+// ========== SETTINGS ==========
+
+// GET /api/v1/admin/settings - Get admin settings
+admin.get('/settings', async (c) => {
+  try {
+    const allowRegistration = await settingsRepository.get<boolean>('allow_registration');
+    const workspaceName = await settingsRepository.get<string>('workspace_name');
+    
+    return success(c, {
+      allowRegistration: allowRegistration ?? false,
+      workspaceName: workspaceName ?? '',
+    });
+  } catch (error) {
+    console.error('Error fetching admin settings:', error);
+    return errors.internal(c, 'Failed to fetch settings');
+  }
+});
+
+// PATCH /api/v1/admin/settings - Update admin settings
+admin.patch('/settings', async (c) => {
+  try {
+    const body = await c.req.json();
+
+    const validation = updateSettingsSchema.safeParse(body);
+    if (!validation.success) {
+      return errors.validation(c, formatValidationErrors(validation.error));
+    }
+
+    const { allowRegistration } = validation.data;
+
+    if (allowRegistration !== undefined) {
+      await settingsRepository.set('allow_registration', allowRegistration);
+    }
+
+    // Return updated settings
+    const updatedAllowRegistration = await settingsRepository.get<boolean>('allow_registration');
+    const workspaceName = await settingsRepository.get<string>('workspace_name');
+
+    return success(c, {
+      allowRegistration: updatedAllowRegistration ?? false,
+      workspaceName: workspaceName ?? '',
+    });
+  } catch (error) {
+    console.error('Error updating admin settings:', error);
+    return errors.internal(c, 'Failed to update settings');
+  }
+});
 
 // ========== PROJECT STATUSES ==========
 

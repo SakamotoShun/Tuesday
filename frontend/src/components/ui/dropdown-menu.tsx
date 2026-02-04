@@ -10,7 +10,7 @@ interface DropdownMenuProps {
 const DropdownMenuContext = React.createContext<{
   open: boolean
   setOpen: (open: boolean) => void
-  triggerRef: React.RefObject<HTMLButtonElement>
+  triggerRef: React.RefObject<HTMLButtonElement | null>
 } | null>(null)
 
 const useDropdownMenu = () => {

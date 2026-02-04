@@ -72,3 +72,12 @@
     @apply font-serif;
   }
 }
+
+.bn-cursor-labels-always .bn-editor .bn-collaboration-cursor__label {
+  max-height: 1.1rem;
+  max-width: 20rem;
+  padding: 0.1rem 0.3rem;
+  top: -17px;
+  left: 0;
+  border-radius: 3px 3px 3px 0;
+}

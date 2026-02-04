@@ -355,6 +355,10 @@ Base path: `/api/v1`
 - `POST /auth/logout` - Logout
 - `GET /auth/me` - Current user info
 
+### Admin
+- `GET /admin/settings` - Get admin settings
+- `PATCH /admin/settings` - Update admin settings (e.g. allow registration)
+
 ### Users
 - `GET /users` - List users (admin only)
 - `GET /users/:id` - Get user

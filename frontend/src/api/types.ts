@@ -216,3 +216,13 @@ export interface UpdateDocInput {
   schema?: DatabaseSchema | null
   properties?: Record<string, PropertyValue>
 }
+
+// Admin Settings types
+export interface AdminSettings {
+  allowRegistration: boolean
+  workspaceName: string
+}
+
+export interface UpdateAdminSettingsInput {
+  allowRegistration?: boolean
+}

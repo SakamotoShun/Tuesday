@@ -75,7 +75,10 @@ export function BlockNoteEditor({
   }, [editor, fragment, hasRemoteContent, initialContent])
 
   return (
-    <div className="rounded-lg border border-border bg-card px-4 py-6" onBlur={onBlur}>
+    <div
+      className="bn-cursor-labels-always rounded-lg border border-border bg-card px-4 py-6"
+      onBlur={onBlur}
+    >
       <BlockNoteView editor={editor} onChange={handleChange} theme={editorTheme} />
     </div>
   )

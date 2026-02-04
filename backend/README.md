@@ -76,6 +76,10 @@ This will start both the database and backend services.
 - `POST /api/v1/auth/logout` - Logout current user
 - `GET /api/v1/auth/me` - Get current user info
 
+### Admin
+- `GET /api/v1/admin/settings` - Get admin settings
+- `PATCH /api/v1/admin/settings` - Update admin settings (e.g. allow registration)
+
 ### Health
 - `GET /health` - Health check endpoint
 

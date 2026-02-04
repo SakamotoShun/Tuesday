@@ -12,6 +12,7 @@ import { ProjectDetailPage } from "@/pages/project-detail"
 import { DocPage } from "@/pages/doc-page"
 import { NotFoundPage } from "@/pages/not-found"
 import { PlaceholderPage } from "@/pages/placeholder"
+import { AdminPage } from "@/pages/admin"
 
 function AppRoutes() {
   const { isInitialized, isLoading } = useSetup()
@@ -62,7 +63,7 @@ function AppRoutes() {
           <Route path="my-work" element={<PlaceholderPage title="My Work" />} />
           <Route path="my-calendar" element={<PlaceholderPage title="My Calendar" />} />
           <Route path="chat" element={<PlaceholderPage title="Chat" />} />
-          <Route path="admin" element={<PlaceholderPage title="Admin" />} />
+          <Route path="admin" element={<AdminPage />} />
         </Route>
 
         {/* 404 */}

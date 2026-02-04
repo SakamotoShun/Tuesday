@@ -41,7 +41,7 @@ export class SetupService {
     // Set workspace settings
     await settingsRepository.set('workspace_name', input.workspaceName);
     await settingsRepository.set('setup_completed', true);
-    await settingsRepository.set('allow_registration', false);
+    await settingsRepository.set('allow_registration', true);
     await settingsRepository.set('session_duration_hours', 24);
   }
 }
