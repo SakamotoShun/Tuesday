@@ -1,5 +1,5 @@
 import { api } from "./client"
-import type { Doc, CreateDocInput, UpdateDocInput } from "./types"
+import type { Doc, DocWithChildren, CreateDocInput, UpdateDocInput } from "./types"
 
 export const docsApi = {
   list: (projectId: string): Promise<Doc[]> => {
@@ -12,6 +12,10 @@ export const docsApi = {
 
   get: (docId: string): Promise<Doc> => {
     return api.get<Doc>(`/docs/${docId}`)
+  },
+
+  getWithChildren: (docId: string): Promise<DocWithChildren> => {
+    return api.get<DocWithChildren>(`/docs/${docId}/children`)
   },
 
   create: (projectId: string, input: CreateDocInput): Promise<Doc> => {

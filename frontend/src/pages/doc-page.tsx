@@ -1,57 +1,37 @@
 import { useEffect, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
-import { ArrowLeft, FileText, Pencil } from "lucide-react"
+import { ArrowLeft, FileText, Pencil, Table } from "lucide-react"
 import type { Block } from "@blocknote/core"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { BlockNoteEditor } from "@/components/docs/block-note-editor"
+import { DatabaseView } from "@/components/docs/database-view"
+import { PropertiesPanel } from "@/components/docs/properties-panel"
 import { DocToolbar } from "@/components/docs/doc-toolbar"
-import { useDoc, useDocs } from "@/hooks/use-docs"
-import { useDebounce } from "@/hooks/use-debounce"
+import { useDocWithChildren, useDocs } from "@/hooks/use-docs"
+import type { PropertyValue } from "@/api/types"
 import { ApiErrorResponse } from "@/api/client"
 
 export function DocPage() {
   const { id: projectId, docId } = useParams<{ id: string; docId: string }>()
   const navigate = useNavigate()
-  const { data: doc, isLoading, error } = useDoc(docId || "")
+  const { data: doc, isLoading, error } = useDocWithChildren(docId || "")
   const { updateDoc, deleteDoc } = useDocs(projectId || "")
   const [titleDraft, setTitleDraft] = useState("")
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [titleError, setTitleError] = useState<string | null>(null)
-  const [content, setContent] = useState<Block[]>([])
-  const [isDirty, setIsDirty] = useState(false)
   const [saveState, setSaveState] = useState<"saved" | "saving" | "error">("saved")
-  const debouncedContent = useDebounce(content, 500)
 
   useEffect(() => {
     if (doc) {
       setTitleDraft(doc.title)
-      setContent(doc.content ?? [])
-      setIsDirty(false)
       setSaveState("saved")
       setTitleError(null)
       setIsEditingTitle(false)
     }
   }, [doc?.id])
-
-  useEffect(() => {
-    if (!doc || !isDirty) return
-    void saveContent(debouncedContent)
-  }, [debouncedContent, doc, isDirty])
-
-  const saveContent = async (nextContent: Block[]) => {
-    if (!doc) return
-    try {
-      setSaveState("saving")
-      await updateDoc.mutateAsync({ docId: doc.id, data: { content: nextContent } })
-      setSaveState("saved")
-      setIsDirty(false)
-    } catch {
-      setSaveState("error")
-    }
-  }
 
   const handleTitleSave = async () => {
     if (!doc) return
@@ -122,12 +102,38 @@ export function DocPage() {
     )
   }
 
+  const isDatabaseRow = Boolean(doc.parentId && doc.parent?.isDatabase)
+  const parentDatabase = doc.parent?.isDatabase ? doc.parent : null
+
+  const handlePropertiesUpdate = async (nextProperties: Record<string, PropertyValue>) => {
+    await updateDoc.mutateAsync({
+      docId: doc.id,
+      data: { properties: nextProperties },
+    })
+  }
+
+  const handleSyncStateChange = (state: "connecting" | "synced" | "error") => {
+    // Only update save state for connection status, not on every sync
+    if (state === "error") {
+      setSaveState("error")
+    } else if (state === "synced" && saveState === "error") {
+      // Recover from error state when reconnected
+      setSaveState("saved")
+    }
+  }
+
   return (
     <div className="space-y-4">
       <Button asChild variant="ghost" className="gap-2 text-muted-foreground">
-        <Link to={`/projects/${projectId}`}>
+        <Link
+          to={
+            isDatabaseRow && parentDatabase
+              ? `/projects/${projectId}/docs/${parentDatabase.id}`
+              : `/projects/${projectId}`
+          }
+        >
           <ArrowLeft className="h-4 w-4" />
-          Back to Docs
+          {isDatabaseRow && parentDatabase ? `Back to ${parentDatabase.title}` : "Back to Docs"}
         </Link>
       </Button>
 
@@ -140,8 +146,17 @@ export function DocPage() {
 
       <div className="space-y-2">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <FileText className="h-4 w-4" />
-          <span>Doc</span>
+          {doc.isDatabase ? (
+            <Table className="h-4 w-4" />
+          ) : (
+            <FileText className="h-4 w-4" />
+          )}
+          <span>{doc.isDatabase ? "Database" : isDatabaseRow ? "Row" : "Doc"}</span>
+          {isDatabaseRow && parentDatabase && (
+            <span className="text-xs text-muted-foreground/70">
+              in {parentDatabase.title}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {isEditingTitle ? (
@@ -180,20 +195,28 @@ export function DocPage() {
         )}
       </div>
 
-      <BlockNoteEditor
-        key={doc.id}
-        initialContent={doc.content ?? []}
-        onChange={(nextContent) => {
-          setContent(nextContent)
-          setIsDirty(true)
-          setSaveState("saving")
-        }}
-        onBlur={() => {
-          if (isDirty) {
-            void saveContent(content)
-          }
-        }}
-      />
+      {doc.isDatabase ? (
+        <DatabaseView doc={doc} projectId={projectId} />
+      ) : (
+        <div className="space-y-4">
+          {isDatabaseRow && parentDatabase?.schema && (
+            <PropertiesPanel
+              doc={doc}
+              schema={parentDatabase.schema}
+              onUpdate={handlePropertiesUpdate}
+              onOpenDatabase={() =>
+                navigate(`/projects/${projectId}/docs/${parentDatabase.id}`)
+              }
+            />
+          )}
+          <BlockNoteEditor
+            key={doc.id}
+            docId={doc.id}
+            initialContent={doc.content ?? []}
+            onSyncStateChange={handleSyncStateChange}
+          />
+        </div>
+      )}
     </div>
   )
 }

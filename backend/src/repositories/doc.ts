@@ -19,6 +19,37 @@ export class DocRepository {
     return result || null;
   }
 
+  async findByIdWithParent(id: string): Promise<(Doc & { parent?: Doc | null }) | null> {
+    const result = await db.query.docs.findFirst({
+      where: eq(docs.id, id),
+      with: {
+        createdBy: {
+          columns: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        parent: {
+          columns: {
+            id: true,
+            projectId: true,
+            parentId: true,
+            title: true,
+            content: true,
+            properties: true,
+            isDatabase: true,
+            schema: true,
+            createdBy: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
+      },
+    });
+    return result || null;
+  }
+
   async findByProjectId(projectId: string): Promise<Doc[]> {
     return db.query.docs.findMany({
       where: eq(docs.projectId, projectId),

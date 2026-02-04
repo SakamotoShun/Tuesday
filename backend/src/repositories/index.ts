@@ -5,6 +5,7 @@ export { projectRepository, ProjectRepository } from './project';
 export { projectMemberRepository, ProjectMemberRepository } from './projectMember';
 export { projectStatusRepository, ProjectStatusRepository } from './projectStatus';
 export { docRepository, DocRepository } from './doc';
+export { docCollabRepository, DocCollabRepository } from './docCollab';
 export { taskRepository, TaskRepository } from './task';
 export { taskAssigneeRepository, TaskAssigneeRepository } from './taskAssignee';
 export { taskStatusRepository, TaskStatusRepository } from './taskStatus';

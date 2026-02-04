@@ -157,19 +157,47 @@ export interface UpdateTaskAssigneesInput {
 }
 
 // Doc types
+export type PropertyType =
+  | "text"
+  | "number"
+  | "date"
+  | "select"
+  | "multi-select"
+  | "checkbox"
+  | "url"
+
+export interface SchemaColumn {
+  id: string
+  name: string
+  type: PropertyType
+  width?: number
+  options?: string[]
+}
+
+export interface DatabaseSchema {
+  columns: SchemaColumn[]
+}
+
+export type PropertyValue = string | number | boolean | string[] | null
+
 export interface Doc {
   id: string
   projectId: string | null
   parentId: string | null
   title: string
   content: Block[]
-  properties: Record<string, unknown> | null
+  properties: Record<string, PropertyValue> | null
   isDatabase: boolean
-  schema: Record<string, unknown> | null
+  schema: DatabaseSchema | null
   createdBy: string
   createdAt: string
   updatedAt: string
   createdByUser?: User
+  parent?: Doc | null
+}
+
+export interface DocWithChildren extends Doc {
+  children: Doc[]
 }
 
 export interface CreateDocInput {
@@ -177,14 +205,14 @@ export interface CreateDocInput {
   content?: Block[]
   parentId?: string | null
   isDatabase?: boolean
-  schema?: Record<string, unknown> | null
-  properties?: Record<string, unknown>
+  schema?: DatabaseSchema | null
+  properties?: Record<string, PropertyValue>
 }
 
 export interface UpdateDocInput {
   title?: string
   content?: Block[]
   parentId?: string | null
-  schema?: Record<string, unknown> | null
-  properties?: Record<string, unknown>
+  schema?: DatabaseSchema | null
+  properties?: Record<string, PropertyValue>
 }

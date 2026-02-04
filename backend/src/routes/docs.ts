@@ -89,6 +89,29 @@ docs.post('/personal', async (c) => {
 });
 
 // GET /api/v1/docs/:id - Get doc
+// GET /api/v1/docs/:id/children - Get doc with children
+docs.get('/:id/children', async (c) => {
+  try {
+    const user = c.get('user');
+    const docId = c.req.param('id');
+
+    const doc = await docService.getDocWithChildren(docId, user);
+
+    if (!doc) {
+      return errors.notFound(c, 'Doc not found');
+    }
+
+    return success(c, doc);
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.forbidden(c, error.message);
+    }
+    console.error('Error fetching doc children:', error);
+    return errors.internal(c, 'Failed to fetch doc children');
+  }
+});
+
+// GET /api/v1/docs/:id - Get doc
 docs.get('/:id', async (c) => {
   try {
     const user = c.get('user');

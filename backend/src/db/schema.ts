@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, boolean, timestamp, jsonb, integer, date, primaryKey } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, boolean, timestamp, jsonb, integer, date, primaryKey, bigserial, bigint, customType } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // User roles
@@ -16,6 +16,12 @@ export const ProjectMemberRole = {
 } as const;
 
 export type ProjectMemberRole = typeof ProjectMemberRole[keyof typeof ProjectMemberRole];
+
+const bytea = customType<{ data: Buffer }>({
+  dataType() {
+    return 'bytea';
+  },
+});
 
 // Users table
 export const users = pgTable('users', {
@@ -96,6 +102,25 @@ export const docs = pgTable('docs', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+// Doc collaboration snapshots
+export const docCollabSnapshots = pgTable('doc_collab_snapshots', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  docId: uuid('doc_id').notNull().references(() => docs.id, { onDelete: 'cascade' }),
+  seq: bigint('seq', { mode: 'number' }).notNull(),
+  snapshot: bytea('snapshot').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Doc collaboration updates
+export const docCollabUpdates = pgTable('doc_collab_updates', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  docId: uuid('doc_id').notNull().references(() => docs.id, { onDelete: 'cascade' }),
+  seq: bigserial('seq', { mode: 'number' }).notNull(),
+  update: bytea('update').notNull(),
+  actorId: uuid('actor_id').notNull().references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   projects: many(projectMembers),
@@ -140,6 +165,26 @@ export const docsRelations = relations(docs, ({ one, many }) => ({
   children: many(docs, { relationName: 'parent' }),
   createdBy: one(users, {
     fields: [docs.createdBy],
+    references: [users.id],
+  }),
+  collabSnapshots: many(docCollabSnapshots),
+  collabUpdates: many(docCollabUpdates),
+}));
+
+export const docCollabSnapshotsRelations = relations(docCollabSnapshots, ({ one }) => ({
+  doc: one(docs, {
+    fields: [docCollabSnapshots.docId],
+    references: [docs.id],
+  }),
+}));
+
+export const docCollabUpdatesRelations = relations(docCollabUpdates, ({ one }) => ({
+  doc: one(docs, {
+    fields: [docCollabUpdates.docId],
+    references: [docs.id],
+  }),
+  actor: one(users, {
+    fields: [docCollabUpdates.actorId],
     references: [users.id],
   }),
 }));

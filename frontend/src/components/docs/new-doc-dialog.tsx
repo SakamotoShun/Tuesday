@@ -28,6 +28,7 @@ import type { CreateDocInput, Doc } from "@/api/types"
 const docSchema = z.object({
   title: z.string().min(1, "Title is required").max(255),
   parentId: z.string().optional().nullable(),
+  type: z.enum(["doc", "database"]),
 })
 
 type DocForm = z.infer<typeof docSchema>
@@ -54,15 +55,19 @@ export function NewDocDialog({ parentOptions, onCreate, isSubmitting }: NewDocDi
     defaultValues: {
       title: "",
       parentId: null,
+      type: "doc",
     },
   })
 
   const handleCreate = async (data: DocForm) => {
     try {
       setError(null)
+      const isDatabase = data.type === "database"
       await onCreate({
         title: data.title,
         parentId: data.parentId || null,
+        isDatabase,
+        schema: isDatabase ? { columns: [] } : null,
       })
       reset()
       setOpen(false)
@@ -129,6 +134,22 @@ export function NewDocDialog({ parentOptions, onCreate, isSubmitting }: NewDocDi
                     {doc.title}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="type">Doc Type</Label>
+            <Select
+              value={watch("type")}
+              onValueChange={(value) => setValue("type", value as DocForm["type"])}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="doc">Doc</SelectItem>
+                <SelectItem value="database">Database</SelectItem>
               </SelectContent>
             </Select>
           </div>

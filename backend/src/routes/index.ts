@@ -5,6 +5,7 @@ import { projects } from './projects';
 import { docs } from './docs';
 import { tasks } from './tasks';
 import { admin } from './admin';
+import { collab } from './collab';
 
 const routes = new Hono();
 
@@ -15,6 +16,7 @@ routes.route('/api/v1/projects', projects);
 routes.route('/api/v1/docs', docs);
 routes.route('/api/v1/tasks', tasks);
 routes.route('/api/v1/admin', admin);
+routes.route('/api/v1/collab', collab);
 
 // Health check
 routes.get('/health', (c) => {

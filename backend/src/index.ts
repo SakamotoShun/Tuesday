@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { config } from './config';
 import { routes } from './routes';
 import { recovery, logging, cors, securityHeaders } from './middleware';
+import { websocket } from './websocket';
 
 const app = new Hono();
 
@@ -40,7 +41,14 @@ async function startServer() {
       }
     }, 60 * 60 * 1000); // Every hour
 
-    console.log(`🚀 Tuesday backend starting on port ${config.port}...`);
+    // Explicitly start Bun server with WebSocket support
+    Bun.serve({
+      port: config.port,
+      fetch: app.fetch,
+      websocket,
+    });
+
+    console.log(`🚀 Tuesday backend running on port ${config.port}`);
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);
@@ -48,8 +56,3 @@ async function startServer() {
 }
 
 startServer();
-
-export default {
-  port: config.port,
-  fetch: app.fetch,
-};

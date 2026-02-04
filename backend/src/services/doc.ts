@@ -23,6 +23,7 @@ export interface UpdateDocInput {
 
 export interface DocWithChildren extends Doc {
   children?: Doc[];
+  parent?: Doc | null;
 }
 
 export class DocService {
@@ -49,8 +50,8 @@ export class DocService {
   /**
    * Get a single doc by ID
    */
-  async getDoc(docId: string, user: User): Promise<Doc | null> {
-    const doc = await docRepository.findById(docId);
+  async getDoc(docId: string, user: User): Promise<(Doc & { parent?: Doc | null }) | null> {
+    const doc = await docRepository.findByIdWithParent(docId);
 
     if (!doc) {
       return null;

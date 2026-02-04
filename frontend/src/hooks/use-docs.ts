@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { docsApi } from "@/api/docs"
-import type { CreateDocInput, UpdateDocInput } from "@/api/types"
+import type { CreateDocInput, DocWithChildren, UpdateDocInput } from "@/api/types"
 
 export function useDocs(projectId: string) {
   const queryClient = useQueryClient()
@@ -18,6 +18,15 @@ export function useDocs(projectId: string) {
         queryKey: ["projects", projectId, "docs"],
       })
       queryClient.setQueryData(["docs", doc.id], doc)
+      if (doc.parentId) {
+        queryClient.setQueryData(
+          ["docs", doc.parentId, "children"],
+          (current?: DocWithChildren) => {
+            if (!current) return current
+            return { ...current, children: [...current.children, doc] }
+          }
+        )
+      }
     },
   })
 
@@ -29,6 +38,25 @@ export function useDocs(projectId: string) {
         queryKey: ["projects", projectId, "docs"],
       })
       queryClient.setQueryData(["docs", doc.id], doc)
+      queryClient.setQueryData(
+        ["docs", doc.id, "children"],
+        (current?: DocWithChildren) => {
+          if (!current) return current
+          return { ...current, ...doc }
+        }
+      )
+      if (doc.parentId) {
+        queryClient.setQueryData(
+          ["docs", doc.parentId, "children"],
+          (current?: DocWithChildren) => {
+            if (!current) return current
+            const nextChildren = current.children.map((child) =>
+              child.id === doc.id ? { ...child, ...doc } : child
+            )
+            return { ...current, children: nextChildren }
+          }
+        )
+      }
     },
   })
 
@@ -56,6 +84,14 @@ export function useDoc(docId: string) {
   return useQuery({
     queryKey: ["docs", docId],
     queryFn: () => docsApi.get(docId),
+    enabled: !!docId,
+  })
+}
+
+export function useDocWithChildren(docId: string) {
+  return useQuery({
+    queryKey: ["docs", docId, "children"],
+    queryFn: () => docsApi.getWithChildren(docId),
     enabled: !!docId,
   })
 }
