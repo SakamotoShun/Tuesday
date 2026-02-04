@@ -15,13 +15,23 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { useProjects } from "@/hooks/use-projects"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { useProjects, useProjectStatuses } from "@/hooks/use-projects"
 import { ApiErrorResponse } from "@/api/client"
 
 const projectSchema = z.object({
   name: z.string().min(1, "Project name is required").max(255),
-  client: z.string().max(255).optional(),
-  type: z.string().max(50).optional(),
+  client: z.string().max(255).optional().nullable(),
+  type: z.string().max(50).optional().nullable(),
+  statusId: z.string().optional().nullable(),
+  startDate: z.string().optional().nullable(),
+  targetEndDate: z.string().optional().nullable(),
 })
 
 type ProjectForm = z.infer<typeof projectSchema>
@@ -30,14 +40,25 @@ export function NewProjectDialog() {
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { createProject } = useProjects()
+  const { data: statuses } = useProjectStatuses()
 
   const {
     register,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<ProjectForm>({
     resolver: zodResolver(projectSchema),
+    defaultValues: {
+      name: "",
+      client: null,
+      type: null,
+      statusId: null,
+      startDate: null,
+      targetEndDate: null,
+    },
   })
 
   const onSubmit = async (data: ProjectForm) => {
@@ -47,6 +68,9 @@ export function NewProjectDialog() {
         name: data.name,
         client: data.client || undefined,
         type: data.type || undefined,
+        statusId: data.statusId || undefined,
+        startDate: data.startDate || undefined,
+        targetEndDate: data.targetEndDate || undefined,
       })
       reset()
       setOpen(false)
@@ -67,7 +91,7 @@ export function NewProjectDialog() {
           New Project
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Create New Project</DialogTitle>
           <DialogDescription>
@@ -95,22 +119,78 @@ export function NewProjectDialog() {
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="client">Client</Label>
-            <Input
-              id="client"
-              placeholder="Acme Corp"
-              {...register("client")}
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="client">Client</Label>
+              <Input
+                id="client"
+                placeholder="Acme Corp"
+                {...register("client")}
+                value={watch("client") || ""}
+                onChange={(e) => setValue("client", e.target.value || null)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="type">Type</Label>
+              <Input
+                id="type"
+                placeholder="Client Project"
+                {...register("type")}
+                value={watch("type") || ""}
+                onChange={(e) => setValue("type", e.target.value || null)}
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="type">Type</Label>
-            <Input
-              id="type"
-              placeholder="Client Project"
-              {...register("type")}
-            />
+            <Label htmlFor="status">Phase/Status</Label>
+            <Select
+              value={watch("statusId") || "none"}
+              onValueChange={(value) =>
+                setValue("statusId", value === "none" ? null : value)
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a phase" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No Phase</SelectItem>
+                {statuses?.map((status) => (
+                  <SelectItem key={status.id} value={status.id}>
+                    {status.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="startDate">Start Date</Label>
+              <Input
+                id="startDate"
+                type="date"
+                {...register("startDate")}
+                value={watch("startDate") || ""}
+                onChange={(e) =>
+                  setValue("startDate", e.target.value || null)
+                }
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="targetEndDate">Target End Date</Label>
+              <Input
+                id="targetEndDate"
+                type="date"
+                {...register("targetEndDate")}
+                value={watch("targetEndDate") || ""}
+                onChange={(e) =>
+                  setValue("targetEndDate", e.target.value || null)
+                }
+              />
+            </div>
           </div>
 
           <DialogFooter>

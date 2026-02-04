@@ -1,15 +1,26 @@
 import { useNavigate } from "react-router-dom"
+import { MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
 import { StatusBadge } from "./status-badge"
 import type { Project } from "@/api/types"
 
 interface ProjectRowProps {
   project: Project
+  onEdit?: (project: Project) => void
+  onDelete?: (project: Project) => void
 }
 
-export function ProjectRow({ project }: ProjectRowProps) {
+export function ProjectRow({ project, onEdit, onDelete }: ProjectRowProps) {
   const navigate = useNavigate()
 
   const formatDateRange = (start: string | null, end: string | null) => {
@@ -67,6 +78,40 @@ export function ProjectRow({ project }: ProjectRowProps) {
       <div className="text-sm text-muted-foreground whitespace-nowrap shrink-0">
         {formatDateRange(project.startDate, project.targetEndDate)}
       </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="shrink-0"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.stopPropagation()
+              onEdit?.(project)
+            }}
+          >
+            <Pencil className="mr-2 h-4 w-4" />
+            Edit Project
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete?.(project)
+            }}
+            className="text-destructive focus:text-destructive"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete Project
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 }

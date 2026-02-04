@@ -1,15 +1,31 @@
-import { useState, type ChangeEvent } from "react"
+import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { NewProjectDialog } from "@/components/projects/new-project-dialog"
+import { EditProjectDialog } from "@/components/projects/edit-project-dialog"
+import { DeleteProjectDialog } from "@/components/projects/delete-project-dialog"
 import { ProjectRow } from "@/components/projects/project-row"
-import { Select } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useProjects } from "@/hooks/use-projects"
+import { useProjects, useProjectStatuses } from "@/hooks/use-projects"
+import type { Project, UpdateProjectInput } from "@/api/types"
 
 export function ProjectsPage() {
-  const { projects, isLoading } = useProjects()
+  const navigate = useNavigate()
+  const { projects, isLoading, updateProject, deleteProject } = useProjects()
+  const { data: projectStatuses } = useProjectStatuses()
   const [statusFilter, setStatusFilter] = useState("all")
   const [ownerFilter, setOwnerFilter] = useState("all")
   const [typeFilter, setTypeFilter] = useState("all")
+  
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
 
   const filteredProjects = projects.filter((project) => {
     if (statusFilter !== "all" && project.status?.name !== statusFilter) {
@@ -21,16 +37,28 @@ export function ProjectsPage() {
     return true
   })
 
-  const handleStatusChange = (e: ChangeEvent<HTMLSelectElement>) => {
-    setStatusFilter(e.target.value)
+  const handleEditClick = (project: Project) => {
+    setSelectedProject(project)
+    setIsEditDialogOpen(true)
   }
 
-  const handleOwnerChange = (e: ChangeEvent<HTMLSelectElement>) => {
-    setOwnerFilter(e.target.value)
+  const handleDeleteClick = (project: Project) => {
+    setSelectedProject(project)
+    setIsDeleteDialogOpen(true)
   }
 
-  const handleTypeChange = (e: ChangeEvent<HTMLSelectElement>) => {
-    setTypeFilter(e.target.value)
+  const handleEditSubmit = async (data: UpdateProjectInput) => {
+    if (!selectedProject) return
+    await updateProject.mutateAsync({ id: selectedProject.id, data })
+    setIsEditDialogOpen(false)
+    setSelectedProject(null)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedProject) return
+    await deleteProject.mutateAsync(selectedProject.id)
+    setIsDeleteDialogOpen(false)
+    setSelectedProject(null)
   }
 
   return (
@@ -43,36 +71,39 @@ export function ProjectsPage() {
 
       {/* Filters */}
       <div className="flex gap-3 mb-5">
-        <Select
-          value={statusFilter}
-          onChange={handleStatusChange}
-          className="w-[180px]"
-        >
-          <option value="all">All Statuses</option>
-          <option value="Active">Active</option>
-          <option value="Planning">Planning</option>
-          <option value="On Hold">On Hold</option>
-          <option value="Completed">Completed</option>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="All Statuses" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="Active">Active</SelectItem>
+            <SelectItem value="Planning">Planning</SelectItem>
+            <SelectItem value="On Hold">On Hold</SelectItem>
+            <SelectItem value="Completed">Completed</SelectItem>
+          </SelectContent>
         </Select>
 
-        <Select
-          value={ownerFilter}
-          onChange={handleOwnerChange}
-          className="w-[180px]"
-        >
-          <option value="all">All Owners</option>
-          <option value="me">Me</option>
+        <Select value={ownerFilter} onValueChange={setOwnerFilter}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="All Owners" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Owners</SelectItem>
+            <SelectItem value="me">Me</SelectItem>
+          </SelectContent>
         </Select>
 
-        <Select
-          value={typeFilter}
-          onChange={handleTypeChange}
-          className="w-[180px]"
-        >
-          <option value="all">All Types</option>
-          <option value="Client Project">Client Project</option>
-          <option value="Internal">Internal</option>
-          <option value="Research">Research</option>
+        <Select value={typeFilter} onValueChange={setTypeFilter}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="All Types" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Types</SelectItem>
+            <SelectItem value="Client Project">Client Project</SelectItem>
+            <SelectItem value="Internal">Internal</SelectItem>
+            <SelectItem value="Research">Research</SelectItem>
+          </SelectContent>
         </Select>
       </div>
 
@@ -91,10 +122,32 @@ export function ProjectsPage() {
           </div>
         ) : (
           filteredProjects.map((project) => (
-            <ProjectRow key={project.id} project={project} />
+            <ProjectRow 
+              key={project.id} 
+              project={project} 
+              onEdit={handleEditClick}
+              onDelete={handleDeleteClick}
+            />
           ))
         )}
       </div>
+
+      {/* Edit Project Dialog */}
+      <EditProjectDialog
+        project={selectedProject}
+        statuses={projectStatuses || []}
+        open={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        onSubmit={handleEditSubmit}
+      />
+
+      {/* Delete Project Dialog */}
+      <DeleteProjectDialog
+        project={selectedProject}
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        onConfirm={handleDeleteConfirm}
+      />
     </div>
   )
 }
