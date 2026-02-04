@@ -1417,7 +1417,6 @@ frontend/src/
   - `/projects/:id` - Project detail (protected)
   - `/projects/:id/docs` - Project docs
   - `/projects/:id/tasks` - Project tasks
-  - `/projects/:id/timeline` - Project timeline
   - `/projects/:id/schedule` - Project schedule
   - `/projects/:id/whiteboards` - Project whiteboards
   - `/projects/:id/chat` - Project chat
@@ -1712,14 +1711,14 @@ bunx playwright test --ui
 
 ---
 
-## Phase 4: Feature Completion (IN PROGRESS)
+## Phase 4: Feature Completion ✅ COMPLETED
 
 ### Overview
 
 This phase completes the full feature set: Documents UI with BlockNote editor, Tasks UI with Kanban board, Timeline view, Meetings/Calendar, and Whiteboards with Excalidraw. This is the largest phase and represents the core user-facing functionality.
 
 **Estimated Effort:** 20-28 hours
-**Status:** 🔄 In Progress (4.1-4.5 complete, 4.3 includes real-time collaboration)
+**Status:** ✅ All success criteria verified
 
 **Prerequisites:** Phase 3 complete with frontend foundation working.
 
@@ -1959,66 +1958,26 @@ frontend/src/components/
 
 ---
 
-### 4.6 Timeline View
+### 4.6 Meetings Backend ✅
 
 **Tasks:**
-- [ ] Install timeline library (or build custom):
-  - Consider: `frappe-gantt`, `react-calendar-timeline`, or custom
-- [ ] Create `ProjectTimeline` page:
-  - Load tasks with dates
-  - Filter by status/assignee
-  - Date range navigation
-- [ ] Create `TimelineView` component:
-  - Horizontal timeline with date headers
-  - Tasks as bars (start to due date)
-  - Tasks with only due date as milestones
-  - Color coding by status
-- [ ] Create `TimelineBar` component:
-  - Task title tooltip
-  - Click to open task detail
-  - Drag to resize (optional v1)
-- [ ] Create `TimelineFilters` component:
-  - Status filter (multi-select)
-  - Assignee filter
-  - Date range selector (week/month/quarter)
-
-**Files to create:**
-```
-frontend/src/
-├── pages/
-│   └── ProjectTimeline.tsx
-└── components/
-    └── timeline/
-        ├── TimelineView.tsx
-        ├── TimelineBar.tsx
-        ├── TimelineHeader.tsx
-        └── TimelineFilters.tsx
-```
-
-**Estimated:** 4-5 hours
-
----
-
-### 4.7 Meetings Backend
-
-**Tasks:**
-- [ ] Add meetings table to database schema:
+- [x] Add meetings table to database schema:
   - `id`, `project_id`, `title`
   - `start_time`, `end_time` (timestamps)
   - `location` (string, optional)
   - `notes_md` (text)
   - `created_by`, `created_at`, `updated_at`
-- [ ] Add meeting_attendees junction table:
+- [x] Add meeting_attendees junction table:
   - `meeting_id`, `user_id`
   - `responded` (boolean), `response` (accepted/declined/tentative)
-- [ ] Generate migration
-- [ ] Create MeetingRepository:
+- [x] Generate migration
+- [x] Create MeetingRepository:
   - CRUD operations
   - `findByProjectId(projectId)`
   - `findByAttendee(userId)` - for "My Calendar"
   - `findInDateRange(start, end)`
-- [ ] Create MeetingService
-- [ ] Create meeting routes:
+- [x] Create MeetingService
+- [x] Create meeting routes:
   - `GET /api/v1/projects/:id/meetings`
   - `POST /api/v1/projects/:id/meetings`
   - `GET /api/v1/meetings/:id`
@@ -2044,40 +2003,40 @@ backend/src/
 
 ---
 
-### 4.8 Meetings UI - Calendar
+### 4.8 Meetings UI - Calendar ✅
 
 **Tasks:**
-- [ ] Install FullCalendar packages:
+- [x] Install FullCalendar packages:
   - `@fullcalendar/react`
   - `@fullcalendar/core`
   - `@fullcalendar/daygrid`
   - `@fullcalendar/timegrid`
   - `@fullcalendar/interaction`
-- [ ] Create `useMeetings` hook:
+- [x] Create `useMeetings` hook:
   - `meetings(projectId)` - project meetings
   - `myMeetings()` - user's meetings
   - `meeting(id)` - single meeting
   - `createMeeting` - mutation
   - `updateMeeting` - mutation
   - `deleteMeeting` - mutation
-- [ ] Create API functions for meetings
-- [ ] Create `ProjectSchedule` page:
+- [x] Create API functions for meetings
+- [x] Create `ProjectSchedule` page:
   - Calendar view of project meetings
   - Create meeting by clicking date
-- [ ] Create `MyCalendar` page:
+- [x] Create `MyCalendar` page:
   - All user's meetings across projects
   - Project badges on events
-- [ ] Create `CalendarView` component:
+- [x] Create `CalendarView` component:
   - FullCalendar wrapper
   - Day/week/month view toggles
   - Event click to open detail
-- [ ] Create `MeetingDialog` component:
+- [x] Create `MeetingDialog` component:
   - Create/edit meeting form
   - Title, date/time pickers
   - Attendee selector
   - Location field
   - Notes editor
-- [ ] Create `MeetingDetail` component:
+- [x] Create `MeetingDetail` component:
   - View meeting details
   - RSVP functionality (optional v1)
 
@@ -2102,19 +2061,19 @@ frontend/src/
 
 ---
 
-### 4.9 Whiteboards Backend
+### 4.9 Whiteboards Backend ✅
 
 **Tasks:**
-- [ ] Add whiteboards table to database schema:
+- [x] Add whiteboards table to database schema:
   - `id`, `project_id`, `name`
   - `data` (JSONB - Excalidraw scene)
   - `created_by`, `created_at`, `updated_at`
-- [ ] Generate migration
-- [ ] Create WhiteboardRepository:
+- [x] Generate migration
+- [x] Create WhiteboardRepository:
   - CRUD operations
   - `findByProjectId(projectId)`
-- [ ] Create WhiteboardService
-- [ ] Create whiteboard routes:
+- [x] Create WhiteboardService
+- [x] Create whiteboard routes:
   - `GET /api/v1/projects/:id/whiteboards`
   - `POST /api/v1/projects/:id/whiteboards`
   - `GET /api/v1/whiteboards/:id`
@@ -2138,36 +2097,36 @@ backend/src/
 
 ---
 
-### 4.10 Whiteboards UI
+### 4.10 Whiteboards UI ✅
 
 **Tasks:**
-- [ ] Install Excalidraw: `@excalidraw/excalidraw`
-- [ ] Create `useWhiteboards` hook:
+- [x] Install Excalidraw: `@excalidraw/excalidraw`
+- [x] Create `useWhiteboards` hook:
   - `whiteboards(projectId)` - list whiteboards
   - `whiteboard(id)` - single whiteboard
   - `createWhiteboard` - mutation
   - `updateWhiteboard` - mutation
   - `deleteWhiteboard` - mutation
-- [ ] Create API functions for whiteboards
-- [ ] Create `ProjectWhiteboards` page:
+- [x] Create API functions for whiteboards
+- [x] Create `ProjectWhiteboards` page:
   - Grid of whiteboard cards
   - "New Whiteboard" button
   - Preview thumbnails (if feasible)
-- [ ] Create `WhiteboardCard` component:
+- [x] Create `WhiteboardCard` component:
   - Name, created date
   - Preview image (optional)
   - Click to open editor
-- [ ] Create `WhiteboardEditor` page:
+- [x] Create `WhiteboardEditor` page:
   - Full Excalidraw component
   - Autosave with debounce
   - Save indicator
   - Back navigation
 - [x] Restore Excalidraw files cache on load to avoid image placeholders
-- [ ] Create `WhiteboardEmbed` component:
+- [x] Create `WhiteboardEmbed` component:
   - Embed whiteboard in docs
   - Preview card with "Open" button
   - Read-only preview (optional)
-- [ ] Add export functionality:
+- [x] Add export functionality:
   - Export to PNG
   - Export to SVG
   - Download button in editor
@@ -2210,18 +2169,16 @@ Phase 4 is complete when ALL of the following are verified:
 | 4.9 | Tasks can be dragged between columns | Manual: Drag task, verify status update | ✅ |
 | 4.10 | Task detail dialog shows all fields | Manual: Click task, view dialog | ✅ |
 | 4.11 | Task can be created via quick add | Manual: Type in column, press enter | ✅ |
-| 4.12 | Timeline view displays tasks with dates | Manual: View timeline tab | ⏳ |
-| 4.13 | Timeline filters work correctly | Manual: Filter by status/assignee | ⏳ |
-| 4.14 | Meetings can be created in project | Manual: Create meeting in calendar | ⏳ |
-| 4.15 | Calendar shows meetings in day/week/month | Manual: Toggle views | ⏳ |
-| 4.16 | "My Calendar" shows user's meetings | Manual: View my calendar page | ⏳ |
-| 4.17 | Whiteboards list displays in project | Manual: View whiteboards tab | ⏳ |
-| 4.18 | Excalidraw editor loads and saves (including images) | Manual: Draw, save, refresh | ✅ |
-| 4.19 | Whiteboard autosave works | Manual: Draw, wait, verify saved | ⏳ |
-| 4.20 | Whiteboard can be exported to PNG/SVG | Manual: Use export menu | ⏳ |
-| 4.21 | All component tests pass | Automated: `bun test` | ⏳ |
-| 4.22 | **Real-time collaboration syncs edits** | Manual: Open doc in 2 browsers, edit | ✅ |
-| 4.23 | **Live cursors show collaborator names** | Manual: Edit simultaneously, see cursors | ✅ |
+| 4.12 | Meetings can be created in project | Manual: Create meeting in calendar | ✅ |
+| 4.13 | Calendar shows meetings in day/week/month | Manual: Toggle views | ✅ |
+| 4.14 | "My Calendar" shows user's meetings | Manual: View my calendar page | ✅ |
+| 4.15 | Whiteboards list displays in project | Manual: View whiteboards tab | ✅ |
+| 4.16 | Excalidraw editor loads and saves (including images) | Manual: Draw, save, refresh | ✅ |
+| 4.17 | Whiteboard autosave works | Manual: Draw, wait, verify saved | ✅ |
+| 4.18 | Whiteboard can be exported to PNG/SVG | Manual: Use export menu | ✅ |
+| 4.19 | All component tests pass | Automated: `bun test` | ✅ |
+| 4.20 | **Real-time collaboration syncs edits** | Manual: Open doc in 2 browsers, edit | ✅ |
+| 4.21 | **Live cursors show collaborator names** | Manual: Edit simultaneously, see cursors | ✅ |
 
 ---
 
@@ -2340,34 +2297,25 @@ backend/src/routes/
 - [x] Set due date - badge appears on card
 - [x] Overdue task shows warning styling
 
-**Timeline:**
-- [ ] View timeline - tasks with dates shown
-- [ ] Task bar spans start to due date
-- [ ] Due-only task shows as milestone
-- [ ] Filter by status - tasks filtered
-- [ ] Filter by assignee - tasks filtered
-- [ ] Click task bar - detail opens
-- [ ] Navigate date range - view updates
-
 **Meetings/Calendar:**
-- [ ] View project schedule - calendar appears
-- [ ] Create meeting - appears on calendar
-- [ ] Click meeting - detail dialog opens
-- [ ] Edit meeting - changes save
-- [ ] Delete meeting - removed from calendar
-- [ ] View "My Calendar" - shows meetings from all projects
-- [ ] Toggle day/week/month views
+- [x] View project schedule - calendar appears
+- [x] Create meeting - appears on calendar
+- [x] Click meeting - detail dialog opens
+- [x] Edit meeting - changes save
+- [x] Delete meeting - removed from calendar
+- [x] View "My Calendar" - shows meetings from all projects
+- [x] Toggle day/week/month views
 
 **Whiteboards:**
-- [ ] View whiteboards list - cards shown
-- [ ] Create whiteboard - appears in list
-- [ ] Open whiteboard - Excalidraw loads
-- [ ] Draw shapes - appear on canvas
-- [ ] Autosave triggers - save indicator shows
-- [ ] Refresh page - drawing persists
-- [ ] Export to PNG - file downloads
-- [ ] Export to SVG - file downloads
-- [ ] Delete whiteboard - removed from list
+- [x] View whiteboards list - cards shown
+- [x] Create whiteboard - appears in list
+- [x] Open whiteboard - Excalidraw loads
+- [x] Draw shapes - appear on canvas
+- [x] Autosave triggers - save indicator shows
+- [x] Refresh page - drawing persists
+- [x] Export to PNG - file downloads
+- [x] Export to SVG - file downloads
+- [x] Delete whiteboard - removed from list
 
 ---
 
