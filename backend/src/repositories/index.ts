@@ -9,3 +9,7 @@ export { docCollabRepository, DocCollabRepository } from './docCollab';
 export { taskRepository, TaskRepository } from './task';
 export { taskAssigneeRepository, TaskAssigneeRepository } from './taskAssignee';
 export { taskStatusRepository, TaskStatusRepository } from './taskStatus';
+export { meetingRepository, MeetingRepository } from './meeting';
+export { meetingAttendeeRepository, MeetingAttendeeRepository } from './meetingAttendee';
+export { whiteboardRepository, WhiteboardRepository } from './whiteboard';
+export { whiteboardCollabRepository, WhiteboardCollabRepository } from './whiteboardCollab';

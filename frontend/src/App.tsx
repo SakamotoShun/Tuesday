@@ -13,6 +13,8 @@ import { DocPage } from "@/pages/doc-page"
 import { NotFoundPage } from "@/pages/not-found"
 import { PlaceholderPage } from "@/pages/placeholder"
 import { AdminPage } from "@/pages/admin"
+import { MyCalendarPage } from "@/pages/my-calendar"
+import { WhiteboardEditorPage } from "@/pages/whiteboard-editor"
 
 function AppRoutes() {
   const { isInitialized, isLoading } = useSetup()
@@ -61,7 +63,8 @@ function AppRoutes() {
           <Route path="projects/:id/docs/:docId" element={<DocPage />} />
           <Route path="projects/:id/*" element={<ProjectDetailPage />} />
           <Route path="my-work" element={<PlaceholderPage title="My Work" />} />
-          <Route path="my-calendar" element={<PlaceholderPage title="My Calendar" />} />
+          <Route path="my-calendar" element={<MyCalendarPage />} />
+          <Route path="whiteboards/:id" element={<WhiteboardEditorPage />} />
           <Route path="chat" element={<PlaceholderPage title="Chat" />} />
           <Route path="admin" element={<AdminPage />} />
         </Route>

@@ -7,6 +7,10 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "frappe-gantt/dist/frappe-gantt.css": path.resolve(
+        __dirname,
+        "node_modules/frappe-gantt/dist/frappe-gantt.css"
+      ),
     },
   },
   server: {

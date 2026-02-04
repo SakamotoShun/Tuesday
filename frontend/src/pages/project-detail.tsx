@@ -21,6 +21,9 @@ import { DeleteProjectDialog } from "@/components/projects/delete-project-dialog
 import { KanbanBoard } from "@/components/tasks/kanban-board"
 import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog"
 import { ProjectDocsPage } from "@/pages/project-docs"
+import { ProjectTimelinePage } from "@/pages/project-timeline"
+import { ProjectSchedulePage } from "@/pages/project-schedule"
+import { ProjectWhiteboardsPage } from "@/pages/project-whiteboards"
 import type { Task, UpdateProjectInput, UpdateTaskInput, User } from "@/api/types"
 
 export function ProjectDetailPage() {
@@ -254,15 +257,15 @@ export function ProjectDetailPage() {
         </TabsContent>
 
         <TabsContent value="timeline" className="mt-6">
-          <PlaceholderContent title="Timeline" phase="Phase 4" />
+          <ProjectTimelinePage projectId={project.id} />
         </TabsContent>
 
         <TabsContent value="schedule" className="mt-6">
-          <PlaceholderContent title="Schedule" phase="Phase 4" />
+          <ProjectSchedulePage projectId={project.id} />
         </TabsContent>
 
         <TabsContent value="whiteboards" className="mt-6">
-          <PlaceholderContent title="Whiteboards" phase="Phase 4" />
+          <ProjectWhiteboardsPage projectId={project.id} />
         </TabsContent>
 
         <TabsContent value="chat" className="mt-6">

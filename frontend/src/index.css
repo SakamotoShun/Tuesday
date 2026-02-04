@@ -81,3 +81,48 @@
   left: 0;
   border-radius: 3px 3px 3px 0;
 }
+
+.timeline-gantt .gantt-container {
+  border: none;
+  background: transparent;
+}
+
+.timeline-gantt .bar-label {
+  font-family: inherit;
+  fill: currentColor;
+}
+
+.timeline-gantt .grid-background,
+.timeline-gantt .grid-header {
+  fill: hsl(var(--card));
+}
+
+.timeline-gantt .grid-row:nth-child(odd) {
+  fill: hsl(var(--muted));
+}
+
+.timeline-gantt .gantt .bar {
+  rx: 6;
+}
+
+.fc {
+  --fc-border-color: hsl(var(--border));
+  --fc-page-bg-color: transparent;
+  --fc-today-bg-color: hsl(var(--muted));
+  color: hsl(var(--foreground));
+  font-family: inherit;
+}
+
+.fc .fc-toolbar-title {
+  font-family: var(--font-serif, inherit);
+}
+
+.fc .fc-event {
+  background: hsl(var(--primary));
+  border-color: hsl(var(--primary));
+}
+
+.fc .fc-event-project {
+  font-size: 0.7rem;
+  opacity: 0.8;
+}

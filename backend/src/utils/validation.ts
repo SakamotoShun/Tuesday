@@ -186,3 +186,41 @@ export const updateTaskAssigneesSchema = z.object({
 });
 
 export type UpdateTaskAssigneesInput = z.infer<typeof updateTaskAssigneesSchema>;
+
+// Meeting validation schemas
+export const createMeetingSchema = z.object({
+  title: z.string().min(1, 'Meeting title is required').max(255),
+  startTime: z.string().min(1, 'Start time is required'),
+  endTime: z.string().min(1, 'End time is required'),
+  location: z.string().max(255).optional(),
+  notesMd: z.string().optional(),
+  attendeeIds: z.array(uuidSchema).optional(),
+});
+
+export type CreateMeetingInput = z.infer<typeof createMeetingSchema>;
+
+export const updateMeetingSchema = z.object({
+  title: z.string().min(1).max(255).optional(),
+  startTime: z.string().optional().nullable(),
+  endTime: z.string().optional().nullable(),
+  location: z.string().max(255).optional().nullable(),
+  notesMd: z.string().optional().nullable(),
+  attendeeIds: z.array(uuidSchema).optional(),
+});
+
+export type UpdateMeetingInput = z.infer<typeof updateMeetingSchema>;
+
+// Whiteboard validation schemas
+export const createWhiteboardSchema = z.object({
+  name: z.string().min(1, 'Whiteboard name is required').max(255),
+  data: z.record(z.unknown()).optional(),
+});
+
+export type CreateWhiteboardInput = z.infer<typeof createWhiteboardSchema>;
+
+export const updateWhiteboardSchema = z.object({
+  name: z.string().min(1).max(255).optional(),
+  data: z.record(z.unknown()).optional().nullable(),
+});
+
+export type UpdateWhiteboardInput = z.infer<typeof updateWhiteboardSchema>;

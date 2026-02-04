@@ -156,6 +156,49 @@ export interface UpdateTaskAssigneesInput {
   assigneeIds: string[]
 }
 
+// Meeting types
+export interface MeetingAttendee {
+  meetingId: string
+  userId: string
+  responded: boolean
+  response: "pending" | "accepted" | "declined" | "tentative"
+  user?: User
+}
+
+export interface Meeting {
+  id: string
+  projectId: string
+  title: string
+  startTime: string
+  endTime: string
+  location: string | null
+  notesMd: string | null
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+  attendees?: MeetingAttendee[]
+  project?: Project
+  createdByUser?: User
+}
+
+export interface CreateMeetingInput {
+  title: string
+  startTime: string
+  endTime: string
+  location?: string
+  notesMd?: string
+  attendeeIds?: string[]
+}
+
+export interface UpdateMeetingInput {
+  title?: string
+  startTime?: string | null
+  endTime?: string | null
+  location?: string | null
+  notesMd?: string | null
+  attendeeIds?: string[]
+}
+
 // Doc types
 export type PropertyType =
   | "text"
@@ -225,4 +268,26 @@ export interface AdminSettings {
 
 export interface UpdateAdminSettingsInput {
   allowRegistration?: boolean
+}
+
+// Whiteboard types
+export interface Whiteboard {
+  id: string
+  projectId: string
+  name: string
+  data: Record<string, unknown>
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+  createdByUser?: User
+}
+
+export interface CreateWhiteboardInput {
+  name: string
+  data?: Record<string, unknown>
+}
+
+export interface UpdateWhiteboardInput {
+  name?: string
+  data?: Record<string, unknown> | null
 }

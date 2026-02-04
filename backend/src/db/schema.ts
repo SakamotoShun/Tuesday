@@ -121,6 +121,7 @@ export const docCollabUpdates = pgTable('doc_collab_updates', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   projects: many(projectMembers),
@@ -223,6 +224,60 @@ export const taskAssignees = pgTable('task_assignees', {
   pk: primaryKey({ columns: [table.taskId, table.userId] }),
 }));
 
+// Meetings table
+export const meetings = pgTable('meetings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  title: varchar('title', { length: 255 }).notNull(),
+  startTime: timestamp('start_time', { withTimezone: true }).notNull(),
+  endTime: timestamp('end_time', { withTimezone: true }).notNull(),
+  location: varchar('location', { length: 255 }),
+  notesMd: text('notes_md').default(''),
+  createdBy: uuid('created_by').notNull().references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Meeting attendees table (junction table)
+export const meetingAttendees = pgTable('meeting_attendees', {
+  meetingId: uuid('meeting_id').notNull().references(() => meetings.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  responded: boolean('responded').notNull().default(false),
+  response: varchar('response', { length: 20 }).notNull().default('pending'),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.meetingId, table.userId] }),
+}));
+
+// Whiteboards table
+export const whiteboards = pgTable('whiteboards', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  data: jsonb('data').notNull().default({}),
+  createdBy: uuid('created_by').notNull().references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Whiteboard collaboration snapshots
+export const whiteboardCollabSnapshots = pgTable('whiteboard_collab_snapshots', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  whiteboardId: uuid('whiteboard_id').notNull().references(() => whiteboards.id, { onDelete: 'cascade' }),
+  seq: bigint('seq', { mode: 'number' }).notNull(),
+  snapshot: jsonb('snapshot').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Whiteboard collaboration updates
+export const whiteboardCollabUpdates = pgTable('whiteboard_collab_updates', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  whiteboardId: uuid('whiteboard_id').notNull().references(() => whiteboards.id, { onDelete: 'cascade' }),
+  seq: bigserial('seq', { mode: 'number' }).notNull(),
+  update: jsonb('update').notNull(),
+  actorId: uuid('actor_id').notNull().references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 // Task relations
 export const taskStatusesRelations = relations(taskStatuses, ({ many }) => ({
   tasks: many(tasks),
@@ -255,6 +310,60 @@ export const taskAssigneesRelations = relations(taskAssignees, ({ one }) => ({
   }),
 }));
 
+// Meeting relations
+export const meetingsRelations = relations(meetings, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [meetings.projectId],
+    references: [projects.id],
+  }),
+  createdBy: one(users, {
+    fields: [meetings.createdBy],
+    references: [users.id],
+  }),
+  attendees: many(meetingAttendees),
+}));
+
+export const meetingAttendeesRelations = relations(meetingAttendees, ({ one }) => ({
+  meeting: one(meetings, {
+    fields: [meetingAttendees.meetingId],
+    references: [meetings.id],
+  }),
+  user: one(users, {
+    fields: [meetingAttendees.userId],
+    references: [users.id],
+  }),
+}));
+
+// Whiteboard relations
+export const whiteboardsRelations = relations(whiteboards, ({ one }) => ({
+  project: one(projects, {
+    fields: [whiteboards.projectId],
+    references: [projects.id],
+  }),
+  createdBy: one(users, {
+    fields: [whiteboards.createdBy],
+    references: [users.id],
+  }),
+}));
+
+export const whiteboardCollabSnapshotsRelations = relations(whiteboardCollabSnapshots, ({ one }) => ({
+  whiteboard: one(whiteboards, {
+    fields: [whiteboardCollabSnapshots.whiteboardId],
+    references: [whiteboards.id],
+  }),
+}));
+
+export const whiteboardCollabUpdatesRelations = relations(whiteboardCollabUpdates, ({ one }) => ({
+  whiteboard: one(whiteboards, {
+    fields: [whiteboardCollabUpdates.whiteboardId],
+    references: [whiteboards.id],
+  }),
+  actor: one(users, {
+    fields: [whiteboardCollabUpdates.actorId],
+    references: [users.id],
+  }),
+}));
+
 // Type exports
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -276,3 +385,9 @@ export type Task = typeof tasks.$inferSelect;
 export type NewTask = typeof tasks.$inferInsert;
 export type TaskAssignee = typeof taskAssignees.$inferSelect;
 export type NewTaskAssignee = typeof taskAssignees.$inferInsert;
+export type Meeting = typeof meetings.$inferSelect;
+export type NewMeeting = typeof meetings.$inferInsert;
+export type MeetingAttendee = typeof meetingAttendees.$inferSelect;
+export type NewMeetingAttendee = typeof meetingAttendees.$inferInsert;
+export type Whiteboard = typeof whiteboards.$inferSelect;
+export type NewWhiteboard = typeof whiteboards.$inferInsert;
