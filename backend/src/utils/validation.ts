@@ -210,6 +210,21 @@ export const updateMeetingSchema = z.object({
 
 export type UpdateMeetingInput = z.infer<typeof updateMeetingSchema>;
 
+// Chat validation schemas
+export const createChannelSchema = z.object({
+  name: z.string().min(1, 'Channel name is required').max(100),
+  projectId: uuidSchema.optional().nullable(),
+  type: z.enum(['workspace', 'project']).optional(),
+});
+
+export type CreateChannelInput = z.infer<typeof createChannelSchema>;
+
+export const createMessageSchema = z.object({
+  content: z.string().min(1, 'Message content is required').max(5000),
+});
+
+export type CreateMessageInput = z.infer<typeof createMessageSchema>;
+
 // Whiteboard validation schemas
 export const createWhiteboardSchema = z.object({
   name: z.string().min(1, 'Whiteboard name is required').max(255),

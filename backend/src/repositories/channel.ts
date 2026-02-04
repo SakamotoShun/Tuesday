@@ -1,0 +1,87 @@
+import { and, desc, eq } from 'drizzle-orm';
+import { db } from '../db/client';
+import { channels, projectMembers, projects, type Channel, type NewChannel } from '../db/schema';
+
+export type ChannelWithProject = Channel & {
+  project: typeof projects.$inferSelect | null;
+};
+
+export class ChannelRepository {
+  async findById(id: string): Promise<ChannelWithProject | null> {
+    const result = await db.query.channels.findFirst({
+      where: eq(channels.id, id),
+      with: {
+        project: true,
+      },
+    });
+    return result || null;
+  }
+
+  async findByProjectId(projectId: string): Promise<ChannelWithProject[]> {
+    return db.query.channels.findMany({
+      where: and(eq(channels.projectId, projectId), eq(channels.type, 'project')),
+      with: {
+        project: true,
+      },
+      orderBy: [desc(channels.createdAt)],
+    });
+  }
+
+  async findWorkspaceChannels(): Promise<ChannelWithProject[]> {
+    return db.query.channels.findMany({
+      where: eq(channels.type, 'workspace'),
+      with: {
+        project: true,
+      },
+      orderBy: [desc(channels.createdAt)],
+    });
+  }
+
+  async findAll(): Promise<ChannelWithProject[]> {
+    return db.query.channels.findMany({
+      with: {
+        project: true,
+      },
+      orderBy: [desc(channels.createdAt)],
+    });
+  }
+
+  async findUserChannels(userId: string): Promise<ChannelWithProject[]> {
+    return db.query.channels.findMany({
+      where: (channels, { or, exists }) => or(
+        eq(channels.type, 'workspace'),
+        exists(
+          db
+            .select()
+            .from(projectMembers)
+            .where(and(eq(projectMembers.projectId, channels.projectId), eq(projectMembers.userId, userId)))
+        )
+      ),
+      with: {
+        project: true,
+      },
+      orderBy: [desc(channels.createdAt)],
+    });
+  }
+
+  async create(data: NewChannel): Promise<Channel> {
+    const [channel] = await db.insert(channels).values(data).returning();
+    return channel;
+  }
+
+  async update(id: string, data: Partial<NewChannel>): Promise<Channel | null> {
+    const [channel] = await db
+      .update(channels)
+      .set(data)
+      .where(eq(channels.id, id))
+      .returning();
+    return channel || null;
+  }
+
+  async delete(id: string): Promise<boolean> {
+    const result = await db.delete(channels).where(eq(channels.id, id)).returning();
+    return result.length > 0;
+  }
+}
+
+export const channelRepository = new ChannelRepository();

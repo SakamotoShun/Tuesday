@@ -23,6 +23,7 @@ import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog"
 import { ProjectDocsPage } from "@/pages/project-docs"
 import { ProjectSchedulePage } from "@/pages/project-schedule"
 import { ProjectWhiteboardsPage } from "@/pages/project-whiteboards"
+import { ChatView } from "@/components/chat/chat-view"
 import type { Task, UpdateProjectInput, UpdateTaskInput, User } from "@/api/types"
 
 const PROJECT_TABS = new Set(["docs", "tasks", "schedule", "whiteboards", "chat"])
@@ -119,10 +120,6 @@ export function ProjectDetailPage() {
       : "Ongoing"
     return `${startStr} → ${endStr}`
   }
-
-  const isOwner = project.members?.some(
-    (m) => m.userId === "current-user-id" && m.role === "owner"
-  )
 
   // Extract project members as User objects for assignee picker
   const projectMembers: User[] = project.members
@@ -267,7 +264,7 @@ export function ProjectDetailPage() {
         </TabsContent>
 
         <TabsContent value="chat" className="mt-6">
-          <PlaceholderContent title="Chat" phase="Phase 5" />
+          <ChatView projectId={project.id} title="Project Chat" />
         </TabsContent>
       </Tabs>
 
@@ -303,17 +300,6 @@ export function ProjectDetailPage() {
         onDelete={selectedTask ? () => handleDeleteTask(selectedTask.id) : null}
         isSubmitting={updateTask.isPending || deleteTask.isPending}
       />
-    </div>
-  )
-}
-
-function PlaceholderContent({ title, phase }: { title: string; phase: string }) {
-  return (
-    <div className="p-12 text-center border border-dashed border-border rounded-lg">
-      <h3 className="font-semibold text-lg mb-2">{title}</h3>
-      <p className="text-muted-foreground">
-        Coming in {phase}
-      </p>
     </div>
   )
 }

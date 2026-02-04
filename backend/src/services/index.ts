@@ -4,3 +4,5 @@ export { docService, DocService } from './doc';
 export { taskService, TaskService } from './task';
 export { meetingService, MeetingService } from './meeting';
 export { whiteboardService, WhiteboardService } from './whiteboard';
+export { chatService, ChatService } from './chat';
+export { notificationService, NotificationService } from './notification';

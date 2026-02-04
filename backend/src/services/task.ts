@@ -46,7 +46,7 @@ export class TaskService {
    * Get a single task by ID
    */
   async getTask(taskId: string, user: User): Promise<TaskWithAssignees | null> {
-    const task = await taskRepository.findById(taskId);
+    const task = await taskRepository.findById(taskId) as TaskWithAssignees | null;
 
     if (!task) {
       return null;
@@ -123,6 +123,15 @@ export class TaskService {
     // Add assignees if provided
     if (input.assigneeIds && input.assigneeIds.length > 0) {
       await taskAssigneeRepository.setAssignees(task.id, input.assigneeIds);
+
+      const { notificationService } = await import('./notification');
+      await notificationService.notifyAssignment({
+        taskId: task.id,
+        taskTitle: task.title,
+        assigneeIds: input.assigneeIds,
+        assignedBy: user.name,
+        projectId,
+      });
     }
 
     // Return task with assignees
@@ -133,7 +142,7 @@ export class TaskService {
    * Update a task
    */
   async updateTask(taskId: string, input: UpdateTaskInput, user: User): Promise<Task | null> {
-    const task = await taskRepository.findById(taskId);
+    const task = await taskRepository.findById(taskId) as TaskWithAssignees | null;
 
     if (!task) {
       return null;
@@ -185,7 +194,7 @@ export class TaskService {
    * Update task status (for kanban drag-and-drop)
    */
   async updateTaskStatus(taskId: string, statusId: string, user: User): Promise<Task | null> {
-    const task = await taskRepository.findById(taskId);
+    const task = await taskRepository.findById(taskId) as TaskWithAssignees | null;
 
     if (!task) {
       return null;
@@ -229,7 +238,7 @@ export class TaskService {
    * Update task assignees
    */
   async updateTaskAssignees(taskId: string, assigneeIds: string[], user: User): Promise<Task | null> {
-    const task = await taskRepository.findById(taskId);
+    const task = await taskRepository.findById(taskId) as TaskWithAssignees | null;
 
     if (!task) {
       return null;
@@ -241,7 +250,21 @@ export class TaskService {
       throw new Error('Access denied to this task');
     }
 
+    const existingAssignees = task.assignees?.map((assignee) => assignee.userId) ?? [];
+
     await taskAssigneeRepository.setAssignees(taskId, assigneeIds);
+
+    const newAssignees = assigneeIds.filter((assigneeId) => !existingAssignees.includes(assigneeId));
+    if (newAssignees.length > 0) {
+      const { notificationService } = await import('./notification');
+      await notificationService.notifyAssignment({
+        taskId: task.id,
+        taskTitle: task.title,
+        assigneeIds: newAssignees,
+        assignedBy: user.name,
+        projectId: task.projectId,
+      });
+    }
     
     return taskRepository.findById(taskId) as Promise<Task>;
   }

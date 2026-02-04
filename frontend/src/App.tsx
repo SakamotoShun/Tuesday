@@ -11,10 +11,12 @@ import { ProjectsPage } from "@/pages/projects"
 import { ProjectDetailPage } from "@/pages/project-detail"
 import { DocPage } from "@/pages/doc-page"
 import { NotFoundPage } from "@/pages/not-found"
-import { PlaceholderPage } from "@/pages/placeholder"
 import { AdminPage } from "@/pages/admin"
 import { MyCalendarPage } from "@/pages/my-calendar"
 import { WhiteboardEditorPage } from "@/pages/whiteboard-editor"
+import { MyWorkPage } from "@/pages/my-work"
+import { ChatPage } from "@/pages/chat"
+import { NotificationsPage } from "@/pages/notifications"
 
 function AppRoutes() {
   const { isInitialized, isLoading } = useSetup()
@@ -62,10 +64,11 @@ function AppRoutes() {
           <Route path="projects" element={<ProjectsPage />} />
           <Route path="projects/:id/docs/:docId" element={<DocPage />} />
           <Route path="projects/:id/*" element={<ProjectDetailPage />} />
-          <Route path="my-work" element={<PlaceholderPage title="My Work" />} />
+          <Route path="my-work" element={<MyWorkPage />} />
           <Route path="my-calendar" element={<MyCalendarPage />} />
           <Route path="whiteboards/:id" element={<WhiteboardEditorPage />} />
-          <Route path="chat" element={<PlaceholderPage title="Chat" />} />
+          <Route path="chat" element={<ChatPage />} />
+          <Route path="notifications" element={<NotificationsPage />} />
           <Route path="admin" element={<AdminPage />} />
         </Route>
 

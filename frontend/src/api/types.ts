@@ -122,6 +122,7 @@ export interface Task {
   createdAt: string
   updatedAt: string
   status?: TaskStatus
+  project?: Project
   assignees?: User[]
   createdByUser?: User
 }
@@ -268,6 +269,70 @@ export interface AdminSettings {
 
 export interface UpdateAdminSettingsInput {
   allowRegistration?: boolean
+  workspaceName?: string
+}
+
+export interface AdminCreateUserInput {
+  email: string
+  name: string
+  role?: "admin" | "member"
+  password?: string
+}
+
+export interface AdminUpdateUserInput {
+  role?: "admin" | "member"
+  isDisabled?: boolean
+}
+
+export interface AdminCreateUserResponse extends User {
+  temporaryPassword?: string
+}
+
+// Chat types
+export interface Channel {
+  id: string
+  name: string
+  type: "workspace" | "project"
+  projectId: string | null
+  createdAt: string
+  project?: Project | null
+  unreadCount?: number
+  lastReadAt?: string | null
+}
+
+export interface CreateChannelInput {
+  name: string
+  projectId?: string | null
+  type?: "workspace" | "project"
+}
+
+export interface Message {
+  id: string
+  channelId: string
+  userId: string
+  content: string
+  mentions: string[]
+  createdAt: string
+  updatedAt: string
+  user?: User
+}
+
+export interface CreateMessageInput {
+  content: string
+}
+
+// Notification types
+export type NotificationType = "mention" | "assignment" | "meeting_invite" | "project_invite"
+
+export interface Notification {
+  id: string
+  userId: string
+  type: NotificationType
+  title: string
+  body: string | null
+  link: string | null
+  read: boolean
+  createdAt: string
 }
 
 // Whiteboard types

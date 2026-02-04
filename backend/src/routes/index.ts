@@ -9,6 +9,9 @@ import { admin } from './admin';
 import { collab } from './collab';
 import { meetings } from './meetings';
 import { whiteboards } from './whiteboards';
+import { chat } from './chat';
+import { notifications } from './notifications';
+import { ws } from './ws';
 
 const routes = new Hono();
 
@@ -23,6 +26,9 @@ routes.route('/api/v1/admin', admin);
 routes.route('/api/v1/collab', collab);
 routes.route('/api/v1/meetings', meetings);
 routes.route('/api/v1/whiteboards', whiteboards);
+routes.route('/api/v1/channels', chat);
+routes.route('/api/v1/notifications', notifications);
+routes.route('/api/v1/ws', ws);
 
 // Health check
 routes.get('/health', (c) => {

@@ -87,6 +87,36 @@ export const projectMembers = pgTable('project_members', {
   pk: primaryKey({ columns: [table.projectId, table.userId] }),
 }));
 
+// Chat channels table
+export const channels = pgTable('channels', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 100 }).notNull(),
+  type: varchar('type', { length: 20 }).notNull().default('project'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Chat messages table
+export const messages = pgTable('messages', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  channelId: uuid('channel_id').notNull().references(() => channels.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  content: text('content').notNull(),
+  mentions: uuid('mentions').array().notNull().default([]),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Channel members table
+export const channelMembers = pgTable('channel_members', {
+  channelId: uuid('channel_id').notNull().references(() => channels.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  lastReadAt: timestamp('last_read_at', { withTimezone: true }).notNull().defaultNow(),
+  joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.channelId, table.userId] }),
+}));
+
 // Docs table
 export const docs = pgTable('docs', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -170,6 +200,38 @@ export const docsRelations = relations(docs, ({ one, many }) => ({
   }),
   collabSnapshots: many(docCollabSnapshots),
   collabUpdates: many(docCollabUpdates),
+}));
+
+// Chat relations
+export const channelsRelations = relations(channels, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [channels.projectId],
+    references: [projects.id],
+  }),
+  messages: many(messages),
+  members: many(channelMembers),
+}));
+
+export const messagesRelations = relations(messages, ({ one }) => ({
+  channel: one(channels, {
+    fields: [messages.channelId],
+    references: [channels.id],
+  }),
+  user: one(users, {
+    fields: [messages.userId],
+    references: [users.id],
+  }),
+}));
+
+export const channelMembersRelations = relations(channelMembers, ({ one }) => ({
+  channel: one(channels, {
+    fields: [channelMembers.channelId],
+    references: [channels.id],
+  }),
+  user: one(users, {
+    fields: [channelMembers.userId],
+    references: [users.id],
+  }),
 }));
 
 export const docCollabSnapshotsRelations = relations(docCollabSnapshots, ({ one }) => ({
@@ -364,6 +426,25 @@ export const whiteboardCollabUpdatesRelations = relations(whiteboardCollabUpdate
   }),
 }));
 
+// Notifications table
+export const notifications = pgTable('notifications', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  type: varchar('type', { length: 50 }).notNull(),
+  title: varchar('title', { length: 255 }).notNull(),
+  body: text('body'),
+  link: varchar('link', { length: 500 }),
+  read: boolean('read').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, {
+    fields: [notifications.userId],
+    references: [users.id],
+  }),
+}));
+
 // Type exports
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -377,6 +458,12 @@ export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 export type ProjectMember = typeof projectMembers.$inferSelect;
 export type NewProjectMember = typeof projectMembers.$inferInsert;
+export type Channel = typeof channels.$inferSelect;
+export type NewChannel = typeof channels.$inferInsert;
+export type Message = typeof messages.$inferSelect;
+export type NewMessage = typeof messages.$inferInsert;
+export type ChannelMember = typeof channelMembers.$inferSelect;
+export type NewChannelMember = typeof channelMembers.$inferInsert;
 export type Doc = typeof docs.$inferSelect;
 export type NewDoc = typeof docs.$inferInsert;
 export type TaskStatus = typeof taskStatuses.$inferSelect;
@@ -391,3 +478,5 @@ export type MeetingAttendee = typeof meetingAttendees.$inferSelect;
 export type NewMeetingAttendee = typeof meetingAttendees.$inferInsert;
 export type Whiteboard = typeof whiteboards.$inferSelect;
 export type NewWhiteboard = typeof whiteboards.$inferInsert;
+export type Notification = typeof notifications.$inferSelect;
+export type NewNotification = typeof notifications.$inferInsert;

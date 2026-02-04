@@ -1,0 +1,114 @@
+import { Hono } from 'hono';
+import { auth } from '../middleware';
+import { chatService } from '../services';
+import { success, errors } from '../utils/response';
+import { validateBody, formatValidationErrors, createChannelSchema, createMessageSchema } from '../utils/validation';
+
+const chat = new Hono();
+
+chat.use('*', auth);
+
+// GET /api/v1/channels - List channels accessible to user
+chat.get('/', async (c) => {
+  try {
+    const user = c.get('user');
+    const channels = await chatService.getChannels(user);
+    return success(c, channels);
+  } catch (error) {
+    console.error('Error fetching channels:', error);
+    return errors.internal(c, 'Failed to fetch channels');
+  }
+});
+
+// POST /api/v1/channels - Create channel
+chat.post('/', async (c) => {
+  try {
+    const user = c.get('user');
+    const body = await c.req.json();
+
+    const validation = validateBody(createChannelSchema, body);
+    if (!validation.success) {
+      return errors.validation(c, formatValidationErrors(validation.errors));
+    }
+
+    const channel = await chatService.createChannel(validation.data, user);
+    return success(c, channel, undefined, 201);
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error creating channel:', error);
+    return errors.internal(c, 'Failed to create channel');
+  }
+});
+
+// GET /api/v1/channels/:id/messages - List messages
+chat.get('/:id/messages', async (c) => {
+  try {
+    const user = c.get('user');
+    const channelId = c.req.param('id');
+    const before = c.req.query('before');
+    const limit = c.req.query('limit');
+
+    const parsedLimit = limit ? Number(limit) : undefined;
+    const safeLimit = parsedLimit && Number.isFinite(parsedLimit) ? parsedLimit : undefined;
+    const parsedBefore = before ? new Date(before) : undefined;
+    const safeBefore = parsedBefore && !Number.isNaN(parsedBefore.getTime()) ? parsedBefore : undefined;
+
+    const messages = await chatService.getMessages(channelId, user, {
+      before: safeBefore,
+      limit: safeLimit,
+    });
+
+    const nextCursor = messages.length > 0 ? messages[messages.length - 1].createdAt.toISOString() : null;
+
+    return success(c, messages, { nextCursor });
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error fetching messages:', error);
+    return errors.internal(c, 'Failed to fetch messages');
+  }
+});
+
+// POST /api/v1/channels/:id/messages - Send message
+chat.post('/:id/messages', async (c) => {
+  try {
+    const user = c.get('user');
+    const channelId = c.req.param('id');
+    const body = await c.req.json();
+
+    const validation = validateBody(createMessageSchema, body);
+    if (!validation.success) {
+      return errors.validation(c, formatValidationErrors(validation.errors));
+    }
+
+    const message = await chatService.sendMessage(channelId, validation.data, user);
+    return success(c, message, undefined, 201);
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error sending message:', error);
+    return errors.internal(c, 'Failed to send message');
+  }
+});
+
+// PATCH /api/v1/channels/:id/read - Mark channel as read
+chat.patch('/:id/read', async (c) => {
+  try {
+    const user = c.get('user');
+    const channelId = c.req.param('id');
+    await chatService.markAsRead(channelId, user);
+    return success(c, { read: true });
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error marking channel as read:', error);
+    return errors.internal(c, 'Failed to mark channel as read');
+  }
+});
+
+export { chat };

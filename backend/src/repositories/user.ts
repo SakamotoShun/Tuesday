@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 import { db } from '../db/client';
 import { users, type User, type NewUser } from '../db/schema';
 
@@ -39,6 +39,34 @@ export class UserRepository {
   async count(): Promise<number> {
     const result = await db.select({ count: sql<number>`count(*)` }).from(users);
     return result[0].count;
+  }
+
+  async findAll(): Promise<Array<{ id: string; name: string; email: string; avatarUrl: string | null }>> {
+    return db.query.users.findMany({
+      columns: {
+        id: true,
+        name: true,
+        email: true,
+        avatarUrl: true,
+      },
+      orderBy: [asc(users.name)],
+    });
+  }
+
+  async findAllDetailed(): Promise<Array<{ id: string; name: string; email: string; avatarUrl: string | null; role: string; isDisabled: boolean; createdAt: Date; updatedAt: Date }>> {
+    return db.query.users.findMany({
+      columns: {
+        id: true,
+        name: true,
+        email: true,
+        avatarUrl: true,
+        role: true,
+        isDisabled: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: [asc(users.name)],
+    });
   }
 }
 

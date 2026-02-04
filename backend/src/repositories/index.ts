@@ -13,3 +13,7 @@ export { meetingRepository, MeetingRepository } from './meeting';
 export { meetingAttendeeRepository, MeetingAttendeeRepository } from './meetingAttendee';
 export { whiteboardRepository, WhiteboardRepository } from './whiteboard';
 export { whiteboardCollabRepository, WhiteboardCollabRepository } from './whiteboardCollab';
+export { channelRepository, ChannelRepository } from './channel';
+export { messageRepository, MessageRepository } from './message';
+export { channelMemberRepository, ChannelMemberRepository } from './channelMember';
+export { notificationRepository, NotificationRepository } from './notification';

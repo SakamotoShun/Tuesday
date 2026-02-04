@@ -90,6 +90,17 @@ export class MeetingService {
 
     await meetingAttendeeRepository.setAttendees(meeting.id, Array.from(attendeeIds));
 
+    const { notificationService } = await import('./notification');
+    const invitees = Array.from(attendeeIds).filter((id) => id !== user.id);
+    if (invitees.length > 0) {
+      await notificationService.notifyMeetingInvite({
+        meetingId: meeting.id,
+        meetingTitle: meeting.title,
+        attendeeIds: invitees,
+        projectId,
+      });
+    }
+
     return meetingRepository.findById(meeting.id) as Promise<Meeting>;
   }
 
@@ -147,9 +158,24 @@ export class MeetingService {
     const updated = await meetingRepository.update(meetingId, updateData);
 
     if (input.attendeeIds) {
+      const existingAttendees = await meetingAttendeeRepository.findByMeetingId(meetingId);
+      const existingIds = existingAttendees.map((attendee) => attendee.userId);
+
       const attendeeIds = new Set(input.attendeeIds);
       attendeeIds.add(meeting.createdBy);
-      await meetingAttendeeRepository.setAttendees(meetingId, Array.from(attendeeIds));
+      const nextIds = Array.from(attendeeIds);
+      await meetingAttendeeRepository.setAttendees(meetingId, nextIds);
+
+      const newInvitees = nextIds.filter((id) => !existingIds.includes(id));
+      if (newInvitees.length > 0) {
+        const { notificationService } = await import('./notification');
+        await notificationService.notifyMeetingInvite({
+          meetingId,
+          meetingTitle: updateData.title ?? meeting.title,
+          attendeeIds: newInvitees,
+          projectId: meeting.projectId,
+        });
+      }
     }
 
     return updated ? meetingRepository.findById(meetingId) : null;

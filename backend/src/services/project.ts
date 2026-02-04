@@ -213,7 +213,20 @@ export class ProjectService {
       throw new Error('Invalid role');
     }
 
-    return projectMemberRepository.addMember(projectId, userId, role);
+    const member = await projectMemberRepository.addMember(projectId, userId, role);
+
+    const project = await projectRepository.findById(projectId);
+    if (project) {
+      const { notificationService } = await import('./notification');
+      await notificationService.notifyProjectInvite({
+        projectId: project.id,
+        projectName: project.name,
+        userId,
+        invitedBy: currentUser.name,
+      });
+    }
+
+    return member;
   }
 
   /**

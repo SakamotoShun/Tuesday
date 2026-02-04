@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { projectStatusRepository, taskStatusRepository, settingsRepository } from '../repositories';
+import { projectStatusRepository, taskStatusRepository, settingsRepository, userRepository } from '../repositories';
 import { auth, requireAdmin } from '../middleware';
 import { success, errors } from '../utils/response';
 import { 
@@ -8,12 +8,29 @@ import {
   createStatusSchema, 
   updateStatusSchema,
   reorderStatusSchema,
+  emailSchema,
+  nameSchema,
+  passwordSchema,
 } from '../utils/validation';
 import { z } from 'zod';
+import { hashPassword } from '../utils/password';
 
 // Schema for updating admin settings
 const updateSettingsSchema = z.object({
   allowRegistration: z.boolean().optional(),
+  workspaceName: z.string().max(255).optional(),
+});
+
+const createUserSchema = z.object({
+  email: emailSchema,
+  name: nameSchema,
+  role: z.enum(['admin', 'member']).default('member'),
+  password: passwordSchema.optional(),
+});
+
+const updateUserSchema = z.object({
+  role: z.enum(['admin', 'member']).optional(),
+  isDisabled: z.boolean().optional(),
 });
 
 const admin = new Hono();
@@ -27,11 +44,11 @@ admin.use('*', auth, requireAdmin);
 admin.get('/settings', async (c) => {
   try {
     const allowRegistration = await settingsRepository.get<boolean>('allow_registration');
-    const workspaceName = await settingsRepository.get<string>('workspace_name');
+    const updatedWorkspaceName = await settingsRepository.get<string>('workspace_name');
     
     return success(c, {
       allowRegistration: allowRegistration ?? false,
-      workspaceName: workspaceName ?? '',
+      workspaceName: updatedWorkspaceName ?? '',
     });
   } catch (error) {
     console.error('Error fetching admin settings:', error);
@@ -49,19 +66,23 @@ admin.patch('/settings', async (c) => {
       return errors.validation(c, formatValidationErrors(validation.error));
     }
 
-    const { allowRegistration } = validation.data;
+    const { allowRegistration, workspaceName } = validation.data;
 
     if (allowRegistration !== undefined) {
       await settingsRepository.set('allow_registration', allowRegistration);
     }
 
+    if (workspaceName !== undefined) {
+      await settingsRepository.set('workspace_name', workspaceName.trim());
+    }
+
     // Return updated settings
     const updatedAllowRegistration = await settingsRepository.get<boolean>('allow_registration');
-    const workspaceName = await settingsRepository.get<string>('workspace_name');
+    const updatedWorkspaceName = await settingsRepository.get<string>('workspace_name');
 
     return success(c, {
       allowRegistration: updatedAllowRegistration ?? false,
-      workspaceName: workspaceName ?? '',
+      workspaceName: updatedWorkspaceName ?? '',
     });
   } catch (error) {
     console.error('Error updating admin settings:', error);
@@ -70,6 +91,94 @@ admin.patch('/settings', async (c) => {
 });
 
 // ========== PROJECT STATUSES ==========
+
+// ========== USERS ==========
+
+// GET /api/v1/admin/users - List users
+admin.get('/users', async (c) => {
+  try {
+    const users = await userRepository.findAllDetailed();
+    return success(c, users);
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    return errors.internal(c, 'Failed to fetch users');
+  }
+});
+
+// POST /api/v1/admin/users - Create user (invite)
+admin.post('/users', async (c) => {
+  try {
+    const body = await c.req.json();
+    const validation = validateBody(createUserSchema, body);
+    if (!validation.success) {
+      return errors.validation(c, formatValidationErrors(validation.errors));
+    }
+
+    const existing = await userRepository.findByEmail(validation.data.email);
+    if (existing) {
+      return errors.conflict(c, 'User already exists');
+    }
+
+    const password = validation.data.password ?? crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+    const passwordHash = await hashPassword(password);
+
+    const created = await userRepository.create({
+      email: validation.data.email,
+      name: validation.data.name,
+      role: validation.data.role,
+      passwordHash,
+    });
+
+    return success(
+      c,
+      {
+        id: created.id,
+        email: created.email,
+        name: created.name,
+        role: created.role,
+        isDisabled: created.isDisabled,
+        createdAt: created.createdAt,
+        updatedAt: created.updatedAt,
+        temporaryPassword: validation.data.password ? undefined : password,
+      },
+      undefined,
+      201
+    );
+  } catch (error) {
+    console.error('Error creating user:', error);
+    return errors.internal(c, 'Failed to create user');
+  }
+});
+
+// PATCH /api/v1/admin/users/:id - Update user
+admin.patch('/users/:id', async (c) => {
+  try {
+    const userId = c.req.param('id');
+    const body = await c.req.json();
+    const validation = validateBody(updateUserSchema, body);
+    if (!validation.success) {
+      return errors.validation(c, formatValidationErrors(validation.errors));
+    }
+
+    const updated = await userRepository.update(userId, validation.data);
+    if (!updated) {
+      return errors.notFound(c, 'User not found');
+    }
+
+    return success(c, {
+      id: updated.id,
+      email: updated.email,
+      name: updated.name,
+      role: updated.role,
+      isDisabled: updated.isDisabled,
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt,
+    });
+  } catch (error) {
+    console.error('Error updating user:', error);
+    return errors.internal(c, 'Failed to update user');
+  }
+});
 
 // GET /api/v1/admin/statuses/project - List project statuses
 admin.get('/statuses/project', async (c) => {
