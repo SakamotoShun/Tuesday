@@ -6,6 +6,28 @@ import { useWebSocket } from "@/hooks/use-websocket"
 import { useAuthStore } from "@/store/auth-store"
 
 type TypingUser = Pick<User, "id" | "name" | "avatarUrl">
+type PendingOptimisticMessage = {
+  id: string
+  content: string
+  attachmentIds: string[]
+  createdAtMs: number
+}
+
+const PENDING_OPTIMISTIC_TTL_MS = 60_000
+
+const normalizeAttachmentIds = (attachments?: Message["attachments"]) =>
+  (attachments ?? [])
+    .map((attachment) => attachment.id)
+    .filter((id): id is string => Boolean(id))
+    .sort()
+
+const areAttachmentIdsEqual = (left: string[], right: string[]) => {
+  if (left.length !== right.length) return false
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) return false
+  }
+  return true
+}
 
 const createOptimisticId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -116,10 +138,72 @@ export function useChatMessages(channelId?: string | null) {
   const user = useAuthStore((state) => state.user)
   const [typingUsers, setTypingUsers] = useState<Record<string, TypingUser[]>>({})
   const channelIdRef = useRef(channelId)
+  const pendingOptimisticRef = useRef<Record<string, PendingOptimisticMessage[]>>({})
 
   useEffect(() => {
     channelIdRef.current = channelId
   }, [channelId])
+
+  const trackPendingOptimistic = useCallback(
+    (targetChannelId: string, message: Message, attachments?: Message["attachments"]) => {
+      const entry: PendingOptimisticMessage = {
+        id: message.id,
+        content: message.content.trim(),
+        attachmentIds: normalizeAttachmentIds(attachments),
+        createdAtMs: Date.now(),
+      }
+      const existing = pendingOptimisticRef.current[targetChannelId] ?? []
+      pendingOptimisticRef.current[targetChannelId] = [...existing, entry]
+    },
+    []
+  )
+
+  const clearPendingOptimistic = useCallback((targetChannelId: string, optimisticId: string) => {
+    const existing = pendingOptimisticRef.current[targetChannelId]
+    if (!existing) return
+    const next = existing.filter((entry) => entry.id !== optimisticId)
+    if (next.length > 0) {
+      pendingOptimisticRef.current[targetChannelId] = next
+    } else {
+      delete pendingOptimisticRef.current[targetChannelId]
+    }
+  }, [])
+
+  const findMatchingOptimistic = useCallback(
+    (targetChannelId: string, incoming: Message) => {
+      const existing = pendingOptimisticRef.current[targetChannelId]
+      if (!existing || existing.length === 0) return undefined
+
+      const incomingContent = incoming.content.trim()
+      const incomingAttachmentIds = normalizeAttachmentIds(incoming.attachments)
+      const now = Date.now()
+      let matchId: string | undefined
+      const next: PendingOptimisticMessage[] = []
+
+      for (const entry of existing) {
+        if (now - entry.createdAtMs > PENDING_OPTIMISTIC_TTL_MS) {
+          continue
+        }
+        if (!matchId &&
+          entry.content === incomingContent &&
+          areAttachmentIdsEqual(entry.attachmentIds, incomingAttachmentIds)
+        ) {
+          matchId = entry.id
+          continue
+        }
+        next.push(entry)
+      }
+
+      if (next.length > 0) {
+        pendingOptimisticRef.current[targetChannelId] = next
+      } else {
+        delete pendingOptimisticRef.current[targetChannelId]
+      }
+
+      return matchId
+    },
+    []
+  )
 
   useEffect(() => {
     if (!channelId) return
@@ -222,6 +306,14 @@ export function useChatMessages(channelId?: string | null) {
         const incoming = event.message as Message | undefined
         if (!incoming) return
 
+        if (incoming.userId === user?.id) {
+          const optimisticId = findMatchingOptimistic(currentChannelId, incoming)
+          if (optimisticId) {
+            syncMessageInCache(currentChannelId, optimisticId, incoming)
+            return
+          }
+        }
+
         addMessageToCache(currentChannelId, incoming)
       }
 
@@ -255,7 +347,7 @@ export function useChatMessages(channelId?: string | null) {
         })
       }
     })
-  }, [addMessageToCache, onMessage, updateMessageInCache])
+  }, [addMessageToCache, findMatchingOptimistic, onMessage, syncMessageInCache, updateMessageInCache, user?.id])
 
   const sendMessage = useMutation({
     mutationFn: ({ content, attachments }: { content: string; attachments?: Message["attachments"] }) =>
@@ -286,15 +378,20 @@ export function useChatMessages(channelId?: string | null) {
       }
 
       addMessageToCache(channelId, optimisticMessage)
+      trackPendingOptimistic(channelId, optimisticMessage, attachmentList)
       return { optimisticId, channelId }
     },
     onError: (_error, _content, context) => {
       if (!context?.channelId || !context.optimisticId) return
       removeMessageFromCache(context.channelId, context.optimisticId)
+      clearPendingOptimistic(context.channelId, context.optimisticId)
     },
     onSuccess: (message, _content, context) => {
       if (!context?.channelId) return
       syncMessageInCache(context.channelId, context.optimisticId, message)
+      if (context.optimisticId) {
+        clearPendingOptimistic(context.channelId, context.optimisticId)
+      }
     },
   })
 
