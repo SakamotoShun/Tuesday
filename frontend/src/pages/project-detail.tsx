@@ -18,6 +18,7 @@ import { useTasks, useTaskStatuses } from "@/hooks/use-tasks"
 import { StatusBadge } from "@/components/projects/status-badge"
 import { EditProjectDialog } from "@/components/projects/edit-project-dialog"
 import { DeleteProjectDialog } from "@/components/projects/delete-project-dialog"
+import { ManageMembersDialog } from "@/components/projects/manage-members-dialog"
 import { KanbanBoard } from "@/components/tasks/kanban-board"
 import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog"
 import { ProjectDocsPage } from "@/pages/project-docs"
@@ -25,12 +26,14 @@ import { ProjectSchedulePage } from "@/pages/project-schedule"
 import { ProjectWhiteboardsPage } from "@/pages/project-whiteboards"
 import { ChatView } from "@/components/chat/chat-view"
 import type { Task, UpdateProjectInput, UpdateTaskInput, User } from "@/api/types"
+import { useAuth } from "@/hooks/use-auth"
 
 const PROJECT_TABS = new Set(["docs", "tasks", "schedule", "whiteboards", "chat"])
 
 export function ProjectDetailPage() {
   const { id, "*": tabPath } = useParams<{ id: string; "*"?: string }>()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const tabFromPath = tabPath?.split("/")[0]
   const defaultTab = tabFromPath && PROJECT_TABS.has(tabFromPath) ? tabFromPath : "docs"
   const { data: project, isLoading: isProjectLoading } = useProject(id || "")
@@ -41,6 +44,7 @@ export function ProjectDetailPage() {
   
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isMembersDialogOpen, setIsMembersDialogOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false)
 
@@ -121,13 +125,18 @@ export function ProjectDetailPage() {
     return `${startStr} → ${endStr}`
   }
 
+  const currentMemberRole = project.members
+    ?.find((member) => member.userId === user?.id)
+    ?.role
+  const canManageMembers = user?.role === "admin" || currentMemberRole === "owner"
+
   // Extract project members as User objects for assignee picker
   const projectMembers: User[] = project.members
     ?.map((m) => m.user)
     .filter((user): user is User => user !== undefined) || []
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col flex-1 min-h-0 gap-6">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Link to="/projects" className="hover:text-foreground">
@@ -150,7 +159,9 @@ export function ProjectDetailPage() {
           </div>
           <div className="flex items-center gap-3">
             <StatusBadge status={project.status?.name} />
-            <Button variant="outline">Manage Members</Button>
+            <Button variant="outline" onClick={() => setIsMembersDialogOpen(true)}>
+              Manage Members
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon">
@@ -226,7 +237,7 @@ export function ProjectDetailPage() {
       </Card>
 
       {/* Tabs */}
-      <Tabs defaultValue={defaultTab}>
+      <Tabs defaultValue={defaultTab} className="flex flex-col flex-1 min-h-0">
         <TabsList>
           <TabsTrigger value="docs">Docs</TabsTrigger>
           <TabsTrigger value="tasks">Tasks</TabsTrigger>
@@ -263,8 +274,10 @@ export function ProjectDetailPage() {
           <ProjectWhiteboardsPage projectId={project.id} />
         </TabsContent>
 
-        <TabsContent value="chat" className="mt-6">
-          <ChatView projectId={project.id} title="Project Chat" />
+        <TabsContent value="chat" className="mt-6 flex flex-col flex-1 min-h-0">
+          <div className="flex flex-1 min-h-0">
+            <ChatView projectId={project.id} title="Project Chat" />
+          </div>
         </TabsContent>
       </Tabs>
 
@@ -283,6 +296,16 @@ export function ProjectDetailPage() {
         open={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}
         onConfirm={handleDeleteProject}
+      />
+
+      {/* Manage Members Dialog */}
+      <ManageMembersDialog
+        projectId={project.id}
+        projectName={project.name}
+        open={isMembersDialogOpen}
+        onOpenChange={setIsMembersDialogOpen}
+        canManage={canManageMembers}
+        currentUserId={user?.id}
       />
 
       {/* Task Detail Dialog */}

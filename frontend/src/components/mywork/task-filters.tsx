@@ -1,4 +1,5 @@
 import type { Project, TaskStatus } from "@/api/types"
+import { ItemCombobox } from "@/components/ui/item-combobox"
 import {
   Select,
   SelectContent,
@@ -26,22 +27,20 @@ export function TaskFilters({
 }: TaskFiltersProps) {
   return (
     <div className="flex flex-col md:flex-row gap-3">
-      <Select
-        value={selectedProjectId ?? "all"}
-        onValueChange={(value) => onProjectChange(value === "all" ? null : value)}
-      >
-        <SelectTrigger className="w-full md:w-60">
-          <SelectValue placeholder="All projects" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All projects</SelectItem>
-          {projects.map((project) => (
-            <SelectItem key={project.id} value={project.id}>
-              {project.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <ItemCombobox
+        items={projects}
+        value={selectedProjectId}
+        onChange={onProjectChange}
+        getItemId={(project) => project.id}
+        getItemLabel={(project) => project.name}
+        placeholder="All projects"
+        searchPlaceholder="Search projects..."
+        emptyLabel="No projects found"
+        includeAllOption
+        allLabel="All projects"
+        className="w-full md:w-60"
+        contentClassName="w-[320px]"
+      />
 
       <Select
         value={selectedStatusId ?? "all"}
