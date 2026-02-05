@@ -1,19 +1,20 @@
 import { useEffect, useMemo, useRef } from "react"
 import { useSearchParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
-import type { ProjectMember, User } from "@/api/types"
+import type { ChannelMember, ProjectMember, User } from "@/api/types"
 import * as projectsApi from "@/api/projects"
 import { usersApi } from "@/api/users"
 import { useAuth } from "@/hooks/use-auth"
 import { useChatChannels, useChatMessages } from "@/hooks/use-chat"
+import { useChannelMembers } from "@/hooks/use-channel-members"
 import { useWebSocket } from "@/hooks/use-websocket"
 import { useChatStore } from "@/store/chat-store"
 import { ChannelList } from "@/components/chat/channel-list"
 import { ChannelSettingsDialog } from "@/components/chat/channel-settings-dialog"
+import { ChannelMembersDialog } from "@/components/chat/channel-members-dialog"
 import { MessageList } from "@/components/chat/message-list"
 import { MessageInput } from "@/components/chat/message-input"
 import { TypingIndicator } from "@/components/chat/typing-indicator"
-import { NewChannelDialog } from "@/components/chat/new-channel-dialog"
 import { Badge } from "@/components/ui/badge"
 
 interface ChatViewProps {
@@ -23,6 +24,11 @@ interface ChatViewProps {
 }
 
 const mapMembers = (members?: ProjectMember[]): User[] =>
+  members
+    ?.map((member) => member.user)
+    .filter((user): user is User => Boolean(user)) ?? []
+
+const mapChannelMembers = (members?: ChannelMember[]): User[] =>
   members
     ?.map((member) => member.user)
     .filter((user): user is User => Boolean(user)) ?? []
@@ -37,12 +43,20 @@ export function ChatView({ projectId, title, variant = "page" }: ChatViewProps) 
 
   const filteredChannels = useMemo(() => {
     if (!projectId) return channels
-    return channels.filter((channel) => channel.projectId === projectId)
+    return channels.filter((channel) =>
+      channel.type === "workspace" || channel.type === "dm" || channel.projectId === projectId
+    )
   }, [channels, projectId])
 
   const activeChannel = filteredChannels.find((channel) => channel.id === activeChannelId) ?? null
 
   const messages = useChatMessages(activeChannel?.id)
+
+  const channelMembers = useChannelMembers(
+    activeChannel && (activeChannel.type === "dm" || activeChannel.access !== "public")
+      ? activeChannel.id
+      : null
+  )
 
   const membersQuery = useQuery({
     queryKey: ["projects", activeChannel?.projectId, "members"],
@@ -54,13 +68,16 @@ export function ChatView({ projectId, title, variant = "page" }: ChatViewProps) 
   const mentionableQuery = useQuery({
     queryKey: ["users", "mentionable"],
     queryFn: usersApi.listMentionable,
-    enabled: activeChannel?.type === "workspace",
+    enabled: activeChannel?.type === "workspace" && activeChannel?.access === "public",
   })
 
-  const members = activeChannel?.type === "workspace"
-    ? (mentionableQuery.data ?? [])
-    : mapMembers(membersQuery.data)
+  const members = activeChannel?.type === "dm" || activeChannel?.access !== "public"
+    ? mapChannelMembers(channelMembers.members)
+    : activeChannel?.type === "workspace"
+      ? (mentionableQuery.data ?? [])
+      : mapMembers(membersQuery.data)
   const currentMemberRole = membersQuery.data?.find((member) => member.userId === user?.id)?.role
+  const currentChannelRole = channelMembers.members.find((member) => member.userId === user?.id)?.role
 
   const listRef = useRef<HTMLDivElement | null>(null)
 
@@ -95,11 +112,20 @@ export function ChatView({ projectId, title, variant = "page" }: ChatViewProps) 
     return <div className="text-sm text-muted-foreground">Loading chat...</div>
   }
 
-  const canCreateChannel = projectId ? true : user?.role === "admin"
   const isArchived = Boolean(activeChannel?.archivedAt)
+  const isDm = activeChannel?.type === "dm"
+  const isPrivateChannel = Boolean(activeChannel && activeChannel.access !== "public")
+  const canCreateWorkspaceChannel = Boolean(user) && !projectId
+  const canCreateProjectChannel = Boolean(user) && Boolean(projectId)
+  const canCreateDm = Boolean(user)
   const canManageChannel = Boolean(
     activeChannel &&
-      (user?.role === "admin" || (activeChannel.projectId && currentMemberRole === "owner"))
+      !isDm &&
+      (activeChannel.access === "public"
+        ? activeChannel.projectId
+          ? currentMemberRole === "owner"
+          : user?.role === "admin"
+        : currentChannelRole === "owner")
   )
 
   return (
@@ -119,12 +145,6 @@ export function ChatView({ projectId, title, variant = "page" }: ChatViewProps) 
             <Badge variant={isConnected ? "secondary" : "outline"}>
               {isConnected ? "Online" : "Offline"}
             </Badge>
-            {canCreateChannel && (
-              <NewChannelDialog
-                projectId={projectId}
-                onCreated={(id) => setActiveChannelId(id)}
-              />
-            )}
           </div>
         </div>
         <div className={
@@ -135,7 +155,13 @@ export function ChatView({ projectId, title, variant = "page" }: ChatViewProps) 
           <ChannelList
             channels={filteredChannels}
             activeChannelId={activeChannel?.id ?? null}
-            onSelect={setActiveChannelId}
+            onSelect={(channelId) => setActiveChannelId(channelId)}
+            projectId={projectId}
+            canCreateWorkspaceChannel={canCreateWorkspaceChannel}
+            canCreateProjectChannel={canCreateProjectChannel}
+            canCreateDm={canCreateDm}
+            onChannelCreated={(channelId) => setActiveChannelId(channelId)}
+            onDmCreated={(channelId) => setActiveChannelId(channelId)}
           />
         </div>
       </aside>
@@ -145,15 +171,32 @@ export function ChatView({ projectId, title, variant = "page" }: ChatViewProps) 
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="text-sm font-semibold">
-                {activeChannel ? `# ${activeChannel.name}` : "Select a channel"}
+                {activeChannel
+                  ? isDm
+                    ? `@ ${activeChannel.otherUser?.name ?? "Direct Message"}`
+                    : `# ${activeChannel.name}`
+                  : "Select a channel"}
               </div>
-              {activeChannel?.project && !isPanel && (
+              {activeChannel?.project && !isPanel && !isDm && (
                 <div className="text-xs text-muted-foreground">{activeChannel.project.name}</div>
               )}
-              {activeChannel?.description && (
+              {isDm && activeChannel?.otherUser?.email && (
+                <div className="text-xs text-muted-foreground">{activeChannel.otherUser.email}</div>
+              )}
+              {isPrivateChannel && !isDm && (
+                <div className="text-xs text-muted-foreground">Private channel</div>
+              )}
+              {activeChannel?.description && !isDm && (
                 <div className="text-xs text-muted-foreground mt-1">{activeChannel.description}</div>
               )}
             </div>
+            {activeChannel && !isDm && isPrivateChannel && (
+              <ChannelMembersDialog
+                channel={activeChannel}
+                canManage={canManageChannel}
+                currentUserId={user?.id}
+              />
+            )}
             {activeChannel && canManageChannel && (
               <ChannelSettingsDialog
                 channel={activeChannel}

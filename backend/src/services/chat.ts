@@ -11,7 +11,9 @@ export interface CreateChannelInput {
   name: string;
   projectId?: string | null;
   type?: 'workspace' | 'project';
+  access?: 'public' | 'private' | 'invite_only';
   description?: string | null;
+  memberIds?: string[];
 }
 
 export interface UpdateChannelInput {
@@ -31,6 +33,7 @@ export interface UpdateMessageInput {
 export interface ChannelWithState extends ChannelWithProject {
   unreadCount: number;
   lastReadAt: Date | null;
+  otherUser?: { id: string; name: string; email: string; avatarUrl: string | null } | null;
 }
 
 export interface FileAttachment {
@@ -56,13 +59,25 @@ export interface MessageWithUser extends Message {
   reactions?: MessageReactionView[];
 }
 
+export interface ChannelMemberView {
+  userId: string;
+  role: 'owner' | 'member';
+  joinedAt: Date;
+  lastReadAt: Date;
+  user: { id: string; name: string; email: string; avatarUrl: string | null };
+}
+
 const normalizeHandle = (name: string) => name.toLowerCase().replace(/\s+/g, '');
+const dmKey = (userIdA: string, userIdB: string) => {
+  const [first, second] = [userIdA, userIdB].sort();
+  return `dm:${first}:${second}`;
+};
+
+const isPrivateAccess = (access?: string | null) => access === 'private' || access === 'invite_only';
 
 export class ChatService {
   async getChannels(user: User): Promise<ChannelWithState[]> {
-    const channels = user.role === 'admin'
-      ? await channelRepository.findAll()
-      : await channelRepository.findUserChannels(user.id);
+    const channels = await channelRepository.findUserChannels(user.id);
     const memberships = await channelMemberRepository.findByUserId(user.id);
     const membershipMap = new Map(memberships.map((membership) => [membership.channelId, membership]));
 
@@ -70,14 +85,22 @@ export class ChatService {
 
     for (const channel of channels) {
       let membership = membershipMap.get(channel.id) ?? null;
-      if (!membership) {
+      if (!membership && (channel.type === 'dm' || channel.access === 'public')) {
         membership = await channelMemberRepository.join(channel.id, user.id);
       }
+
+      if (!membership) {
+        continue;
+      }
       const unreadCount = await messageRepository.countUnread(channel.id, membership.lastReadAt);
+      const otherUser = channel.type === 'dm'
+        ? await this.resolveDmOtherUser(channel.id, user.id)
+        : null;
       results.push({
         ...channel,
         unreadCount,
         lastReadAt: membership.lastReadAt,
+        otherUser,
       });
     }
 
@@ -91,15 +114,170 @@ export class ChatService {
     return channel;
   }
 
+  async getDMChannels(user: User): Promise<ChannelWithState[]> {
+    const channels = await this.getChannels(user);
+    return channels.filter((channel) => channel.type === 'dm');
+  }
+
+  async getOrCreateDM(otherUserId: string, user: User): Promise<ChannelWithState> {
+    if (otherUserId === user.id) {
+      throw new Error('You cannot create a DM with yourself');
+    }
+
+    const otherUser = await userRepository.findById(otherUserId);
+    if (!otherUser || otherUser.isDisabled) {
+      throw new Error('User not found');
+    }
+
+    const name = dmKey(user.id, otherUserId);
+    let channel = await channelRepository.findByName(name);
+    if (channel && channel.type !== 'dm') {
+      throw new Error('DM channel conflict');
+    }
+
+    if (!channel) {
+      const created = await channelRepository.create({
+        name,
+        projectId: null,
+        description: null,
+        type: 'dm',
+        access: 'invite_only',
+      });
+      channel = await channelRepository.findById(created.id);
+      if (!channel) {
+        throw new Error('Failed to create DM channel');
+      }
+    }
+
+    const memberships = await channelMemberRepository.findByChannelId(channel.id);
+    const memberIds = new Set(memberships.map((member) => member.userId));
+    const missingIds = [user.id, otherUserId].filter((id: string) => !memberIds.has(id));
+    if (missingIds.length > 0) {
+      await channelMemberRepository.addMembers(channel.id, missingIds, 'member');
+    }
+
+    if (missingIds.includes(otherUserId)) {
+      await this.notifyChannelAdded([otherUserId], channel.id);
+    }
+
+    const membership = await channelMemberRepository.findMembership(channel.id, user.id);
+    if (!membership) {
+      throw new Error('Failed to access DM channel');
+    }
+
+    const unreadCount = await messageRepository.countUnread(channel.id, membership.lastReadAt);
+
+    return {
+      ...channel,
+      unreadCount,
+      lastReadAt: membership.lastReadAt,
+      otherUser: {
+        id: otherUser.id,
+        name: otherUser.name,
+        email: otherUser.email,
+        avatarUrl: otherUser.avatarUrl ?? null,
+      },
+    };
+  }
+
+  async getChannelMembers(channelId: string, user: User): Promise<ChannelMemberView[]> {
+    const channel = await channelRepository.findById(channelId);
+    if (!channel) {
+      throw new Error('Channel not found');
+    }
+
+    await this.ensureAccess(channel, user);
+
+    const members = await channelMemberRepository.findByChannelId(channelId);
+    return members.map((member) => ({
+      userId: member.userId,
+      role: member.role as 'owner' | 'member',
+      joinedAt: member.joinedAt,
+      lastReadAt: member.lastReadAt,
+      user: member.user,
+    }));
+  }
+
+  async addChannelMembers(channelId: string, userIds: string[], user: User): Promise<ChannelMemberView[]> {
+    const channel = await channelRepository.findById(channelId);
+    if (!channel) {
+      throw new Error('Channel not found');
+    }
+
+    if (channel.type === 'dm') {
+      throw new Error('Cannot add members to a DM');
+    }
+
+    if (channel.access === 'public') {
+      throw new Error('Public channels do not support invites');
+    }
+
+    await this.ensureChannelOwner(channel, user);
+
+    const uniqueIds = Array.from(new Set(userIds)).filter((id: string) => id !== user.id);
+    const validatedMemberIds = await this.validateMemberIds(uniqueIds, { type: channel.type as 'workspace' | 'project' | 'dm', projectId: channel.projectId });
+
+    const existingMembers = await channelMemberRepository.findByChannelId(channelId);
+    const existingIds = new Set(existingMembers.map((member) => member.userId));
+    const newIds = validatedMemberIds.filter((id: string) => !existingIds.has(id));
+
+    if (newIds.length > 0) {
+      await channelMemberRepository.addMembers(channelId, newIds, 'member');
+      await this.notifyChannelAdded(newIds, channelId);
+    }
+
+    return this.getChannelMembers(channelId, user);
+  }
+
+  async removeChannelMember(channelId: string, memberId: string, user: User): Promise<ChannelMemberView[]> {
+    const channel = await channelRepository.findById(channelId);
+    if (!channel) {
+      throw new Error('Channel not found');
+    }
+
+    if (channel.type === 'dm') {
+      throw new Error('DM channels cannot be left');
+    }
+
+    if (channel.access === 'public') {
+      throw new Error('Cannot leave a public channel');
+    }
+
+    if (memberId !== user.id) {
+      await this.ensureChannelOwner(channel, user);
+    }
+
+    const members = await channelMemberRepository.findByChannelId(channelId);
+    const target = members.find((member) => member.userId === memberId);
+    if (!target) {
+      throw new Error('Channel member not found');
+    }
+
+    if (target.role === 'owner') {
+      const ownerCount = members.filter((member) => member.role === 'owner').length;
+      if (ownerCount <= 1) {
+        throw new Error('Cannot remove the last channel owner');
+      }
+    }
+
+    const removed = await channelMemberRepository.leave(channelId, memberId);
+    if (!removed) {
+      throw new Error('Failed to remove channel member');
+    }
+
+    return this.getChannelMembers(channelId, user);
+  }
+
   async createChannel(input: CreateChannelInput, user: User): Promise<Channel> {
     if (!input.name || input.name.trim() === '') {
       throw new Error('Channel name is required');
     }
 
     const type = input.type ?? (input.projectId ? 'project' : 'workspace');
+    const access = input.access ?? 'public';
 
-    if (type === 'workspace' && user.role !== 'admin') {
-      throw new Error('Only admins can create workspace channels');
+    if (type === 'workspace' && access === 'public' && user.role !== 'admin') {
+      throw new Error('Only admins can create public workspace channels');
     }
 
     if (type === 'project') {
@@ -112,14 +290,25 @@ export class ChatService {
       }
     }
 
+    const memberIds = Array.from(new Set(input.memberIds ?? [])).filter((memberId) => memberId !== user.id);
+    const validatedMemberIds = access === 'public'
+      ? []
+      : await this.validateMemberIds(memberIds, { type, projectId: input.projectId ?? null });
+
     const channel = await channelRepository.create({
       name: input.name.trim(),
       projectId: input.projectId ?? null,
       description: input.description?.trim() || null,
       type,
+      access,
     });
 
-    await channelMemberRepository.join(channel.id, user.id);
+    await channelMemberRepository.joinWithRole(channel.id, user.id, 'owner');
+
+    if (validatedMemberIds.length > 0) {
+      await channelMemberRepository.addMembers(channel.id, validatedMemberIds, 'member');
+      await this.notifyChannelAdded(validatedMemberIds, channel.id);
+    }
     return channel;
   }
 
@@ -292,14 +481,11 @@ export class ChatService {
 
     const messageWithUser = this.mapMessage(messageRecord);
 
-    chatHub.broadcastToChannel(
+    await this.emitChannelEvent(channel, {
+      type: 'message',
       channelId,
-      JSON.stringify({
-        type: 'message',
-        channelId,
-        message: messageWithUser,
-      })
-    );
+      message: messageWithUser,
+    });
 
     const mentionTargets = mentions.filter((mentionId) => mentionId !== user.id);
     if (mentionTargets.length > 0 && trimmedContent) {
@@ -359,14 +545,11 @@ export class ChatService {
 
     const mapped = this.mapMessage(updated);
 
-    chatHub.broadcastToChannel(
+    await this.emitChannelEvent(channel, {
+      type: 'message_updated',
       channelId,
-      JSON.stringify({
-        type: 'message_updated',
-        channelId,
-        message: mapped,
-      })
-    );
+      message: mapped,
+    });
 
     return mapped;
   }
@@ -401,14 +584,11 @@ export class ChatService {
 
     const mapped = this.mapMessage(updated);
 
-    chatHub.broadcastToChannel(
+    await this.emitChannelEvent(channel, {
+      type: 'message_deleted',
       channelId,
-      JSON.stringify({
-        type: 'message_deleted',
-        channelId,
-        message: mapped,
-      })
-    );
+      message: mapped,
+    });
 
     return mapped;
   }
@@ -418,14 +598,14 @@ export class ChatService {
     if (!channel) return;
     await this.ensureAccess(channel, user);
     this.ensureActiveChannel(channel);
-    chatHub.broadcastToChannel(
-      channelId,
-      JSON.stringify({
+    await this.emitChannelEvent(
+      channel,
+      {
         type: 'typing',
         channelId,
         user: { id: user.id, name: user.name, avatarUrl: user.avatarUrl ?? null },
         isTyping,
-      }),
+      },
       user.id
     );
   }
@@ -467,14 +647,11 @@ export class ChatService {
 
     const mapped = this.mapMessage(updated);
 
-    chatHub.broadcastToChannel(
+    await this.emitChannelEvent(channel, {
+      type: 'reaction_added',
       channelId,
-      JSON.stringify({
-        type: 'reaction_added',
-        channelId,
-        message: mapped,
-      })
-    );
+      message: mapped,
+    });
 
     return mapped;
   }
@@ -512,20 +689,33 @@ export class ChatService {
 
     const mapped = this.mapMessage(updated);
 
-    chatHub.broadcastToChannel(
+    await this.emitChannelEvent(channel, {
+      type: 'reaction_removed',
       channelId,
-      JSON.stringify({
-        type: 'reaction_removed',
-        channelId,
-        message: mapped,
-      })
-    );
+      message: mapped,
+    });
 
     return mapped;
   }
 
   private async ensureAccess(channel: ChannelWithProject, user: User) {
+    if (channel.type === 'dm') {
+      const membership = await channelMemberRepository.findMembership(channel.id, user.id);
+      if (!membership) {
+        throw new Error('Access denied to this DM');
+      }
+      return;
+    }
+
     if (channel.type === 'workspace') {
+      if (!isPrivateAccess(channel.access)) {
+        return;
+      }
+
+      const membership = await channelMemberRepository.findMembership(channel.id, user.id);
+      if (!membership) {
+        throw new Error('Access denied to this channel');
+      }
       return;
     }
 
@@ -537,6 +727,13 @@ export class ChatService {
     if (!hasAccess) {
       throw new Error('Access denied to this channel');
     }
+
+    if (isPrivateAccess(channel.access)) {
+      const membership = await channelMemberRepository.findMembership(channel.id, user.id);
+      if (!membership) {
+        throw new Error('Access denied to this channel');
+      }
+    }
   }
 
   private ensureActiveChannel(channel: ChannelWithProject) {
@@ -546,9 +743,21 @@ export class ChatService {
   }
 
   private async ensureChannelOwner(channel: ChannelWithProject, user: User) {
+    if (channel.type === 'dm') {
+      throw new Error('DM channels cannot be managed');
+    }
+
     if (channel.type === 'workspace') {
-      if (user.role !== 'admin') {
-        throw new Error('Only admins can manage workspace channels');
+      if (!isPrivateAccess(channel.access)) {
+        if (user.role !== 'admin') {
+          throw new Error('Only admins can manage workspace channels');
+        }
+        return;
+      }
+
+      const isOwner = await channelMemberRepository.isOwner(channel.id, user.id);
+      if (!isOwner) {
+        throw new Error('Only channel owners can manage this channel');
       }
       return;
     }
@@ -557,9 +766,17 @@ export class ChatService {
       throw new Error('Channel has no project');
     }
 
-    const isOwner = await projectService.isOwner(channel.projectId, user);
+    if (!isPrivateAccess(channel.access)) {
+      const isOwner = await projectService.isOwner(channel.projectId, user);
+      if (!isOwner) {
+        throw new Error('Only project owners can manage this channel');
+      }
+      return;
+    }
+
+    const isOwner = await channelMemberRepository.isOwner(channel.id, user.id);
     if (!isOwner) {
-      throw new Error('Only project owners can manage this channel');
+      throw new Error('Only channel owners can manage this channel');
     }
   }
 
@@ -630,6 +847,93 @@ export class ChatService {
     };
   }
 
+  private async resolveDmOtherUser(channelId: string, userId: string) {
+    const members = await channelMemberRepository.findByChannelId(channelId);
+    const other = members.find((member) => member.userId !== userId);
+    return other?.user ?? null;
+  }
+
+  private async listChannelUsers(channelId: string): Promise<Array<{ id: string; name: string }>> {
+    const members = await channelMemberRepository.findByChannelId(channelId);
+    return members.map((member) => ({ id: member.user.id, name: member.user.name }));
+  }
+
+  private async validateMemberIds(
+    memberIds: string[],
+    context: { type: 'workspace' | 'project' | 'dm'; projectId: string | null }
+  ): Promise<string[]> {
+    if (memberIds.length === 0) return [];
+
+    const uniqueIds = Array.from(new Set(memberIds));
+
+    if (context.type === 'project') {
+      if (!context.projectId) {
+        throw new Error('Project ID is required for project channels');
+      }
+      const projectMembers = await projectMemberRepository.findByProjectId(context.projectId);
+      const projectMemberIds = new Set(projectMembers.map((member) => member.user.id));
+      const invalidProjectMember = uniqueIds.find((id: string) => !projectMemberIds.has(id));
+      if (invalidProjectMember) {
+        throw new Error('One or more users are not members of this project');
+      }
+    }
+
+    for (const memberId of uniqueIds) {
+      const targetUser = await userRepository.findById(memberId);
+      if (!targetUser || targetUser.isDisabled) {
+        throw new Error('One or more users are not available');
+      }
+    }
+
+    return uniqueIds;
+  }
+
+  private async emitChannelEvent(
+    channel: ChannelWithProject,
+    payload: Record<string, unknown>,
+    excludeUserId?: string
+  ) {
+    const message = JSON.stringify(payload);
+
+    if (channel.type === 'dm') {
+      const members = await channelMemberRepository.findByChannelId(channel.id);
+      for (const member of members) {
+        if (excludeUserId && member.userId === excludeUserId) continue;
+        chatHub.sendToUser(member.userId, message);
+      }
+      return;
+    }
+
+    chatHub.broadcastToChannel(channel.id, message, excludeUserId);
+  }
+
+  private async notifyChannelAdded(userIds: string[], channelId: string) {
+    if (userIds.length === 0) return;
+
+    const channel = await channelRepository.findById(channelId);
+    if (!channel) return;
+
+    for (const userId of userIds) {
+      const membership = await channelMemberRepository.findMembership(channelId, userId);
+      if (!membership) continue;
+
+      const unreadCount = await messageRepository.countUnread(channelId, membership.lastReadAt);
+      const otherUser = channel.type === 'dm'
+        ? await this.resolveDmOtherUser(channelId, userId)
+        : null;
+
+      chatHub.sendToUser(userId, JSON.stringify({
+        type: 'channel_added',
+        channel: {
+          ...channel,
+          unreadCount,
+          lastReadAt: membership.lastReadAt,
+          otherUser,
+        },
+      }));
+    }
+  }
+
   private async parseMentions(channel: ChannelWithProject, content: string): Promise<string[]> {
     const matches = content.match(/@([a-zA-Z0-9._-]+)/g) ?? [];
     if (matches.length === 0) return [];
@@ -642,11 +946,19 @@ export class ChatService {
     const normalHandles = handles.filter((handle) => !specialMentions.has(handle));
 
     let users: { id: string; name: string }[] = [];
-    if (channel.type === 'workspace') {
-      users = await userRepository.findAll();
+    if (channel.type === 'dm') {
+      users = await this.listChannelUsers(channel.id);
+    } else if (channel.type === 'workspace') {
+      users = isPrivateAccess(channel.access)
+        ? await this.listChannelUsers(channel.id)
+        : await userRepository.findAll();
     } else if (channel.projectId) {
-      const members = await projectMemberRepository.findByProjectId(channel.projectId);
-      users = members.map((member) => ({ id: member.user.id, name: member.user.name }));
+      if (isPrivateAccess(channel.access)) {
+        users = await this.listChannelUsers(channel.id);
+      } else {
+        const members = await projectMemberRepository.findByProjectId(channel.projectId);
+        users = members.map((member) => ({ id: member.user.id, name: member.user.name }));
+      }
     }
 
     const handleMap = new Map(users.map((user) => [normalizeHandle(user.name), user.id]));
@@ -669,7 +981,23 @@ export class ChatService {
   }
 
   private async notifyChannelMembers(channel: ChannelWithProject, payload: Record<string, unknown>) {
+    if (channel.type === 'dm') {
+      const members = await channelMemberRepository.findByChannelId(channel.id);
+      for (const member of members) {
+        chatHub.sendToUser(member.userId, JSON.stringify(payload));
+      }
+      return;
+    }
+
     if (channel.type === 'workspace') {
+      if (isPrivateAccess(channel.access)) {
+        const members = await channelMemberRepository.findByChannelId(channel.id);
+        for (const member of members) {
+          chatHub.sendToUser(member.userId, JSON.stringify(payload));
+        }
+        return;
+      }
+
       const users = await userRepository.findAll();
       for (const user of users) {
         chatHub.sendToUser(user.id, JSON.stringify(payload));
@@ -678,6 +1006,14 @@ export class ChatService {
     }
 
     if (channel.projectId) {
+      if (isPrivateAccess(channel.access)) {
+        const members = await channelMemberRepository.findByChannelId(channel.id);
+        for (const member of members) {
+          chatHub.sendToUser(member.userId, JSON.stringify(payload));
+        }
+        return;
+      }
+
       const members = await projectMemberRepository.findByProjectId(channel.projectId);
       for (const member of members) {
         chatHub.sendToUser(member.user.id, JSON.stringify(payload));

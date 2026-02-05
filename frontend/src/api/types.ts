@@ -340,25 +340,45 @@ export interface Channel {
   id: string
   name: string
   description?: string | null
-  type: "workspace" | "project"
+  type: "workspace" | "project" | "dm"
+  access: "public" | "private" | "invite_only"
   projectId: string | null
   createdAt: string
   archivedAt?: string | null
   project?: Project | null
   unreadCount?: number
   lastReadAt?: string | null
+  otherUser?: User | null
 }
 
 export interface CreateChannelInput {
   name: string
   projectId?: string | null
   type?: "workspace" | "project"
+  access?: "public" | "private" | "invite_only"
   description?: string | null
+  memberIds?: string[]
 }
 
 export interface UpdateChannelInput {
   name?: string
   description?: string | null
+}
+
+export interface CreateDMInput {
+  userId: string
+}
+
+export interface ChannelMember {
+  userId: string
+  role: "owner" | "member"
+  joinedAt: string
+  lastReadAt: string
+  user: User
+}
+
+export interface AddChannelMembersInput {
+  userIds: string[]
 }
 
 export interface Message {

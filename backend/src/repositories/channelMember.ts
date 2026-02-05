@@ -2,8 +2,12 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '../db/client';
 import { channelMembers, type ChannelMember, type NewChannelMember } from '../db/schema';
 
+export type ChannelMemberWithUser = ChannelMember & {
+  user: { id: string; name: string; email: string; avatarUrl: string | null };
+};
+
 export class ChannelMemberRepository {
-  async findByChannelId(channelId: string): Promise<ChannelMember[]> {
+  async findByChannelId(channelId: string): Promise<ChannelMemberWithUser[]> {
     return db.query.channelMembers.findMany({
       where: eq(channelMembers.channelId, channelId),
       with: {
@@ -40,12 +44,35 @@ export class ChannelMemberRepository {
     return member;
   }
 
+  async joinWithRole(channelId: string, userId: string, role: 'owner' | 'member'): Promise<ChannelMember> {
+    const [member] = await db
+      .insert(channelMembers)
+      .values({ channelId, userId, role })
+      .returning();
+    return member;
+  }
+
+  async addMembers(channelId: string, userIds: string[], role: 'owner' | 'member' = 'member'): Promise<void> {
+    if (userIds.length === 0) return;
+    await db.insert(channelMembers).values(userIds.map((userId) => ({ channelId, userId, role })));
+  }
+
   async leave(channelId: string, userId: string): Promise<boolean> {
     const result = await db
       .delete(channelMembers)
       .where(and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, userId)))
       .returning();
     return result.length > 0;
+  }
+
+  async isOwner(channelId: string, userId: string): Promise<boolean> {
+    const result = await db.query.channelMembers.findFirst({
+      where: and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, userId)),
+      columns: {
+        role: true,
+      },
+    });
+    return result?.role === 'owner';
   }
 
   async updateLastRead(channelId: string, userId: string, lastReadAt: Date): Promise<ChannelMember | null> {

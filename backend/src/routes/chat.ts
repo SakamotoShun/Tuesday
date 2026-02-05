@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { auth } from '../middleware';
 import { chatService } from '../services';
 import { success, errors } from '../utils/response';
-import { validateBody, formatValidationErrors, createChannelSchema, createMessageSchema, updateChannelSchema, updateMessageSchema, addReactionSchema } from '../utils/validation';
+import { validateBody, formatValidationErrors, createChannelSchema, createMessageSchema, updateChannelSchema, updateMessageSchema, addReactionSchema, addChannelMembersSchema } from '../utils/validation';
 
 const chat = new Hono();
 
@@ -62,6 +62,63 @@ chat.patch('/:id', async (c) => {
     }
     console.error('Error updating channel:', error);
     return errors.internal(c, 'Failed to update channel');
+  }
+});
+
+// GET /api/v1/channels/:id/members - List channel members
+chat.get('/:id/members', async (c) => {
+  try {
+    const user = c.get('user');
+    const channelId = c.req.param('id');
+    const members = await chatService.getChannelMembers(channelId, user);
+    return success(c, members);
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error fetching channel members:', error);
+    return errors.internal(c, 'Failed to fetch channel members');
+  }
+});
+
+// POST /api/v1/channels/:id/members - Add channel members
+chat.post('/:id/members', async (c) => {
+  try {
+    const user = c.get('user');
+    const channelId = c.req.param('id');
+    const body = await c.req.json();
+
+    const validation = validateBody(addChannelMembersSchema, body);
+    if (!validation.success) {
+      return errors.validation(c, formatValidationErrors(validation.errors));
+    }
+
+    const members = await chatService.addChannelMembers(channelId, validation.data.userIds, user);
+    return success(c, members);
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error adding channel members:', error);
+    return errors.internal(c, 'Failed to add channel members');
+  }
+});
+
+// DELETE /api/v1/channels/:id/members/:userId - Remove channel member (or leave)
+chat.delete('/:id/members/:userId', async (c) => {
+  try {
+    const user = c.get('user');
+    const channelId = c.req.param('id');
+    const memberId = c.req.param('userId');
+
+    const members = await chatService.removeChannelMember(channelId, memberId, user);
+    return success(c, members);
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error removing channel member:', error);
+    return errors.internal(c, 'Failed to remove channel member');
   }
 });
 

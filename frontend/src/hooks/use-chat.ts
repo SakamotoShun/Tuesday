@@ -68,6 +68,16 @@ export function useChatChannels(activeChannelId?: string | null) {
         updateChannelInCache(updated.id, (channel) => ({ ...channel, ...updated }))
       }
 
+      if (event.type === "channel_added") {
+        const added = event.channel as Channel | undefined
+        if (!added) return
+        queryClient.setQueryData<Channel[]>(["channels"], (channels) => {
+          if (!channels) return [added]
+          if (channels.some((channel) => channel.id === added.id)) return channels
+          return [added, ...channels]
+        })
+      }
+
       if (event.type === "channel_archived") {
         const channelId = event.channelId as string | undefined
         if (!channelId) return

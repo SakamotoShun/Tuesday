@@ -264,10 +264,24 @@ export const createChannelSchema = z.object({
   name: z.string().min(1, 'Channel name is required').max(100),
   projectId: uuidSchema.optional().nullable(),
   type: z.enum(['workspace', 'project']).optional(),
+  access: z.enum(['public', 'private', 'invite_only']).optional(),
   description: z.string().max(500).optional().nullable(),
+  memberIds: z.array(uuidSchema).optional(),
 });
 
 export type CreateChannelInput = z.infer<typeof createChannelSchema>;
+
+export const createDMSchema = z.object({
+  userId: uuidSchema,
+});
+
+export type CreateDMInput = z.infer<typeof createDMSchema>;
+
+export const addChannelMembersSchema = z.object({
+  userIds: z.array(uuidSchema).min(1, 'At least one member is required'),
+});
+
+export type AddChannelMembersInput = z.infer<typeof addChannelMembersSchema>;
 
 export const updateChannelSchema = z.object({
   name: z.string().min(1, 'Channel name is required').max(100).optional(),

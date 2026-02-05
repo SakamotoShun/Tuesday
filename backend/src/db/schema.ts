@@ -33,6 +33,32 @@ export const ProjectMemberSource = {
 
 export type ProjectMemberSource = typeof ProjectMemberSource[keyof typeof ProjectMemberSource];
 
+// Channel types
+export const ChannelType = {
+  WORKSPACE: 'workspace',
+  PROJECT: 'project',
+  DM: 'dm',
+} as const;
+
+export type ChannelType = typeof ChannelType[keyof typeof ChannelType];
+
+// Channel access levels
+export const ChannelAccess = {
+  PUBLIC: 'public',
+  PRIVATE: 'private',
+  INVITE_ONLY: 'invite_only',
+} as const;
+
+export type ChannelAccess = typeof ChannelAccess[keyof typeof ChannelAccess];
+
+// Channel member roles
+export const ChannelMemberRole = {
+  OWNER: 'owner',
+  MEMBER: 'member',
+} as const;
+
+export type ChannelMemberRole = typeof ChannelMemberRole[keyof typeof ChannelMemberRole];
+
 const bytea = customType<{ data: Buffer }>({
   dataType() {
     return 'bytea';
@@ -139,7 +165,8 @@ export const channels = pgTable('channels', {
   projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 100 }).notNull(),
   description: varchar('description', { length: 500 }),
-  type: varchar('type', { length: 20 }).notNull().default('project'),
+  type: varchar('type', { length: 20 }).notNull().default(ChannelType.PROJECT),
+  access: varchar('access', { length: 20 }).notNull().default(ChannelAccess.PUBLIC),
   archivedAt: timestamp('archived_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -161,6 +188,7 @@ export const messages = pgTable('messages', {
 export const channelMembers = pgTable('channel_members', {
   channelId: uuid('channel_id').notNull().references(() => channels.id, { onDelete: 'cascade' }),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  role: varchar('role', { length: 20 }).notNull().default(ChannelMemberRole.MEMBER),
   lastReadAt: timestamp('last_read_at', { withTimezone: true }).notNull().defaultNow(),
   joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
