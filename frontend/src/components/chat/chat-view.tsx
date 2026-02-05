@@ -101,8 +101,8 @@ export function ChatView({ projectId, title }: ChatViewProps) {
   )
 
   return (
-    <div className="flex flex-col md:flex-row h-[calc(100vh-320px)] min-h-[520px] border border-border rounded-lg overflow-hidden bg-card">
-      <aside className="w-full md:w-72 border-b md:border-b-0 md:border-r border-border bg-background">
+    <div className="flex flex-col md:flex-row flex-1 min-h-0 border border-border rounded-lg overflow-hidden bg-card">
+      <aside className="w-full md:w-72 border-b md:border-b-0 md:border-r border-border bg-background min-h-0">
         <div className="px-4 py-3 border-b border-border flex items-center justify-between">
           <div className="text-sm font-semibold">{title ?? "Channels"}</div>
           <div className="flex items-center gap-2">
@@ -126,7 +126,7 @@ export function ChatView({ projectId, title }: ChatViewProps) {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col">
+      <main className="flex-1 flex flex-col min-h-0">
         <div className="border-b border-border px-4 py-3">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -150,7 +150,7 @@ export function ChatView({ projectId, title }: ChatViewProps) {
             )}
           </div>
         </div>
-        <div ref={listRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-4">
           {activeChannel ? (
             <MessageList
               messages={messages.messages}

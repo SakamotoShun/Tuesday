@@ -32,7 +32,7 @@ export function MentionAutocomplete({
   if (!visible || options.length === 0) return null
 
   return (
-    <div className="absolute bottom-14 left-0 right-0 z-10 rounded-md border border-border bg-card shadow-md">
+    <div className="absolute bottom-full left-0 right-0 z-10 mb-2 rounded-md border border-border bg-card shadow-md">
       {options.map((option, index) => (
         <button
           key={option.type === "user" ? option.user.id : option.key}

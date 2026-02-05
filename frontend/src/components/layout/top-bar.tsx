@@ -1,4 +1,4 @@
-import { Plus, Search } from "lucide-react"
+import { Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Logo } from "./logo"
@@ -22,11 +22,6 @@ export function TopBar() {
       </div>
 
       <div className="flex items-center gap-4 ml-auto">
-        <Button className="gap-1">
-          <Plus className="h-4 w-4" />
-          Create
-        </Button>
-
         <NotificationBell />
 
         <UserMenu />
