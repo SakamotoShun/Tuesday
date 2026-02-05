@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { Link } from "react-router-dom"
-import { AlertTriangle, Check, CloudOff, Loader2, Trash2 } from "lucide-react"
+import { AlertTriangle, Check, CloudOff, Loader2, MessageSquare, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -19,9 +19,10 @@ interface DocToolbarProps {
   title: string
   saveState: SaveState
   onDelete: () => Promise<void>
+  onOpenChat?: () => void
 }
 
-export function DocToolbar({ projectId, title, saveState, onDelete }: DocToolbarProps) {
+export function DocToolbar({ projectId, title, saveState, onDelete, onOpenChat }: DocToolbarProps) {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -63,6 +64,13 @@ export function DocToolbar({ projectId, title, saveState, onDelete }: DocToolbar
           {saveState === "error" && <CloudOff className="h-3.5 w-3.5 text-destructive" />}
           <span>{saveLabel}</span>
         </div>
+
+        {onOpenChat && (
+          <Button variant="outline" size="sm" onClick={onOpenChat}>
+            <MessageSquare className="mr-2 h-4 w-4" />
+            Chat
+          </Button>
+        )}
 
         <Button variant="outline" size="sm" onClick={() => setConfirmOpen(true)}>
           <Trash2 className="mr-2 h-4 w-4" />

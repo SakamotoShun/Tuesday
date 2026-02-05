@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
-import { ArrowLeft, FileText, Pencil, Table } from "lucide-react"
+import { ArrowLeft, FileText, Pencil, Table, X } from "lucide-react"
 import type { Block } from "@blocknote/core"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -10,7 +10,10 @@ import { BlockNoteEditor } from "@/components/docs/block-note-editor"
 import { DatabaseView } from "@/components/docs/database-view"
 import { PropertiesPanel } from "@/components/docs/properties-panel"
 import { DocToolbar } from "@/components/docs/doc-toolbar"
+import { ResizableSplit } from "@/components/layout/resizable-split"
+import { ChatView } from "@/components/chat/chat-view"
 import { useDocWithChildren, useDocs } from "@/hooks/use-docs"
+import { useUIStore } from "@/store/ui-store"
 import type { PropertyValue } from "@/api/types"
 import { ApiErrorResponse } from "@/api/client"
 
@@ -23,6 +26,9 @@ export function DocPage() {
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [titleError, setTitleError] = useState<string | null>(null)
   const [saveState, setSaveState] = useState<"saved" | "saving" | "error">("saved")
+  const [isChatOpen, setIsChatOpen] = useState(false)
+  const chatPanelWidth = useUIStore((state) => state.chatPanelWidth)
+  const setChatPanelWidth = useUIStore((state) => state.setChatPanelWidth)
 
   useEffect(() => {
     if (doc) {
@@ -122,8 +128,22 @@ export function DocPage() {
     }
   }
 
-  return (
-    <div className="space-y-4">
+  const chatPanel = (
+    <div className="flex flex-col h-full">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
+        <div className="text-sm font-semibold">Project Chat</div>
+        <Button variant="ghost" size="icon" onClick={() => setIsChatOpen(false)}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+      <div className="flex-1 min-h-0">
+        <ChatView projectId={projectId} variant="panel" />
+      </div>
+    </div>
+  )
+
+  const docContent = (
+    <div className="space-y-4 p-1">
       <Button asChild variant="ghost" className="gap-2 text-muted-foreground">
         <Link
           to={
@@ -142,6 +162,7 @@ export function DocPage() {
         title={doc.title}
         saveState={saveState}
         onDelete={handleDelete}
+        onOpenChat={() => setIsChatOpen(true)}
       />
 
       <div className="space-y-2">
@@ -217,6 +238,21 @@ export function DocPage() {
           />
         </div>
       )}
+    </div>
+  )
+
+  return (
+    <div className="flex flex-col flex-1 min-h-0">
+      <ResizableSplit
+        sidePanel={chatPanel}
+        sidePanelOpen={isChatOpen}
+        sidePanelWidth={chatPanelWidth}
+        onWidthChange={setChatPanelWidth}
+        minWidth={300}
+        maxWidth={700}
+      >
+        {docContent}
+      </ResizableSplit>
     </div>
   )
 }

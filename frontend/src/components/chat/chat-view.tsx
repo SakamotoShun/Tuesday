@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge"
 interface ChatViewProps {
   projectId?: string
   title?: string
+  variant?: "page" | "panel"
 }
 
 const mapMembers = (members?: ProjectMember[]): User[] =>
@@ -26,7 +27,8 @@ const mapMembers = (members?: ProjectMember[]): User[] =>
     ?.map((member) => member.user)
     .filter((user): user is User => Boolean(user)) ?? []
 
-export function ChatView({ projectId, title }: ChatViewProps) {
+export function ChatView({ projectId, title, variant = "page" }: ChatViewProps) {
+  const isPanel = variant === "panel"
   const { user } = useAuth()
   const { isConnected } = useWebSocket()
   const [searchParams] = useSearchParams()
@@ -101,8 +103,16 @@ export function ChatView({ projectId, title }: ChatViewProps) {
   )
 
   return (
-    <div className="flex flex-col md:flex-row flex-1 min-h-0 border border-border rounded-lg overflow-hidden bg-card">
-      <aside className="w-full md:w-72 border-b md:border-b-0 md:border-r border-border bg-background min-h-0">
+    <div className={
+      isPanel
+        ? "flex flex-col h-full min-h-0 overflow-hidden bg-card"
+        : "flex flex-col md:flex-row flex-1 min-h-0 border border-border rounded-lg overflow-hidden bg-card"
+    }>
+      <aside className={
+        isPanel
+          ? "border-b border-border bg-background flex-shrink-0"
+          : "w-full md:w-72 border-b md:border-b-0 md:border-r border-border bg-background min-h-0"
+      }>
         <div className="px-4 py-3 border-b border-border flex items-center justify-between">
           <div className="text-sm font-semibold">{title ?? "Channels"}</div>
           <div className="flex items-center gap-2">
@@ -117,7 +127,11 @@ export function ChatView({ projectId, title }: ChatViewProps) {
             )}
           </div>
         </div>
-        <div className="py-3 overflow-y-auto max-h-[240px] md:max-h-none md:h-full">
+        <div className={
+          isPanel
+            ? "py-2 overflow-y-auto max-h-[120px]"
+            : "py-3 overflow-y-auto max-h-[240px] md:max-h-none md:h-full"
+        }>
           <ChannelList
             channels={filteredChannels}
             activeChannelId={activeChannel?.id ?? null}
@@ -127,13 +141,13 @@ export function ChatView({ projectId, title }: ChatViewProps) {
       </aside>
 
       <main className="flex-1 flex flex-col min-h-0">
-        <div className="border-b border-border px-4 py-3">
+        <div className="border-b border-border px-4 py-3 flex-shrink-0">
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="text-sm font-semibold">
                 {activeChannel ? `# ${activeChannel.name}` : "Select a channel"}
               </div>
-              {activeChannel?.project && (
+              {activeChannel?.project && !isPanel && (
                 <div className="text-xs text-muted-foreground">{activeChannel.project.name}</div>
               )}
               {activeChannel?.description && (
@@ -185,7 +199,7 @@ export function ChatView({ projectId, title }: ChatViewProps) {
             <div className="text-sm text-muted-foreground">Choose a channel to start chatting.</div>
           )}
         </div>
-        <div className="border-t border-border p-4 space-y-2">
+        <div className="border-t border-border p-4 space-y-2 flex-shrink-0">
           <TypingIndicator users={messages.typingUsers} />
           <MessageInput
             onSend={(payload) => {

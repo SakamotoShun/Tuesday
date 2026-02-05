@@ -8,6 +8,8 @@ interface UIState {
   toggleSidebar: () => void
   theme: Theme
   setTheme: (theme: Theme) => void
+  chatPanelWidth: number
+  setChatPanelWidth: (width: number) => void
 }
 
 export const useUIStore = create<UIState>()(
@@ -18,6 +20,8 @@ export const useUIStore = create<UIState>()(
         set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
       theme: "system",
       setTheme: (theme) => set({ theme }),
+      chatPanelWidth: 420,
+      setChatPanelWidth: (width) => set({ chatPanelWidth: width }),
     }),
     {
       name: "ui-storage",

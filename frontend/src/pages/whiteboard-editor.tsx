@@ -3,13 +3,17 @@ import { useNavigate, useParams } from "react-router-dom"
 import { Excalidraw, exportToCanvas, exportToSvg } from "@excalidraw/excalidraw"
 import "@excalidraw/excalidraw/index.css"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { MessageSquare, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ExportMenu } from "@/components/whiteboard/export-menu"
+import { ResizableSplit } from "@/components/layout/resizable-split"
+import { ChatView } from "@/components/chat/chat-view"
 import { useWhiteboard } from "@/hooks/use-whiteboards"
 import { useAuth } from "@/hooks/use-auth"
 import { useWhiteboardCollab, type WhiteboardSceneUpdate } from "@/hooks/use-whiteboard-collab"
+import { useUIStore } from "@/store/ui-store"
 import { whiteboardsApi } from "@/api/whiteboards"
 import type { Whiteboard } from "@/api/types"
 
@@ -112,6 +116,9 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
   const pendingSyncRef = useRef<WhiteboardScene | null>(null)
   const [isApiReady, setIsApiReady] = useState(false)
   const [name, setName] = useState(whiteboard.name)
+  const [isChatOpen, setIsChatOpen] = useState(false)
+  const chatPanelWidth = useUIStore((state) => state.chatPanelWidth)
+  const setChatPanelWidth = useUIStore((state) => state.setChatPanelWidth)
 
   const initialData = useMemo(() => {
     const data = whiteboard.data as WhiteboardScene | null
@@ -266,9 +273,23 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
     [collaborators]
   )
 
-  return (
-    <div className="flex h-full flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+  const chatPanel = (
+    <div className="flex flex-col h-full">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
+        <div className="text-sm font-semibold">Project Chat</div>
+        <Button variant="ghost" size="icon" onClick={() => setIsChatOpen(false)}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+      <div className="flex-1 min-h-0">
+        <ChatView projectId={whiteboard.projectId} variant="panel" />
+      </div>
+    </div>
+  )
+
+  const whiteboardContent = (
+    <div className="flex h-full flex-col gap-4 p-1">
+      <div className="flex flex-wrap items-center justify-between gap-4 flex-shrink-0">
         <div className="flex items-center gap-3">
           <Button
             variant="outline"
@@ -284,6 +305,10 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
           />
         </div>
         <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={() => setIsChatOpen(!isChatOpen)}>
+            <MessageSquare className="mr-2 h-4 w-4" />
+            Chat
+          </Button>
           {collaboratorList.length > 0 && (
             <div className="flex items-center -space-x-2">
               {collaboratorList.map((collaborator) => (
@@ -348,6 +373,21 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
           theme="light"
         />
       </div>
+    </div>
+  )
+
+  return (
+    <div className="flex flex-col flex-1 min-h-0">
+      <ResizableSplit
+        sidePanel={chatPanel}
+        sidePanelOpen={isChatOpen}
+        sidePanelWidth={chatPanelWidth}
+        onWidthChange={setChatPanelWidth}
+        minWidth={300}
+        maxWidth={700}
+      >
+        {whiteboardContent}
+      </ResizableSplit>
     </div>
   )
 }
