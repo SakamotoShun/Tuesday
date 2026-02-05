@@ -39,7 +39,7 @@ export function ChatView({ projectId, title, variant = "page" }: ChatViewProps) 
   const { isConnected } = useWebSocket()
   const [searchParams] = useSearchParams()
   const { activeChannelId, setActiveChannelId } = useChatStore()
-  const { channels, isLoading, updateChannel, archiveChannel } = useChatChannels(activeChannelId)
+  const { channels, isLoading, updateChannel, archiveChannel, deleteChannel } = useChatChannels(activeChannelId)
 
   const filteredChannels = useMemo(() => {
     if (!projectId) return channels
@@ -162,6 +162,7 @@ export function ChatView({ projectId, title, variant = "page" }: ChatViewProps) 
             canCreateDm={canCreateDm}
             onChannelCreated={(channelId) => setActiveChannelId(channelId)}
             onDmCreated={(channelId) => setActiveChannelId(channelId)}
+            onDeleteDm={(channelId) => deleteChannel.mutateAsync(channelId)}
           />
         </div>
       </aside>

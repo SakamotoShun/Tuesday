@@ -105,6 +105,12 @@ export function useChatChannels(activeChannelId?: string | null) {
         if (!channelId) return
         removeChannelFromCache(channelId)
       }
+
+      if (event.type === "channel_deleted") {
+        const channelId = event.channelId as string | undefined
+        if (!channelId) return
+        removeChannelFromCache(channelId)
+      }
     })
   }, [onMessage, removeChannelFromCache, updateChannelInCache])
 
@@ -123,12 +129,20 @@ export function useChatChannels(activeChannelId?: string | null) {
     },
   })
 
+  const deleteChannel = useMutation({
+    mutationFn: (channelId: string) => chatApi.deleteChannel(channelId),
+    onSuccess: (_result, channelId) => {
+      removeChannelFromCache(channelId)
+    },
+  })
+
   return {
     channels: channelsQuery.data ?? [],
     isLoading: channelsQuery.isLoading,
     error: channelsQuery.error,
     updateChannel,
     archiveChannel,
+    deleteChannel,
   }
 }
 

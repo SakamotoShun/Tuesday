@@ -19,6 +19,7 @@ export const chatApi = {
   updateChannel: (channelId: string, input: UpdateChannelInput) =>
     api.patch<Channel>(`/channels/${channelId}`, input),
   archiveChannel: (channelId: string) => api.delete<Channel>(`/channels/${channelId}`),
+  deleteChannel: (channelId: string) => api.delete<{ deleted: boolean }>(`/channels/${channelId}/permanent`),
   listChannelMembers: (channelId: string) => api.get<ChannelMember[]>(`/channels/${channelId}/members`),
   addChannelMembers: (channelId: string, input: AddChannelMembersInput) =>
     api.post<ChannelMember[]>(`/channels/${channelId}/members`, input),

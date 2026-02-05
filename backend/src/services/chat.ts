@@ -384,7 +384,7 @@ export class ChatService {
 
   /**
    * Permanently delete a channel and all its messages.
-   * Only channel owner (project owner for project channels, admin for workspace channels) can delete.
+   * DM participants can delete DMs; other channels require ownership or admin rights.
    * Cleans up all attached files before deletion.
    */
   async deleteChannel(channelId: string, user: User): Promise<boolean> {
@@ -394,7 +394,9 @@ export class ChatService {
     }
 
     await this.ensureAccess(channel, user);
-    await this.ensureChannelOwner(channel, user);
+    if (channel.type !== 'dm') {
+      await this.ensureChannelOwner(channel, user);
+    }
 
     // Clean up all files in this channel before cascade delete
     await fileService.cleanupChannelFiles(channelId);

@@ -1,10 +1,18 @@
-import { Lock, Plus } from "lucide-react"
+import { useState } from "react"
+import { Lock, MoreHorizontal, Plus, Trash2 } from "lucide-react"
 import type { Channel } from "@/api/types"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { NewChannelDialog } from "@/components/chat/new-channel-dialog"
 import { NewDmDialog } from "@/components/chat/new-dm-dialog"
+import { DeleteDmDialog } from "@/components/chat/delete-dm-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 
 interface ChannelListProps {
@@ -17,6 +25,7 @@ interface ChannelListProps {
   canCreateDm?: boolean
   onChannelCreated?: (channelId: string) => void
   onDmCreated?: (channelId: string) => void
+  onDeleteDm?: (channelId: string) => Promise<unknown> | void
 }
 
 export function ChannelList({
@@ -29,11 +38,30 @@ export function ChannelList({
   canCreateDm = false,
   onChannelCreated,
   onDmCreated,
+  onDeleteDm,
 }: ChannelListProps) {
+
+  const [deleteTarget, setDeleteTarget] = useState<Channel | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
   const workspaceChannels = channels.filter((channel) => channel.type === "workspace")
   const projectChannels = channels.filter((channel) => channel.type === "project")
   const dmChannels = channels.filter((channel) => channel.type === "dm")
+
+  const canDeleteDm = Boolean(onDeleteDm)
+  const deleteDisplayName = deleteTarget?.otherUser?.name?.trim() || "this user"
+
+  const handleDeleteOpenChange = (open: boolean) => {
+    setDeleteOpen(open)
+    if (!open) {
+      setDeleteTarget(null)
+    }
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget || !onDeleteDm) return
+    await onDeleteDm(deleteTarget.id)
+  }
 
   const showWorkspaceSection = workspaceChannels.length > 0 || canCreateWorkspaceChannel
   const showProjectSection = projectChannels.length > 0 || canCreateProjectChannel
@@ -186,31 +214,65 @@ export function ChannelList({
             <div className="space-y-1">
               {dmChannels.map((channel) => {
                 const displayName = channel.otherUser?.name ?? "Direct Message"
+                const unreadCount = channel.unreadCount ?? 0
                 return (
-                  <button
+                  <div
                     key={channel.id}
-                    onClick={() => onSelect(channel.id)}
                     className={cn(
-                      "w-full flex items-center justify-between px-4 py-2 rounded-md text-sm transition-colors",
+                      "group w-full flex items-center gap-2 px-4 py-2 rounded-md text-sm transition-colors",
                       activeChannelId === channel.id
                         ? "bg-accent text-accent-foreground"
                         : "hover:bg-muted"
                     )}
                   >
-                    <span className="truncate flex items-center gap-2">
-                      <Avatar className="h-6 w-6">
-                        <AvatarFallback className="text-[10px] bg-muted">
-                          {getInitials(displayName)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="truncate">@ {displayName}</span>
-                    </span>
-                    {(channel.unreadCount ?? 0) > 0 && (
-                      <Badge variant="secondary" className="ml-2">
-                        {channel.unreadCount}
-                      </Badge>
+                    <button
+                      type="button"
+                      onClick={() => onSelect(channel.id)}
+                      className="flex flex-1 items-center justify-between text-left"
+                    >
+                      <span className="truncate flex items-center gap-2">
+                        <Avatar className="h-6 w-6">
+                          <AvatarFallback className="text-[10px] bg-muted">
+                            {getInitials(displayName)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="truncate">@ {displayName}</span>
+                      </span>
+                      {unreadCount > 0 && (
+                        <Badge variant="secondary" className="ml-2">
+                          {unreadCount}
+                        </Badge>
+                      )}
+                    </button>
+                    {canDeleteDm && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                            aria-label={`DM actions for ${displayName}`}
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="w-48">
+                          <DropdownMenuItem
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              setDeleteTarget(channel)
+                              setDeleteOpen(true)
+                            }}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete conversation
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
-                  </button>
+                  </div>
                 )
               })}
             </div>
@@ -219,6 +281,12 @@ export function ChannelList({
           )}
         </div>
       )}
+      <DeleteDmDialog
+        open={deleteOpen}
+        onOpenChange={handleDeleteOpenChange}
+        displayName={deleteDisplayName}
+        onConfirm={handleDeleteConfirm}
+      />
     </div>
   )
 }
