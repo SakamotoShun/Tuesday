@@ -13,6 +13,7 @@ import { chat } from './chat';
 import { notifications } from './notifications';
 import { files } from './files';
 import { users } from './users';
+import { profile } from './profile';
 import { ws } from './ws';
 
 const routes = new Hono();
@@ -30,6 +31,7 @@ routes.route('/api/v1/meetings', meetings);
 routes.route('/api/v1/whiteboards', whiteboards);
 routes.route('/api/v1/channels', chat);
 routes.route('/api/v1/users', users);
+routes.route('/api/v1/profile', profile);
 routes.route('/api/v1/files', files);
 routes.route('/api/v1/notifications', notifications);
 routes.route('/api/v1/ws', ws);

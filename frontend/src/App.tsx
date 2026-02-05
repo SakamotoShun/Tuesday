@@ -17,6 +17,7 @@ import { WhiteboardEditorPage } from "@/pages/whiteboard-editor"
 import { MyWorkPage } from "@/pages/my-work"
 import { ChatPage } from "@/pages/chat"
 import { NotificationsPage } from "@/pages/notifications"
+import { ProfilePage } from "@/pages/profile"
 
 function AppRoutes() {
   const { isInitialized, isLoading } = useSetup()
@@ -69,6 +70,7 @@ function AppRoutes() {
           <Route path="whiteboards/:id" element={<WhiteboardEditorPage />} />
           <Route path="chat" element={<ChatPage />} />
           <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="profile" element={<ProfilePage />} />
           <Route path="admin" element={<AdminPage />} />
         </Route>
 

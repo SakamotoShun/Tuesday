@@ -1,7 +1,8 @@
 import { LogOut, Moon, Sun, User, Monitor } from "lucide-react"
+import { useNavigate } from "react-router-dom"
 import { useAuth } from "@/hooks/use-auth"
 import { useUIStore } from "@/store/ui-store"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -13,6 +14,7 @@ import {
 export function UserMenu() {
   const { user, logout } = useAuth()
   const { theme, setTheme } = useUIStore()
+  const navigate = useNavigate()
 
   if (!user) return null
 
@@ -35,17 +37,25 @@ export function UserMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger>
         <Avatar className="h-9 w-9 cursor-pointer">
-          <AvatarFallback className="bg-primary text-primary-foreground">
-            {initials}
-          </AvatarFallback>
+          {user.avatarUrl ? (
+            <AvatarImage src={user.avatarUrl} alt={user.name} />
+          ) : (
+            <AvatarFallback className="bg-primary text-primary-foreground">
+              {initials}
+            </AvatarFallback>
+          )}
         </Avatar>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56">
         <div className="flex items-center gap-2 p-2">
           <Avatar className="h-8 w-8">
-            <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-              {initials}
-            </AvatarFallback>
+            {user.avatarUrl ? (
+              <AvatarImage src={user.avatarUrl} alt={user.name} />
+            ) : (
+              <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                {initials}
+              </AvatarFallback>
+            )}
           </Avatar>
           <div className="flex flex-col">
             <span className="text-sm font-medium">{user.name}</span>
@@ -53,7 +63,7 @@ export function UserMenu() {
           </div>
         </div>
         <DropdownMenuSeparator />
-        <DropdownMenuItem className="gap-2">
+        <DropdownMenuItem className="gap-2" onClick={() => navigate("/profile")}>
           <User className="h-4 w-4" />
           Profile
         </DropdownMenuItem>

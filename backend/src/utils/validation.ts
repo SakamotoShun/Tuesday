@@ -39,6 +39,21 @@ export const registerSchema = z.object({
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 
+// Profile update validation
+export const updateProfileSchema = z.object({
+  name: nameSchema.optional(),
+});
+
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+
+// Change password validation
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: passwordSchema,
+});
+
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+
 // Setup validation
 export const setupSchema = z.object({
   workspaceName: z.string().min(1, 'Workspace name is required').max(255),
