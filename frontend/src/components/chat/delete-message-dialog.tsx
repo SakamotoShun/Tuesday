@@ -4,27 +4,20 @@ import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogDescription,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog"
-import type { Task } from "@/api/types"
 import { ApiErrorResponse } from "@/api/client"
 
-interface DeleteTaskDialogProps {
-  task: Task | null
+interface DeleteMessageDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onConfirm: () => Promise<void>
+  onConfirm: () => Promise<unknown>
 }
 
-export function DeleteTaskDialog({
-  task,
-  open,
-  onOpenChange,
-  onConfirm,
-}: DeleteTaskDialogProps) {
+export function DeleteMessageDialog({ open, onOpenChange, onConfirm }: DeleteMessageDialogProps) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -38,25 +31,23 @@ export function DeleteTaskDialog({
       if (err instanceof ApiErrorResponse) {
         setError(err.message)
       } else {
-        setError("Failed to delete task")
+        setError("Failed to delete message")
       }
     } finally {
       setIsDeleting(false)
     }
   }
 
-  if (!task) return null
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[420px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-destructive">
             <AlertTriangle className="h-5 w-5" />
-            Delete Task
+            Delete Message
           </DialogTitle>
           <DialogDescription>
-            Are you sure you want to delete <strong>{task.title}</strong>? This action cannot be undone.
+            This will remove the message content for everyone in the channel.
           </DialogDescription>
         </DialogHeader>
 
@@ -69,21 +60,11 @@ export function DeleteTaskDialog({
         </div>
 
         <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={isDeleting}
-          >
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isDeleting}>
             Cancel
           </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={handleDelete}
-            disabled={isDeleting}
-          >
-            {isDeleting ? "Deleting..." : "Delete Task"}
+          <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
+            {isDeleting ? "Deleting..." : "Delete"}
           </Button>
         </DialogFooter>
       </DialogContent>

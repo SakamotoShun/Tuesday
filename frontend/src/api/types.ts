@@ -292,9 +292,11 @@ export interface AdminCreateUserResponse extends User {
 export interface Channel {
   id: string
   name: string
+  description?: string | null
   type: "workspace" | "project"
   projectId: string | null
   createdAt: string
+  archivedAt?: string | null
   project?: Project | null
   unreadCount?: number
   lastReadAt?: string | null
@@ -304,6 +306,12 @@ export interface CreateChannelInput {
   name: string
   projectId?: string | null
   type?: "workspace" | "project"
+  description?: string | null
+}
+
+export interface UpdateChannelInput {
+  name?: string
+  description?: string | null
 }
 
 export interface Message {
@@ -314,11 +322,37 @@ export interface Message {
   mentions: string[]
   createdAt: string
   updatedAt: string
+  editedAt?: string | null
+  deletedAt?: string | null
   user?: User
+  attachments?: FileAttachment[]
+  reactions?: MessageReaction[]
 }
 
 export interface CreateMessageInput {
+  content?: string
+  attachmentIds?: string[]
+}
+
+export interface UpdateMessageInput {
   content: string
+}
+
+export interface FileAttachment {
+  id: string
+  originalName: string
+  mimeType: string
+  sizeBytes: number
+  createdAt: string
+  uploadedBy: string
+  url: string
+}
+
+export interface MessageReaction {
+  id: string
+  emoji: string
+  userId: string
+  createdAt: string
 }
 
 // Notification types

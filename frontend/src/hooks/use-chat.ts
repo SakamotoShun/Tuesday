@@ -16,6 +16,25 @@ export function useChatChannels(activeChannelId?: string | null) {
   const queryClient = useQueryClient()
   const { onMessage } = useWebSocket()
 
+  const updateChannelInCache = useCallback(
+    (channelId: string, updater: (channel: Channel) => Channel) => {
+      queryClient.setQueryData<Channel[]>(["channels"], (channels) => {
+        if (!channels) return channels
+        return channels.map((channel) => (channel.id === channelId ? updater(channel) : channel))
+      })
+    },
+    [queryClient]
+  )
+
+  const removeChannelFromCache = useCallback(
+    (channelId: string) => {
+      queryClient.setQueryData<Channel[]>(["channels"], (channels) =>
+        channels ? channels.filter((channel) => channel.id !== channelId) : channels
+      )
+    },
+    [queryClient]
+  )
+
   const channelsQuery = useQuery({
     queryKey: ["channels"],
     queryFn: chatApi.listChannels,
@@ -41,10 +60,43 @@ export function useChatChannels(activeChannelId?: string | null) {
     })
   }, [activeChannelId, onMessage, queryClient])
 
+  useEffect(() => {
+    return onMessage((event) => {
+      if (event.type === "channel_updated") {
+        const updated = event.channel as Channel | undefined
+        if (!updated) return
+        updateChannelInCache(updated.id, (channel) => ({ ...channel, ...updated }))
+      }
+
+      if (event.type === "channel_archived") {
+        const channelId = event.channelId as string | undefined
+        if (!channelId) return
+        removeChannelFromCache(channelId)
+      }
+    })
+  }, [onMessage, removeChannelFromCache, updateChannelInCache])
+
+  const updateChannel = useMutation({
+    mutationFn: ({ channelId, data }: { channelId: string; data: { name?: string; description?: string | null } }) =>
+      chatApi.updateChannel(channelId, data),
+    onSuccess: (updated) => {
+      updateChannelInCache(updated.id, (channel) => ({ ...channel, ...updated }))
+    },
+  })
+
+  const archiveChannel = useMutation({
+    mutationFn: (channelId: string) => chatApi.archiveChannel(channelId),
+    onSuccess: (archived) => {
+      removeChannelFromCache(archived.id)
+    },
+  })
+
   return {
     channels: channelsQuery.data ?? [],
     isLoading: channelsQuery.isLoading,
     error: channelsQuery.error,
+    updateChannel,
+    archiveChannel,
   }
 }
 
@@ -126,6 +178,17 @@ export function useChatMessages(channelId?: string | null) {
     [updateMessagesData]
   )
 
+  const updateMessageInCache = useCallback(
+    (targetChannelId: string, messageId: string, updater: (message: Message) => Message) => {
+      updateMessagesData(targetChannelId, (pages) =>
+        pages.map((page) =>
+          page.map((message) => (message.id === messageId ? updater(message) : message))
+        )
+      )
+    },
+    [updateMessagesData]
+  )
+
   const messagesQuery = useInfiniteQuery({
     queryKey: ["channels", channelId, "messages"],
     queryFn: ({ pageParam }) =>
@@ -152,6 +215,19 @@ export function useChatMessages(channelId?: string | null) {
         addMessageToCache(currentChannelId, incoming)
       }
 
+      if (
+        event.type === "message_updated" ||
+        event.type === "message_deleted" ||
+        event.type === "reaction_added" ||
+        event.type === "reaction_removed"
+      ) {
+        const channelIdFromEvent = event.channelId as string | undefined
+        const incoming = event.message as Message | undefined
+        if (!channelIdFromEvent || !incoming) return
+
+        updateMessageInCache(channelIdFromEvent, incoming.id, () => incoming)
+      }
+
       if (event.type === "typing") {
         const currentChannelId = channelIdRef.current
         const channelIdFromEvent = event.channelId as string | undefined
@@ -169,15 +245,21 @@ export function useChatMessages(channelId?: string | null) {
         })
       }
     })
-  }, [addMessageToCache, onMessage])
+  }, [addMessageToCache, onMessage, updateMessageInCache])
 
   const sendMessage = useMutation({
-    mutationFn: (content: string) =>
-      channelId ? chatApi.sendMessage(channelId, { content }) : Promise.reject(new Error("No channel")),
-    onMutate: (content) => {
+    mutationFn: ({ content, attachments }: { content: string; attachments?: Message["attachments"] }) =>
+      channelId
+        ? chatApi.sendMessage(channelId, {
+            content,
+            attachmentIds: attachments?.map((attachment) => attachment.id),
+          })
+        : Promise.reject(new Error("No channel")),
+    onMutate: ({ content, attachments }) => {
       if (!channelId) return
       const trimmed = content.trim()
-      if (!trimmed) return
+      const attachmentList = attachments ?? []
+      if (!trimmed && attachmentList.length === 0) return
       const optimisticId = createOptimisticId()
       const now = new Date().toISOString()
       const optimisticMessage: Message = {
@@ -188,6 +270,8 @@ export function useChatMessages(channelId?: string | null) {
         mentions: [],
         createdAt: now,
         updatedAt: now,
+        attachments: attachmentList,
+        reactions: [],
         user: user ?? undefined,
       }
 
@@ -216,6 +300,42 @@ export function useChatMessages(channelId?: string | null) {
     },
   })
 
+  const updateMessage = useMutation({
+    mutationFn: ({ messageId, content }: { messageId: string; content: string }) =>
+      channelId ? chatApi.updateMessage(channelId, messageId, { content }) : Promise.reject(new Error("No channel")),
+    onSuccess: (message) => {
+      if (!channelId) return
+      updateMessageInCache(channelId, message.id, () => message)
+    },
+  })
+
+  const deleteMessage = useMutation({
+    mutationFn: ({ messageId }: { messageId: string }) =>
+      channelId ? chatApi.deleteMessage(channelId, messageId) : Promise.reject(new Error("No channel")),
+    onSuccess: (message) => {
+      if (!channelId) return
+      updateMessageInCache(channelId, message.id, () => message)
+    },
+  })
+
+  const addReaction = useMutation({
+    mutationFn: ({ messageId, emoji }: { messageId: string; emoji: string }) =>
+      channelId ? chatApi.addReaction(channelId, messageId, emoji) : Promise.reject(new Error("No channel")),
+    onSuccess: (message) => {
+      if (!channelId) return
+      updateMessageInCache(channelId, message.id, () => message)
+    },
+  })
+
+  const removeReaction = useMutation({
+    mutationFn: ({ messageId, emoji }: { messageId: string; emoji: string }) =>
+      channelId ? chatApi.removeReaction(channelId, messageId, emoji) : Promise.reject(new Error("No channel")),
+    onSuccess: (message) => {
+      if (!channelId) return
+      updateMessageInCache(channelId, message.id, () => message)
+    },
+  })
+
   const messages = useMemo(() => {
     const pages = messagesQuery.data?.pages ?? []
     const flattened = pages.flat()
@@ -230,6 +350,10 @@ export function useChatMessages(channelId?: string | null) {
     hasNextPage: messagesQuery.hasNextPage,
     isFetchingNextPage: messagesQuery.isFetchingNextPage,
     sendMessage,
+    updateMessage,
+    deleteMessage,
+    addReaction,
+    removeReaction,
     markRead,
     typingUsers: channelId ? typingUsers[channelId] ?? [] : [],
     sendTyping,

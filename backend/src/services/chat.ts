@@ -1,17 +1,29 @@
-import { channelRepository, messageRepository, channelMemberRepository, userRepository, projectMemberRepository } from '../repositories';
+import { channelRepository, messageRepository, channelMemberRepository, userRepository, projectMemberRepository, fileRepository, reactionRepository } from '../repositories';
 import { projectService } from './project';
 import { chatHub } from '../collab/chatHub';
-import type { Channel, Message } from '../db/schema';
+import type { Channel, Message, File } from '../db/schema';
 import type { ChannelWithProject } from '../repositories/channel';
+import type { MessageWithUser as RepositoryMessage } from '../repositories/message';
 import type { User } from '../types';
 
 export interface CreateChannelInput {
   name: string;
   projectId?: string | null;
   type?: 'workspace' | 'project';
+  description?: string | null;
+}
+
+export interface UpdateChannelInput {
+  name?: string;
+  description?: string | null;
 }
 
 export interface SendMessageInput {
+  content?: string;
+  attachmentIds?: string[];
+}
+
+export interface UpdateMessageInput {
   content: string;
 }
 
@@ -20,8 +32,27 @@ export interface ChannelWithState extends ChannelWithProject {
   lastReadAt: Date | null;
 }
 
+export interface FileAttachment {
+  id: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: Date;
+  uploadedBy: string;
+  url: string;
+}
+
+export interface MessageReactionView {
+  id: string;
+  emoji: string;
+  userId: string;
+  createdAt: Date;
+}
+
 export interface MessageWithUser extends Message {
   user: { id: string; name: string; email: string; avatarUrl: string | null };
+  attachments?: FileAttachment[];
+  reactions?: MessageReactionView[];
 }
 
 const normalizeHandle = (name: string) => name.toLowerCase().replace(/\s+/g, '');
@@ -83,11 +114,82 @@ export class ChatService {
     const channel = await channelRepository.create({
       name: input.name.trim(),
       projectId: input.projectId ?? null,
+      description: input.description?.trim() || null,
       type,
     });
 
     await channelMemberRepository.join(channel.id, user.id);
     return channel;
+  }
+
+  async updateChannel(channelId: string, input: UpdateChannelInput, user: User): Promise<ChannelWithProject> {
+    const channel = await channelRepository.findById(channelId);
+    if (!channel) {
+      throw new Error('Channel not found');
+    }
+
+    await this.ensureAccess(channel, user);
+    await this.ensureChannelOwner(channel, user);
+    this.ensureActiveChannel(channel);
+
+    const updateData: Partial<Channel> = {};
+
+    if (input.name !== undefined) {
+      const trimmed = input.name.trim();
+      if (!trimmed) {
+        throw new Error('Channel name cannot be empty');
+      }
+      updateData.name = trimmed;
+    }
+
+    if (input.description !== undefined) {
+      const trimmed = input.description?.trim() || '';
+      updateData.description = trimmed.length > 0 ? trimmed : null;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      throw new Error('No updates provided');
+    }
+
+    await channelRepository.update(channelId, updateData);
+
+    const updated = await channelRepository.findById(channelId);
+    if (!updated) {
+      throw new Error('Failed to update channel');
+    }
+
+    await this.notifyChannelMembers(updated, {
+      type: 'channel_updated',
+      channel: updated,
+    });
+
+    return updated;
+  }
+
+  async archiveChannel(channelId: string, user: User): Promise<ChannelWithProject> {
+    const channel = await channelRepository.findById(channelId);
+    if (!channel) {
+      throw new Error('Channel not found');
+    }
+
+    await this.ensureAccess(channel, user);
+    await this.ensureChannelOwner(channel, user);
+
+    if (!channel.archivedAt) {
+      await channelRepository.archive(channelId);
+    }
+
+    const updated = await channelRepository.findById(channelId);
+    if (!updated) {
+      throw new Error('Failed to archive channel');
+    }
+
+    await this.notifyChannelMembers(updated, {
+      type: 'channel_archived',
+      channelId: updated.id,
+    });
+
+    return updated;
   }
 
   async getMessages(channelId: string, user: User, options?: { before?: Date; limit?: number }): Promise<MessageWithUser[]> {
@@ -101,7 +203,7 @@ export class ChatService {
 
     const messages = await messageRepository.findByChannelId(channelId, options);
 
-    return messages as MessageWithUser[];
+    return messages.map((message) => this.mapMessage(message));
   }
 
   async markAsRead(channelId: string, user: User): Promise<boolean> {
@@ -122,32 +224,38 @@ export class ChatService {
     }
 
     await this.ensureAccess(channel, user);
+    this.ensureActiveChannel(channel);
     await this.ensureMembership(channelId, user.id);
 
-    if (!input.content || input.content.trim() === '') {
-      throw new Error('Message content is required');
+    const trimmedContent = input.content?.trim() ?? '';
+    const attachmentIds = Array.from(new Set(input.attachmentIds ?? []));
+
+    if (!trimmedContent && attachmentIds.length === 0) {
+      throw new Error('Message content or attachment is required');
     }
 
-    const mentions = await this.parseMentions(channel, input.content);
+    const attachments = await this.validateAttachments(attachmentIds, user);
+    const mentions = trimmedContent ? await this.parseMentions(channel, trimmedContent) : [];
 
     const message = await messageRepository.create({
       channelId,
       userId: user.id,
-      content: input.content.trim(),
+      content: trimmedContent,
       mentions,
     });
 
+    if (attachments.length > 0) {
+      await messageRepository.addAttachments(message.id, attachments.map((attachment) => attachment.id));
+    }
+
     await channelMemberRepository.updateLastRead(channelId, user.id, new Date());
 
-    const messageWithUser: MessageWithUser = {
-      ...message,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        avatarUrl: user.avatarUrl ?? null,
-      },
-    };
+    const messageRecord = await messageRepository.findById(message.id);
+    if (!messageRecord) {
+      throw new Error('Failed to load message');
+    }
+
+    const messageWithUser = this.mapMessage(messageRecord);
 
     chatHub.broadcastToChannel(
       channelId,
@@ -159,24 +267,122 @@ export class ChatService {
     );
 
     const mentionTargets = mentions.filter((mentionId) => mentionId !== user.id);
-    if (mentionTargets.length > 0) {
+    if (mentionTargets.length > 0 && trimmedContent) {
       const { notificationService } = await import('./notification');
       await notificationService.notifyMentions({
         channelId,
         channelName: channel.name,
         authorName: user.name,
         mentions: mentionTargets,
-        content: input.content.trim(),
+        content: trimmedContent,
       });
     }
 
     return messageWithUser;
   }
 
+  async updateMessage(channelId: string, messageId: string, input: UpdateMessageInput, user: User): Promise<MessageWithUser> {
+    const channel = await channelRepository.findById(channelId);
+    if (!channel) {
+      throw new Error('Channel not found');
+    }
+
+    await this.ensureAccess(channel, user);
+    this.ensureActiveChannel(channel);
+    await this.ensureMembership(channelId, user.id);
+
+    const message = await messageRepository.findById(messageId);
+    if (!message || message.channelId !== channelId) {
+      throw new Error('Message not found');
+    }
+
+    if (message.deletedAt) {
+      throw new Error('Message has been deleted');
+    }
+
+    if (message.userId !== user.id && user.role !== 'admin') {
+      throw new Error('You do not have permission to edit this message');
+    }
+
+    const trimmed = input.content.trim();
+    if (!trimmed) {
+      throw new Error('Message content is required');
+    }
+
+    const mentions = await this.parseMentions(channel, trimmed);
+
+    await messageRepository.update(messageId, {
+      content: trimmed,
+      mentions,
+      editedAt: new Date(),
+    });
+
+    const updated = await messageRepository.findById(messageId);
+    if (!updated) {
+      throw new Error('Failed to update message');
+    }
+
+    const mapped = this.mapMessage(updated);
+
+    chatHub.broadcastToChannel(
+      channelId,
+      JSON.stringify({
+        type: 'message_updated',
+        channelId,
+        message: mapped,
+      })
+    );
+
+    return mapped;
+  }
+
+  async deleteMessage(channelId: string, messageId: string, user: User): Promise<MessageWithUser> {
+    const channel = await channelRepository.findById(channelId);
+    if (!channel) {
+      throw new Error('Channel not found');
+    }
+
+    await this.ensureAccess(channel, user);
+    this.ensureActiveChannel(channel);
+    await this.ensureMembership(channelId, user.id);
+
+    const message = await messageRepository.findById(messageId);
+    if (!message || message.channelId !== channelId) {
+      throw new Error('Message not found');
+    }
+
+    if (message.userId !== user.id && user.role !== 'admin') {
+      throw new Error('You do not have permission to delete this message');
+    }
+
+    if (!message.deletedAt) {
+      await messageRepository.softDelete(messageId);
+    }
+
+    const updated = await messageRepository.findById(messageId);
+    if (!updated) {
+      throw new Error('Failed to delete message');
+    }
+
+    const mapped = this.mapMessage(updated);
+
+    chatHub.broadcastToChannel(
+      channelId,
+      JSON.stringify({
+        type: 'message_deleted',
+        channelId,
+        message: mapped,
+      })
+    );
+
+    return mapped;
+  }
+
   async handleTyping(channelId: string, user: User, isTyping: boolean) {
     const channel = await channelRepository.findById(channelId);
     if (!channel) return;
     await this.ensureAccess(channel, user);
+    this.ensureActiveChannel(channel);
     chatHub.broadcastToChannel(
       channelId,
       JSON.stringify({
@@ -187,6 +393,100 @@ export class ChatService {
       }),
       user.id
     );
+  }
+
+  async addReaction(channelId: string, messageId: string, emoji: string, user: User): Promise<MessageWithUser> {
+    const channel = await channelRepository.findById(channelId);
+    if (!channel) {
+      throw new Error('Channel not found');
+    }
+
+    await this.ensureAccess(channel, user);
+    this.ensureActiveChannel(channel);
+    await this.ensureMembership(channelId, user.id);
+
+    const message = await messageRepository.findById(messageId);
+    if (!message || message.channelId !== channelId) {
+      throw new Error('Message not found');
+    }
+
+    if (message.deletedAt) {
+      throw new Error('Message has been deleted');
+    }
+
+    const cleanedEmoji = emoji.trim();
+    if (!cleanedEmoji) {
+      throw new Error('Emoji is required');
+    }
+
+    await reactionRepository.add({
+      messageId,
+      userId: user.id,
+      emoji: cleanedEmoji,
+    });
+
+    const updated = await messageRepository.findById(messageId);
+    if (!updated) {
+      throw new Error('Failed to update reaction');
+    }
+
+    const mapped = this.mapMessage(updated);
+
+    chatHub.broadcastToChannel(
+      channelId,
+      JSON.stringify({
+        type: 'reaction_added',
+        channelId,
+        message: mapped,
+      })
+    );
+
+    return mapped;
+  }
+
+  async removeReaction(channelId: string, messageId: string, emoji: string, user: User): Promise<MessageWithUser> {
+    const channel = await channelRepository.findById(channelId);
+    if (!channel) {
+      throw new Error('Channel not found');
+    }
+
+    await this.ensureAccess(channel, user);
+    this.ensureActiveChannel(channel);
+    await this.ensureMembership(channelId, user.id);
+
+    const message = await messageRepository.findById(messageId);
+    if (!message || message.channelId !== channelId) {
+      throw new Error('Message not found');
+    }
+
+    if (message.deletedAt) {
+      throw new Error('Message has been deleted');
+    }
+
+    const cleanedEmoji = emoji.trim();
+    if (!cleanedEmoji) {
+      throw new Error('Emoji is required');
+    }
+
+    await reactionRepository.remove(messageId, user.id, cleanedEmoji);
+
+    const updated = await messageRepository.findById(messageId);
+    if (!updated) {
+      throw new Error('Failed to update reaction');
+    }
+
+    const mapped = this.mapMessage(updated);
+
+    chatHub.broadcastToChannel(
+      channelId,
+      JSON.stringify({
+        type: 'reaction_removed',
+        channelId,
+        message: mapped,
+      })
+    );
+
+    return mapped;
   }
 
   private async ensureAccess(channel: ChannelWithProject, user: User) {
@@ -204,11 +504,95 @@ export class ChatService {
     }
   }
 
+  private ensureActiveChannel(channel: ChannelWithProject) {
+    if (channel.archivedAt) {
+      throw new Error('Channel is archived');
+    }
+  }
+
+  private async ensureChannelOwner(channel: ChannelWithProject, user: User) {
+    if (channel.type === 'workspace') {
+      if (user.role !== 'admin') {
+        throw new Error('Only admins can manage workspace channels');
+      }
+      return;
+    }
+
+    if (!channel.projectId) {
+      throw new Error('Channel has no project');
+    }
+
+    const isOwner = await projectService.isOwner(channel.projectId, user);
+    if (!isOwner) {
+      throw new Error('Only project owners can manage this channel');
+    }
+  }
+
   private async ensureMembership(channelId: string, userId: string) {
     const membership = await channelMemberRepository.findMembership(channelId, userId);
     if (!membership) {
       await channelMemberRepository.join(channelId, userId);
     }
+  }
+
+  private async validateAttachments(attachmentIds: string[], user: User): Promise<File[]> {
+    if (attachmentIds.length === 0) return [];
+
+    const attachments = await fileRepository.findByIds(attachmentIds);
+    if (attachments.length !== attachmentIds.length) {
+      throw new Error('One or more attachments were not found');
+    }
+
+    if (user.role !== 'admin') {
+      const unauthorized = attachments.find((attachment) => attachment.uploadedBy !== user.id);
+      if (unauthorized) {
+        throw new Error('You do not have permission to attach one or more files');
+      }
+    }
+
+    const alreadyAttached = await fileRepository.findAttachedFileIds(attachmentIds);
+    if (alreadyAttached.length > 0) {
+      throw new Error('One or more attachments are already linked to a message');
+    }
+
+    return attachments;
+  }
+
+  private mapFile(file: File): FileAttachment {
+    return {
+      id: file.id,
+      originalName: file.originalName,
+      mimeType: file.mimeType,
+      sizeBytes: file.sizeBytes,
+      createdAt: file.createdAt,
+      uploadedBy: file.uploadedBy,
+      url: `/api/v1/files/${file.id}`,
+    };
+  }
+
+  private mapMessage(message: RepositoryMessage): MessageWithUser {
+    const rawAttachments = message.attachments ?? [];
+    const rawReactions = message.reactions ?? [];
+
+    const attachments = message.deletedAt
+      ? []
+      : rawAttachments.map((attachment) => this.mapFile(attachment.file));
+
+    const reactions: MessageReactionView[] = message.deletedAt
+      ? []
+      : rawReactions.map((reaction) => ({
+          id: reaction.id,
+          emoji: reaction.emoji,
+          userId: reaction.userId,
+          createdAt: reaction.createdAt,
+        }));
+
+    const { attachments: _attachments, reactions: _reactions, ...base } = message;
+    return {
+      ...base,
+      attachments,
+      reactions,
+    };
   }
 
   private async parseMentions(channel: ChannelWithProject, content: string): Promise<string[]> {
@@ -217,6 +601,10 @@ export class ChatService {
 
     const handles = Array.from(new Set(matches.map((match) => match.slice(1).toLowerCase())));
     if (handles.length === 0) return [];
+
+    const specialMentions = new Set(['here', 'channel', 'everyone']);
+    const hasSpecial = handles.some((handle) => specialMentions.has(handle));
+    const normalHandles = handles.filter((handle) => !specialMentions.has(handle));
 
     let users: { id: string; name: string }[] = [];
     if (channel.type === 'workspace') {
@@ -227,15 +615,39 @@ export class ChatService {
     }
 
     const handleMap = new Map(users.map((user) => [normalizeHandle(user.name), user.id]));
-    const mentions: string[] = [];
-    for (const handle of handles) {
-      const userId = handleMap.get(handle);
-      if (userId) {
-        mentions.push(userId);
+    const mentions = new Set<string>();
+
+    if (hasSpecial) {
+      for (const user of users) {
+        mentions.add(user.id);
       }
     }
 
-    return Array.from(new Set(mentions));
+    for (const handle of normalHandles) {
+      const userId = handleMap.get(handle);
+      if (userId) {
+        mentions.add(userId);
+      }
+    }
+
+    return Array.from(mentions);
+  }
+
+  private async notifyChannelMembers(channel: ChannelWithProject, payload: Record<string, unknown>) {
+    if (channel.type === 'workspace') {
+      const users = await userRepository.findAll();
+      for (const user of users) {
+        chatHub.sendToUser(user.id, JSON.stringify(payload));
+      }
+      return;
+    }
+
+    if (channel.projectId) {
+      const members = await projectMemberRepository.findByProjectId(channel.projectId);
+      for (const member of members) {
+        chatHub.sendToUser(member.user.id, JSON.stringify(payload));
+      }
+    }
   }
 }
 

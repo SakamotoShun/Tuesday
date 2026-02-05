@@ -92,7 +92,9 @@ export const channels = pgTable('channels', {
   id: uuid('id').primaryKey().defaultRandom(),
   projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 100 }).notNull(),
+  description: varchar('description', { length: 500 }),
   type: varchar('type', { length: 20 }).notNull().default('project'),
+  archivedAt: timestamp('archived_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -103,6 +105,8 @@ export const messages = pgTable('messages', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   content: text('content').notNull(),
   mentions: uuid('mentions').array().notNull().default([]),
+  editedAt: timestamp('edited_at', { withTimezone: true }),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -116,6 +120,36 @@ export const channelMembers = pgTable('channel_members', {
 }, (table) => ({
   pk: primaryKey({ columns: [table.channelId, table.userId] }),
 }));
+
+// Files table
+export const files = pgTable('files', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  originalName: varchar('original_name', { length: 255 }).notNull(),
+  storedName: varchar('stored_name', { length: 255 }).notNull(),
+  mimeType: varchar('mime_type', { length: 100 }).notNull(),
+  sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull(),
+  storagePath: text('storage_path').notNull(),
+  uploadedBy: uuid('uploaded_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Message attachments table
+export const messageAttachments = pgTable('message_attachments', {
+  messageId: uuid('message_id').notNull().references(() => messages.id, { onDelete: 'cascade' }),
+  fileId: uuid('file_id').notNull().references(() => files.id, { onDelete: 'cascade' }),
+  sortOrder: integer('sort_order').notNull().default(0),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.messageId, table.fileId] }),
+}));
+
+// Message reactions table
+export const messageReactions = pgTable('message_reactions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  messageId: uuid('message_id').notNull().references(() => messages.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  emoji: varchar('emoji', { length: 50 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
 
 // Docs table
 export const docs = pgTable('docs', {
@@ -212,7 +246,7 @@ export const channelsRelations = relations(channels, ({ one, many }) => ({
   members: many(channelMembers),
 }));
 
-export const messagesRelations = relations(messages, ({ one }) => ({
+export const messagesRelations = relations(messages, ({ one, many }) => ({
   channel: one(channels, {
     fields: [messages.channelId],
     references: [channels.id],
@@ -221,6 +255,8 @@ export const messagesRelations = relations(messages, ({ one }) => ({
     fields: [messages.userId],
     references: [users.id],
   }),
+  attachments: many(messageAttachments),
+  reactions: many(messageReactions),
 }));
 
 export const channelMembersRelations = relations(channelMembers, ({ one }) => ({
@@ -230,6 +266,36 @@ export const channelMembersRelations = relations(channelMembers, ({ one }) => ({
   }),
   user: one(users, {
     fields: [channelMembers.userId],
+    references: [users.id],
+  }),
+}));
+
+export const filesRelations = relations(files, ({ one, many }) => ({
+  uploadedBy: one(users, {
+    fields: [files.uploadedBy],
+    references: [users.id],
+  }),
+  attachments: many(messageAttachments),
+}));
+
+export const messageAttachmentsRelations = relations(messageAttachments, ({ one }) => ({
+  message: one(messages, {
+    fields: [messageAttachments.messageId],
+    references: [messages.id],
+  }),
+  file: one(files, {
+    fields: [messageAttachments.fileId],
+    references: [files.id],
+  }),
+}));
+
+export const messageReactionsRelations = relations(messageReactions, ({ one }) => ({
+  message: one(messages, {
+    fields: [messageReactions.messageId],
+    references: [messages.id],
+  }),
+  user: one(users, {
+    fields: [messageReactions.userId],
     references: [users.id],
   }),
 }));
@@ -464,6 +530,12 @@ export type Message = typeof messages.$inferSelect;
 export type NewMessage = typeof messages.$inferInsert;
 export type ChannelMember = typeof channelMembers.$inferSelect;
 export type NewChannelMember = typeof channelMembers.$inferInsert;
+export type File = typeof files.$inferSelect;
+export type NewFile = typeof files.$inferInsert;
+export type MessageAttachment = typeof messageAttachments.$inferSelect;
+export type NewMessageAttachment = typeof messageAttachments.$inferInsert;
+export type MessageReaction = typeof messageReactions.$inferSelect;
+export type NewMessageReaction = typeof messageReactions.$inferInsert;
 export type Doc = typeof docs.$inferSelect;
 export type NewDoc = typeof docs.$inferInsert;
 export type TaskStatus = typeof taskStatuses.$inferSelect;

@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { db } from '../db/client';
 import { channels, projectMembers, projects, type Channel, type NewChannel } from '../db/schema';
 
@@ -19,7 +19,11 @@ export class ChannelRepository {
 
   async findByProjectId(projectId: string): Promise<ChannelWithProject[]> {
     return db.query.channels.findMany({
-      where: and(eq(channels.projectId, projectId), eq(channels.type, 'project')),
+      where: and(
+        eq(channels.projectId, projectId),
+        eq(channels.type, 'project'),
+        isNull(channels.archivedAt)
+      ),
       with: {
         project: true,
       },
@@ -29,7 +33,7 @@ export class ChannelRepository {
 
   async findWorkspaceChannels(): Promise<ChannelWithProject[]> {
     return db.query.channels.findMany({
-      where: eq(channels.type, 'workspace'),
+      where: and(eq(channels.type, 'workspace'), isNull(channels.archivedAt)),
       with: {
         project: true,
       },
@@ -39,6 +43,7 @@ export class ChannelRepository {
 
   async findAll(): Promise<ChannelWithProject[]> {
     return db.query.channels.findMany({
+      where: isNull(channels.archivedAt),
       with: {
         project: true,
       },
@@ -48,13 +53,16 @@ export class ChannelRepository {
 
   async findUserChannels(userId: string): Promise<ChannelWithProject[]> {
     return db.query.channels.findMany({
-      where: (channels, { or, exists }) => or(
-        eq(channels.type, 'workspace'),
-        exists(
-          db
-            .select()
-            .from(projectMembers)
-            .where(and(eq(projectMembers.projectId, channels.projectId), eq(projectMembers.userId, userId)))
+      where: (channels, { or, exists }) => and(
+        isNull(channels.archivedAt),
+        or(
+          eq(channels.type, 'workspace'),
+          exists(
+            db
+              .select()
+              .from(projectMembers)
+              .where(and(eq(projectMembers.projectId, channels.projectId), eq(projectMembers.userId, userId)))
+          )
         )
       ),
       with: {
@@ -81,6 +89,15 @@ export class ChannelRepository {
   async delete(id: string): Promise<boolean> {
     const result = await db.delete(channels).where(eq(channels.id, id)).returning();
     return result.length > 0;
+  }
+
+  async archive(id: string): Promise<Channel | null> {
+    const [channel] = await db
+      .update(channels)
+      .set({ archivedAt: new Date() })
+      .where(eq(channels.id, id))
+      .returning();
+    return channel || null;
   }
 }
 

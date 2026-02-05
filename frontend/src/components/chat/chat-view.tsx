@@ -3,11 +3,13 @@ import { useSearchParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import type { ProjectMember, User } from "@/api/types"
 import * as projectsApi from "@/api/projects"
+import { usersApi } from "@/api/users"
 import { useAuth } from "@/hooks/use-auth"
 import { useChatChannels, useChatMessages } from "@/hooks/use-chat"
 import { useWebSocket } from "@/hooks/use-websocket"
 import { useChatStore } from "@/store/chat-store"
 import { ChannelList } from "@/components/chat/channel-list"
+import { ChannelSettingsDialog } from "@/components/chat/channel-settings-dialog"
 import { MessageList } from "@/components/chat/message-list"
 import { MessageInput } from "@/components/chat/message-input"
 import { TypingIndicator } from "@/components/chat/typing-indicator"
@@ -29,7 +31,7 @@ export function ChatView({ projectId, title }: ChatViewProps) {
   const { isConnected } = useWebSocket()
   const [searchParams] = useSearchParams()
   const { activeChannelId, setActiveChannelId } = useChatStore()
-  const { channels, isLoading } = useChatChannels(activeChannelId)
+  const { channels, isLoading, updateChannel, archiveChannel } = useChatChannels(activeChannelId)
 
   const filteredChannels = useMemo(() => {
     if (!projectId) return channels
@@ -47,7 +49,16 @@ export function ChatView({ projectId, title }: ChatViewProps) {
     enabled: Boolean(activeChannel?.projectId),
   })
 
-  const members = mapMembers(membersQuery.data)
+  const mentionableQuery = useQuery({
+    queryKey: ["users", "mentionable"],
+    queryFn: usersApi.listMentionable,
+    enabled: activeChannel?.type === "workspace",
+  })
+
+  const members = activeChannel?.type === "workspace"
+    ? (mentionableQuery.data ?? [])
+    : mapMembers(membersQuery.data)
+  const currentMemberRole = membersQuery.data?.find((member) => member.userId === user?.id)?.role
 
   const listRef = useRef<HTMLDivElement | null>(null)
 
@@ -83,6 +94,11 @@ export function ChatView({ projectId, title }: ChatViewProps) {
   }
 
   const canCreateChannel = projectId ? true : user?.role === "admin"
+  const isArchived = Boolean(activeChannel?.archivedAt)
+  const canManageChannel = Boolean(
+    activeChannel &&
+      (user?.role === "admin" || (activeChannel.projectId && currentMemberRole === "owner"))
+  )
 
   return (
     <div className="flex flex-col md:flex-row h-[calc(100vh-320px)] min-h-[520px] border border-border rounded-lg overflow-hidden bg-card">
@@ -112,12 +128,27 @@ export function ChatView({ projectId, title }: ChatViewProps) {
 
       <main className="flex-1 flex flex-col">
         <div className="border-b border-border px-4 py-3">
-          <div className="text-sm font-semibold">
-            {activeChannel ? `# ${activeChannel.name}` : "Select a channel"}
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="text-sm font-semibold">
+                {activeChannel ? `# ${activeChannel.name}` : "Select a channel"}
+              </div>
+              {activeChannel?.project && (
+                <div className="text-xs text-muted-foreground">{activeChannel.project.name}</div>
+              )}
+              {activeChannel?.description && (
+                <div className="text-xs text-muted-foreground mt-1">{activeChannel.description}</div>
+              )}
+            </div>
+            {activeChannel && canManageChannel && (
+              <ChannelSettingsDialog
+                channel={activeChannel}
+                canManage={canManageChannel}
+                onUpdate={(input) => updateChannel.mutateAsync({ channelId: activeChannel.id, data: input })}
+                onArchive={() => archiveChannel.mutateAsync(activeChannel.id)}
+              />
+            )}
           </div>
-          {activeChannel?.project && (
-            <div className="text-xs text-muted-foreground">{activeChannel.project.name}</div>
-          )}
         </div>
         <div ref={listRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
           {activeChannel ? (
@@ -128,6 +159,27 @@ export function ChatView({ projectId, title }: ChatViewProps) {
               isFetchingNextPage={messages.isFetchingNextPage}
               onLoadMore={() => messages.fetchNextPage()}
               currentUserId={user?.id}
+              currentUserRole={user?.role}
+              onUpdateMessage={
+                isArchived
+                  ? undefined
+                  : (messageId, content) => messages.updateMessage.mutateAsync({ messageId, content })
+              }
+              onDeleteMessage={
+                isArchived
+                  ? undefined
+                  : (messageId) => messages.deleteMessage.mutateAsync({ messageId })
+              }
+              onAddReaction={
+                isArchived
+                  ? undefined
+                  : (messageId, emoji) => messages.addReaction.mutateAsync({ messageId, emoji })
+              }
+              onRemoveReaction={
+                isArchived
+                  ? undefined
+                  : (messageId, emoji) => messages.removeReaction.mutateAsync({ messageId, emoji })
+              }
             />
           ) : (
             <div className="text-sm text-muted-foreground">Choose a channel to start chatting.</div>
@@ -136,9 +188,9 @@ export function ChatView({ projectId, title }: ChatViewProps) {
         <div className="border-t border-border p-4 space-y-2">
           <TypingIndicator users={messages.typingUsers} />
           <MessageInput
-            onSend={(content) => {
+            onSend={(payload) => {
               if (!activeChannel) return
-              messages.sendMessage.mutate(content)
+              return messages.sendMessage.mutateAsync(payload)
             }}
             onTyping={(isTyping) => {
               if (activeChannel?.id) {
@@ -146,6 +198,7 @@ export function ChatView({ projectId, title }: ChatViewProps) {
               }
             }}
             members={members}
+            disabled={isArchived}
           />
         </div>
       </main>

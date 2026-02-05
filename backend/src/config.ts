@@ -8,6 +8,9 @@ const configSchema = z.object({
   sessionDurationHours: z.number().int().min(1).max(720),
   corsOrigin: z.string().min(1),
   rateLimitEnabled: z.boolean(),
+  uploadMaxSizeMb: z.number().int().min(1).max(100),
+  uploadStoragePath: z.string().min(1),
+  uploadAllowedTypes: z.array(z.string().min(1)),
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -21,6 +24,9 @@ function loadConfig(): Config {
     sessionDurationHours: parseInt(process.env.SESSION_DURATION_HOURS || '24', 10),
     corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
     rateLimitEnabled: process.env.RATE_LIMIT_ENABLED !== 'false',
+    uploadMaxSizeMb: parseInt(process.env.UPLOAD_MAX_SIZE_MB || '10', 10),
+    uploadStoragePath: process.env.UPLOAD_STORAGE_PATH || '/app/data/uploads',
+    uploadAllowedTypes: (process.env.UPLOAD_ALLOWED_TYPES || 'image/*,application/pdf,text/plain,text/markdown').split(',').map((entry) => entry.trim()).filter(Boolean),
   };
 
   const result = configSchema.safeParse(config);

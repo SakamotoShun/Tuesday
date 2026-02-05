@@ -82,11 +82,13 @@ export function DocToolbar({ projectId, title, saveState, onDelete }: DocToolbar
             </DialogDescription>
           </DialogHeader>
 
-          {error && (
-            <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">
-              {error}
-            </div>
-          )}
+          <div className="space-y-4 py-4">
+            {error && (
+              <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                {error}
+              </div>
+            )}
+          </div>
 
           <DialogFooter>
             <Button

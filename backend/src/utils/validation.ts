@@ -215,15 +215,42 @@ export const createChannelSchema = z.object({
   name: z.string().min(1, 'Channel name is required').max(100),
   projectId: uuidSchema.optional().nullable(),
   type: z.enum(['workspace', 'project']).optional(),
+  description: z.string().max(500).optional().nullable(),
 });
 
 export type CreateChannelInput = z.infer<typeof createChannelSchema>;
 
+export const updateChannelSchema = z.object({
+  name: z.string().min(1, 'Channel name is required').max(100).optional(),
+  description: z.string().max(500).optional().nullable(),
+});
+
+export type UpdateChannelInput = z.infer<typeof updateChannelSchema>;
+
 export const createMessageSchema = z.object({
-  content: z.string().min(1, 'Message content is required').max(5000),
+  content: z.string().max(5000).optional(),
+  attachmentIds: z.array(uuidSchema).optional(),
+}).refine((data) => {
+  const content = data.content?.trim() ?? '';
+  return content.length > 0 || (data.attachmentIds?.length ?? 0) > 0;
+}, {
+  message: 'Message content or attachment is required',
+  path: ['content'],
 });
 
 export type CreateMessageInput = z.infer<typeof createMessageSchema>;
+
+export const addReactionSchema = z.object({
+  emoji: z.string().min(1, 'Emoji is required').max(50),
+});
+
+export type AddReactionInput = z.infer<typeof addReactionSchema>;
+
+export const updateMessageSchema = z.object({
+  content: z.string().min(1, 'Message content is required').max(5000),
+});
+
+export type UpdateMessageInput = z.infer<typeof updateMessageSchema>;
 
 // Whiteboard validation schemas
 export const createWhiteboardSchema = z.object({

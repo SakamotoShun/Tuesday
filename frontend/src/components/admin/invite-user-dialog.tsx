@@ -1,5 +1,13 @@
 import { useState } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -21,7 +29,9 @@ export function InviteUserDialog() {
   const [password, setPassword] = useState("")
   const [tempPassword, setTempPassword] = useState<string | null>(null)
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (event?: React.FormEvent<HTMLFormElement>) => {
+    event?.preventDefault()
+    if (createUser.isPending || !email || !name) return
     const response = await createUser.mutateAsync({
       email,
       name,
@@ -40,32 +50,46 @@ export function InviteUserDialog() {
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => {
-      setOpen(next)
-      if (!next) {
-        setTempPassword(null)
-      }
-    }}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (!next) {
+          setTempPassword(null)
+        }
+      }}
+    >
       <DialogTrigger asChild>
         <Button size="sm">Invite User</Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle>Invite User</DialogTitle>
+          <DialogDescription>
+            Add a workspace member and optionally set a temporary password.
+          </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label>Email</Label>
-            <Input value={email} onChange={(event) => setEmail(event.target.value)} />
+            <Label htmlFor="invite-email">Email</Label>
+            <Input
+              id="invite-email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
           </div>
           <div className="space-y-2">
-            <Label>Name</Label>
-            <Input value={name} onChange={(event) => setName(event.target.value)} />
+            <Label htmlFor="invite-name">Name</Label>
+            <Input
+              id="invite-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
           </div>
           <div className="space-y-2">
-            <Label>Role</Label>
+            <Label htmlFor="invite-role">Role</Label>
             <Select value={role} onValueChange={(value) => setRole(value as "admin" | "member")}>
-              <SelectTrigger>
+              <SelectTrigger id="invite-role">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -75,8 +99,9 @@ export function InviteUserDialog() {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Temporary password (optional)</Label>
+            <Label htmlFor="invite-password">Temporary password (optional)</Label>
             <Input
+              id="invite-password"
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
@@ -88,13 +113,15 @@ export function InviteUserDialog() {
               Temporary password: <span className="font-semibold text-foreground">{tempPassword}</span>
             </div>
           )}
-          <Button
-            onClick={handleSubmit}
-            disabled={createUser.isPending || !email || !name}
-          >
-            {createUser.isPending ? "Inviting..." : "Send Invite"}
-          </Button>
-        </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={createUser.isPending || !email || !name}>
+              {createUser.isPending ? "Inviting..." : "Send Invite"}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   )

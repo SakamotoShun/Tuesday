@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { auth } from '../middleware';
 import { chatService } from '../services';
 import { success, errors } from '../utils/response';
-import { validateBody, formatValidationErrors, createChannelSchema, createMessageSchema } from '../utils/validation';
+import { validateBody, formatValidationErrors, createChannelSchema, createMessageSchema, updateChannelSchema, updateMessageSchema, addReactionSchema } from '../utils/validation';
 
 const chat = new Hono();
 
@@ -39,6 +39,45 @@ chat.post('/', async (c) => {
     }
     console.error('Error creating channel:', error);
     return errors.internal(c, 'Failed to create channel');
+  }
+});
+
+// PATCH /api/v1/channels/:id - Update channel
+chat.patch('/:id', async (c) => {
+  try {
+    const user = c.get('user');
+    const channelId = c.req.param('id');
+    const body = await c.req.json();
+
+    const validation = validateBody(updateChannelSchema, body);
+    if (!validation.success) {
+      return errors.validation(c, formatValidationErrors(validation.errors));
+    }
+
+    const channel = await chatService.updateChannel(channelId, validation.data, user);
+    return success(c, channel);
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error updating channel:', error);
+    return errors.internal(c, 'Failed to update channel');
+  }
+});
+
+// DELETE /api/v1/channels/:id - Archive channel
+chat.delete('/:id', async (c) => {
+  try {
+    const user = c.get('user');
+    const channelId = c.req.param('id');
+    const channel = await chatService.archiveChannel(channelId, user);
+    return success(c, channel);
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error archiving channel:', error);
+    return errors.internal(c, 'Failed to archive channel');
   }
 });
 
@@ -92,6 +131,91 @@ chat.post('/:id/messages', async (c) => {
     }
     console.error('Error sending message:', error);
     return errors.internal(c, 'Failed to send message');
+  }
+});
+
+// POST /api/v1/channels/:channelId/messages/:messageId/reactions - Add reaction
+chat.post('/:channelId/messages/:messageId/reactions', async (c) => {
+  try {
+    const user = c.get('user');
+    const channelId = c.req.param('channelId');
+    const messageId = c.req.param('messageId');
+    const body = await c.req.json();
+
+    const validation = validateBody(addReactionSchema, body);
+    if (!validation.success) {
+      return errors.validation(c, formatValidationErrors(validation.errors));
+    }
+
+    const message = await chatService.addReaction(channelId, messageId, validation.data.emoji, user);
+    return success(c, message);
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error adding reaction:', error);
+    return errors.internal(c, 'Failed to add reaction');
+  }
+});
+
+// DELETE /api/v1/channels/:channelId/messages/:messageId/reactions/:emoji - Remove reaction
+chat.delete('/:channelId/messages/:messageId/reactions/:emoji', async (c) => {
+  try {
+    const user = c.get('user');
+    const channelId = c.req.param('channelId');
+    const messageId = c.req.param('messageId');
+    const emojiParam = c.req.param('emoji');
+    const emoji = decodeURIComponent(emojiParam);
+
+    const message = await chatService.removeReaction(channelId, messageId, emoji, user);
+    return success(c, message);
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error removing reaction:', error);
+    return errors.internal(c, 'Failed to remove reaction');
+  }
+});
+
+// PATCH /api/v1/channels/:channelId/messages/:messageId - Update message
+chat.patch('/:channelId/messages/:messageId', async (c) => {
+  try {
+    const user = c.get('user');
+    const channelId = c.req.param('channelId');
+    const messageId = c.req.param('messageId');
+    const body = await c.req.json();
+
+    const validation = validateBody(updateMessageSchema, body);
+    if (!validation.success) {
+      return errors.validation(c, formatValidationErrors(validation.errors));
+    }
+
+    const message = await chatService.updateMessage(channelId, messageId, validation.data, user);
+    return success(c, message);
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error updating message:', error);
+    return errors.internal(c, 'Failed to update message');
+  }
+});
+
+// DELETE /api/v1/channels/:channelId/messages/:messageId - Delete message
+chat.delete('/:channelId/messages/:messageId', async (c) => {
+  try {
+    const user = c.get('user');
+    const channelId = c.req.param('channelId');
+    const messageId = c.req.param('messageId');
+    const message = await chatService.deleteMessage(channelId, messageId, user);
+    return success(c, message);
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error deleting message:', error);
+    return errors.internal(c, 'Failed to delete message');
   }
 });
 

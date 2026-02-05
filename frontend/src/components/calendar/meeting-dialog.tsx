@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useState } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { AttendeePicker } from "@/components/calendar/attendee-picker"
 import type { Meeting, CreateMeetingInput, UpdateMeetingInput, User } from "@/api/types"
@@ -98,29 +106,39 @@ export function MeetingDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit Meeting" : "Schedule Meeting"}</DialogTitle>
+          <DialogDescription>
+            Add the details, time, and attendees for this meeting.
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium">Title</label>
-            <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Weekly sync" />
+            <Label htmlFor="meeting-title">Title</Label>
+            <Input
+              id="meeting-title"
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder="Weekly sync"
+            />
           </div>
 
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Start date</label>
+              <Label htmlFor="meeting-start-date">Start date</Label>
               <Input
+                id="meeting-start-date"
                 type="date"
                 value={startParts.datePart}
                 onChange={(event) => setStartTime(mergeDateTime(startTime, { date: event.target.value }))}
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Start time</label>
+              <Label htmlFor="meeting-start-time">Start time</Label>
               <Input
+                id="meeting-start-time"
                 type="time"
                 value={startParts.timePart}
                 onChange={(event) => setStartTime(mergeDateTime(startTime, { time: event.target.value }))}
@@ -130,16 +148,18 @@ export function MeetingDialog({
 
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium">End date</label>
+              <Label htmlFor="meeting-end-date">End date</Label>
               <Input
+                id="meeting-end-date"
                 type="date"
                 value={endParts.datePart}
                 onChange={(event) => setEndTime(mergeDateTime(endTime, { date: event.target.value }))}
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">End time</label>
+              <Label htmlFor="meeting-end-time">End time</Label>
               <Input
+                id="meeting-end-time"
                 type="time"
                 value={endParts.timePart}
                 onChange={(event) => setEndTime(mergeDateTime(endTime, { time: event.target.value }))}
@@ -148,28 +168,42 @@ export function MeetingDialog({
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Location</label>
-            <Input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Conference Room A" />
+            <Label htmlFor="meeting-location">Location</Label>
+            <Input
+              id="meeting-location"
+              value={location}
+              onChange={(event) => setLocation(event.target.value)}
+              placeholder="Conference Room A"
+            />
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Notes</label>
-            <Textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={4} />
+            <Label htmlFor="meeting-notes">Notes</Label>
+            <Textarea
+              id="meeting-notes"
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              rows={4}
+            />
           </div>
 
-          <AttendeePicker members={members} selectedIds={attendeeIds} onChange={setAttendeeIds} />
+          <div className="space-y-2">
+            <Label>Attendees</Label>
+            <AttendeePicker members={members} selectedIds={attendeeIds} onChange={setAttendeeIds} />
+          </div>
         </div>
 
-        <DialogFooter className="flex items-center justify-between">
-          {isEdit && onDelete ? (
-            <Button variant="destructive" onClick={onDelete} disabled={isSubmitting}>
-              Delete
+        <DialogFooter className="gap-2">
+          {isEdit && onDelete && (
+            <Button type="button" variant="destructive" onClick={onDelete} disabled={isSubmitting}>
+              Delete Meeting
             </Button>
-          ) : (
-            <div />
           )}
-          <Button onClick={handleSubmit} disabled={isSubmitting || !title.trim()}>
-            {isEdit ? "Save changes" : "Create meeting"}
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+            Cancel
+          </Button>
+          <Button type="button" onClick={handleSubmit} disabled={isSubmitting || !title.trim()}>
+            {isEdit ? "Save Changes" : "Create Meeting"}
           </Button>
         </DialogFooter>
       </DialogContent>
