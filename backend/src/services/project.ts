@@ -1,4 +1,5 @@
 import { projectRepository, projectMemberRepository, projectStatusRepository } from '../repositories';
+import { fileService } from './file';
 import { ProjectMemberRole, UserRole } from '../db/schema';
 import type { Project, ProjectMember, ProjectStatus, NewProject, NewProjectMember } from '../db/schema';
 import type { ProjectWithRelations } from '../repositories/project';
@@ -165,6 +166,7 @@ export class ProjectService {
   /**
    * Delete a project
    * - Only owner can delete
+   * - Cleans up all attached files before deletion
    */
   async deleteProject(projectId: string, user: User): Promise<boolean> {
     // Check ownership
@@ -172,6 +174,9 @@ export class ProjectService {
     if (!isOwner && user.role !== UserRole.ADMIN) {
       throw new Error('Only project owners can delete the project');
     }
+
+    // Clean up all files in project channels before cascade delete
+    await fileService.cleanupProjectFiles(projectId);
 
     return projectRepository.delete(projectId);
   }

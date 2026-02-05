@@ -65,7 +65,7 @@ chat.patch('/:id', async (c) => {
   }
 });
 
-// DELETE /api/v1/channels/:id - Archive channel
+// DELETE /api/v1/channels/:id - Archive channel (soft delete)
 chat.delete('/:id', async (c) => {
   try {
     const user = c.get('user');
@@ -78,6 +78,23 @@ chat.delete('/:id', async (c) => {
     }
     console.error('Error archiving channel:', error);
     return errors.internal(c, 'Failed to archive channel');
+  }
+});
+
+// DELETE /api/v1/channels/:id/permanent - Permanently delete channel
+// This is a destructive action that deletes the channel and all its messages/files
+chat.delete('/:id/permanent', async (c) => {
+  try {
+    const user = c.get('user');
+    const channelId = c.req.param('id');
+    await chatService.deleteChannel(channelId, user);
+    return success(c, { deleted: true });
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error deleting channel:', error);
+    return errors.internal(c, 'Failed to delete channel');
   }
 });
 

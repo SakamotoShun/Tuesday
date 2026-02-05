@@ -76,10 +76,24 @@ profile.post('/avatar', async (c) => {
       return errors.badRequest(c, 'Avatar must be an image file');
     }
 
+    // Delete previous avatar file if exists
+    const previousAvatarUrl = user.avatarUrl;
+    if (previousAvatarUrl?.startsWith('/api/v1/files/')) {
+      const previousFileId = previousAvatarUrl.replace('/api/v1/files/', '');
+      try {
+        await fileService.deleteAvatarFile(previousFileId);
+      } catch {
+        // Ignore errors - old file may not exist
+      }
+    }
+
     const uploaded = await fileService.upload(
       file as unknown as { name: string; type: string; size: number; arrayBuffer: () => Promise<ArrayBuffer> },
       user
     );
+
+    // Mark the new file as an avatar
+    await fileService.markAsAvatar(uploaded.id);
 
     const updated = await userRepository.update(user.id, { avatarUrl: uploaded.url });
     if (!updated) {
@@ -100,6 +114,18 @@ profile.post('/avatar', async (c) => {
 profile.delete('/avatar', async (c) => {
   try {
     const user = c.get('user');
+
+    // Delete the avatar file if exists
+    const avatarUrl = user.avatarUrl;
+    if (avatarUrl?.startsWith('/api/v1/files/')) {
+      const fileId = avatarUrl.replace('/api/v1/files/', '');
+      try {
+        await fileService.deleteAvatarFile(fileId);
+      } catch {
+        // Ignore errors - file may not exist
+      }
+    }
+
     const updated = await userRepository.update(user.id, { avatarUrl: null });
     if (!updated) {
       return errors.notFound(c, 'User not found');

@@ -507,9 +507,16 @@ Whiteboards:
 Chat:
 - GET    /api/v1/channels             # My channels (workspace + my projects)
 - POST   /api/v1/channels             # Create channel
+- DELETE /api/v1/channels/:id         # Archive channel (soft delete)
+- DELETE /api/v1/channels/:id/permanent  # Permanently delete channel (owner only)
 - GET    /api/v1/channels/:id/messages?before=&limit=
 - POST   /api/v1/channels/:id/messages
 - PATCH  /api/v1/channels/:id/read    # Mark as read
+
+Files:
+- POST   /api/v1/files                # Upload file (returns file ID)
+- GET    /api/v1/files/:id            # Download file
+- DELETE /api/v1/files/:id            # Delete pending file
 
 Notifications:
 - GET    /api/v1/notifications
@@ -519,6 +526,7 @@ Notifications:
 Admin:
 - GET    /api/v1/admin/users
 - POST   /api/v1/admin/users/invite
+- DELETE /api/v1/admin/users/:id      # Permanently delete user
 - GET    /api/v1/admin/settings
 - PATCH  /api/v1/admin/settings
 - GET    /api/v1/admin/statuses/project
@@ -685,8 +693,35 @@ All persistent data stored in the `/app/data` volume:
 /app/data/
 ├── postgres/              # PostgreSQL data files
 ├── .session_secret        # Auto-generated session secret
-└── uploads/               # File uploads (future feature)
+└── uploads/               # File uploads (chat attachments, avatars)
 ```
+
+### 7.6 File Storage & Cleanup
+
+Files are stored with a two-phase lifecycle:
+1. **Pending** - Uploaded but not yet attached (auto-expires after 30 minutes)
+2. **Attached** - Linked to a message or used as avatar (permanent until explicitly deleted)
+
+**Automatic cleanup jobs:**
+| Job | Frequency | Purpose |
+|-----|-----------|---------|
+| Expired pending files | Every 5 minutes | Clean files uploaded but never attached |
+| Orphaned files | Every hour | Clean files marked attached but no longer referenced |
+| Deleted message files | Every 24 hours | Clean files from soft-deleted messages (30+ days old) |
+
+**Configuration (environment variables):**
+```bash
+UPLOAD_MAX_SIZE_MB=10                    # Max file size (default: 10 MB)
+UPLOAD_STORAGE_PATH=/app/data/uploads    # Storage directory
+UPLOAD_ALLOWED_TYPES=image/*,application/pdf,text/plain,text/markdown
+UPLOAD_PENDING_TTL_MINUTES=30            # Pending file expiry (default: 30 min)
+DELETED_MESSAGE_FILE_RETENTION_DAYS=30   # Days to keep deleted message files
+```
+
+**Cascade cleanup on entity deletion:**
+- **Project deletion**: All files in project channels are deleted
+- **Channel deletion**: All message attachment files are deleted
+- **User deletion**: All files uploaded by user are deleted
 
 ### 7.6 Common Commands
 

@@ -1,5 +1,6 @@
 import { channelRepository, messageRepository, channelMemberRepository, userRepository, projectMemberRepository, fileRepository, reactionRepository } from '../repositories';
 import { projectService } from './project';
+import { fileService } from './file';
 import { chatHub } from '../collab/chatHub';
 import type { Channel, Message, File } from '../db/schema';
 import type { ChannelWithProject } from '../repositories/channel';
@@ -192,6 +193,39 @@ export class ChatService {
     return updated;
   }
 
+  /**
+   * Permanently delete a channel and all its messages.
+   * Only channel owner (project owner for project channels, admin for workspace channels) can delete.
+   * Cleans up all attached files before deletion.
+   */
+  async deleteChannel(channelId: string, user: User): Promise<boolean> {
+    const channel = await channelRepository.findById(channelId);
+    if (!channel) {
+      throw new Error('Channel not found');
+    }
+
+    await this.ensureAccess(channel, user);
+    await this.ensureChannelOwner(channel, user);
+
+    // Clean up all files in this channel before cascade delete
+    await fileService.cleanupChannelFiles(channelId);
+
+    const deleted = await channelRepository.delete(channelId);
+
+    if (deleted) {
+      // Notify all connected clients that the channel was deleted
+      chatHub.broadcastToChannel(
+        channelId,
+        JSON.stringify({
+          type: 'channel_deleted',
+          channelId,
+        })
+      );
+    }
+
+    return deleted;
+  }
+
   async getMessages(channelId: string, user: User, options?: { before?: Date; limit?: number }): Promise<MessageWithUser[]> {
     const channel = await channelRepository.findById(channelId);
     if (!channel) {
@@ -246,6 +280,7 @@ export class ChatService {
 
     if (attachments.length > 0) {
       await messageRepository.addAttachments(message.id, attachments.map((attachment) => attachment.id));
+      await fileService.markAttached(attachments.map((attachment) => attachment.id));
     }
 
     await channelMemberRepository.updateLastRead(channelId, user.id, new Date());

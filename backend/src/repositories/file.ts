@@ -1,4 +1,4 @@
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, lt, notExists } from 'drizzle-orm';
 import { db } from '../db/client';
 import { files, messageAttachments, messages, channels, type File, type NewFile } from '../db/schema';
 
@@ -75,6 +75,116 @@ export class FileRepository {
       .limit(1);
 
     return result[0] ?? null;
+  }
+
+  async updateStatus(ids: string[], status: string): Promise<void> {
+    if (ids.length === 0) return;
+    await db.update(files)
+      .set({ status, expiresAt: null })
+      .where(inArray(files.id, ids));
+  }
+
+  async findExpired(): Promise<File[]> {
+    return db.query.files.findMany({
+      where: and(
+        eq(files.status, 'pending'),
+        lt(files.expiresAt, new Date())
+      ),
+    });
+  }
+
+  async deleteExpired(): Promise<number> {
+    const result = await db.delete(files)
+      .where(and(
+        eq(files.status, 'pending'),
+        lt(files.expiresAt, new Date())
+      ))
+      .returning();
+    return result.length;
+  }
+
+  /**
+   * Find all files attached to messages in a specific project's channels
+   */
+  async findByProjectId(projectId: string): Promise<File[]> {
+    const result = await db
+      .select({ file: files })
+      .from(files)
+      .innerJoin(messageAttachments, eq(messageAttachments.fileId, files.id))
+      .innerJoin(messages, eq(messages.id, messageAttachments.messageId))
+      .innerJoin(channels, eq(channels.id, messages.channelId))
+      .where(eq(channels.projectId, projectId));
+    return result.map((row) => row.file);
+  }
+
+  /**
+   * Find all files attached to messages in a specific channel
+   */
+  async findByChannelId(channelId: string): Promise<File[]> {
+    const result = await db
+      .select({ file: files })
+      .from(files)
+      .innerJoin(messageAttachments, eq(messageAttachments.fileId, files.id))
+      .innerJoin(messages, eq(messages.id, messageAttachments.messageId))
+      .where(eq(messages.channelId, channelId));
+    return result.map((row) => row.file);
+  }
+
+  /**
+   * Find all files uploaded by a specific user
+   */
+  async findByUploaderId(userId: string): Promise<File[]> {
+    return db.query.files.findMany({
+      where: eq(files.uploadedBy, userId),
+    });
+  }
+
+  /**
+   * Find files attached to soft-deleted messages older than X days
+   */
+  async findFromDeletedMessages(olderThanDays: number): Promise<File[]> {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
+
+    const result = await db
+      .select({ file: files })
+      .from(files)
+      .innerJoin(messageAttachments, eq(messageAttachments.fileId, files.id))
+      .innerJoin(messages, eq(messages.id, messageAttachments.messageId))
+      .where(and(
+        isNotNull(messages.deletedAt),
+        lt(messages.deletedAt, cutoffDate)
+      ));
+    return result.map((row) => row.file);
+  }
+
+  /**
+   * Find orphaned files (status='attached' but no messageAttachments reference)
+   */
+  async findOrphaned(): Promise<File[]> {
+    const result = await db
+      .select()
+      .from(files)
+      .where(and(
+        eq(files.status, 'attached'),
+        notExists(
+          db.select({ id: messageAttachments.fileId })
+            .from(messageAttachments)
+            .where(eq(messageAttachments.fileId, files.id))
+        )
+      ));
+    return result;
+  }
+
+  /**
+   * Bulk delete files by IDs
+   */
+  async deleteByIds(ids: string[]): Promise<number> {
+    if (ids.length === 0) return 0;
+    const result = await db.delete(files)
+      .where(inArray(files.id, ids))
+      .returning();
+    return result.length;
   }
 }
 

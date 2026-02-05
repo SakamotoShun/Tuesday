@@ -31,3 +31,16 @@ export async function uploadFile(file: File): Promise<FileAttachment> {
 }
 
 export const getFileUrl = (fileId: string) => `${API_BASE}/files/${fileId}`
+
+export async function deleteFile(fileId: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/files/${fileId}`, {
+    method: "DELETE",
+    credentials: "include",
+  })
+
+  // Ignore errors - file may already be deleted, attached, or not found
+  // This is a best-effort cleanup
+  if (!response.ok) {
+    return
+  }
+}

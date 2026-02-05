@@ -56,6 +56,7 @@ export class FileService {
     const buffer = Buffer.from(await file.arrayBuffer());
     await writeFile(storagePath, buffer);
 
+    const expiresAt = new Date(Date.now() + config.uploadPendingTtlMinutes * 60 * 1000);
     const record = await fileRepository.create({
       originalName: file.name || 'upload',
       storedName,
@@ -63,6 +64,8 @@ export class FileService {
       sizeBytes: file.size,
       storagePath,
       uploadedBy: user.id,
+      status: 'pending',
+      expiresAt,
     });
 
     return this.toResponse(record);
@@ -108,9 +111,12 @@ export class FileService {
       throw new Error('You do not have permission to delete this file');
     }
 
-    const attached = await fileRepository.isAttached(fileId);
-    if (attached) {
-      throw new Error('File is attached to a message');
+    // Allow deletion of pending files without attachment check
+    if (file.status !== 'pending') {
+      const attached = await fileRepository.isAttached(fileId);
+      if (attached) {
+        throw new Error('File is attached to a message');
+      }
     }
 
     await fileRepository.delete(fileId);
@@ -122,6 +128,128 @@ export class FileService {
     }
 
     return true;
+  }
+
+  async markAttached(fileIds: string[]): Promise<void> {
+    await fileRepository.updateStatus(fileIds, 'attached');
+  }
+
+  async markAsAvatar(fileId: string): Promise<void> {
+    await fileRepository.updateStatus([fileId], 'avatar');
+  }
+
+  async deleteAvatarFile(fileId: string): Promise<boolean> {
+    const file = await fileRepository.findById(fileId);
+    if (!file) {
+      return false;
+    }
+
+    // Only delete if it's an avatar file
+    if (file.status !== 'avatar') {
+      return false;
+    }
+
+    await fileRepository.delete(fileId);
+
+    try {
+      await unlink(file.storagePath);
+    } catch {
+      // ignore file system delete errors
+    }
+
+    return true;
+  }
+
+  async cleanupExpiredFiles(): Promise<number> {
+    const expired = await fileRepository.findExpired();
+    
+    for (const file of expired) {
+      try {
+        await unlink(file.storagePath);
+      } catch {
+        // ignore file system delete errors
+      }
+    }
+    
+    return fileRepository.deleteExpired();
+  }
+
+  /**
+   * Delete all files attached to messages in a project's channels.
+   * Call this BEFORE deleting the project to clean up physical files.
+   */
+  async cleanupProjectFiles(projectId: string): Promise<number> {
+    const files = await fileRepository.findByProjectId(projectId);
+    return this.deleteFilesFromDisk(files);
+  }
+
+  /**
+   * Delete all files attached to messages in a channel.
+   * Call this BEFORE deleting the channel to clean up physical files.
+   */
+  async cleanupChannelFiles(channelId: string): Promise<number> {
+    const files = await fileRepository.findByChannelId(channelId);
+    return this.deleteFilesFromDisk(files);
+  }
+
+  /**
+   * Delete all files uploaded by a user.
+   * Call this BEFORE deleting the user to clean up physical files.
+   */
+  async cleanupUserFiles(userId: string): Promise<number> {
+    const files = await fileRepository.findByUploaderId(userId);
+    return this.deleteFilesFromDisk(files);
+  }
+
+  /**
+   * Delete files attached to soft-deleted messages older than X days.
+   * This is called periodically to clean up files from deleted messages.
+   */
+  async cleanupDeletedMessageFiles(olderThanDays: number): Promise<number> {
+    const files = await fileRepository.findFromDeletedMessages(olderThanDays);
+    if (files.length === 0) return 0;
+
+    // Delete physical files
+    for (const file of files) {
+      try {
+        await unlink(file.storagePath);
+      } catch {
+        // ignore file system delete errors
+      }
+    }
+
+    // Delete database records
+    const fileIds = files.map((f) => f.id);
+    return fileRepository.deleteByIds(fileIds);
+  }
+
+  /**
+   * Delete orphaned files (marked as 'attached' but no longer referenced).
+   * This catches edge cases where files were orphaned unexpectedly.
+   */
+  async cleanupOrphanedFiles(): Promise<number> {
+    const files = await fileRepository.findOrphaned();
+    return this.deleteFilesFromDisk(files);
+  }
+
+  /**
+   * Helper to delete files from disk and database
+   */
+  private async deleteFilesFromDisk(files: FileRecord[]): Promise<number> {
+    if (files.length === 0) return 0;
+
+    // Delete physical files
+    for (const file of files) {
+      try {
+        await unlink(file.storagePath);
+      } catch {
+        // ignore file system delete errors
+      }
+    }
+
+    // Delete database records
+    const fileIds = files.map((f) => f.id);
+    return fileRepository.deleteByIds(fileIds);
   }
 
   toResponse(file: FileRecord): FileResponse {

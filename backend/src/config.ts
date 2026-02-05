@@ -11,6 +11,8 @@ const configSchema = z.object({
   uploadMaxSizeMb: z.number().int().min(1).max(100),
   uploadStoragePath: z.string().min(1),
   uploadAllowedTypes: z.array(z.string().min(1)),
+  uploadPendingTtlMinutes: z.number().int().min(1).max(1440),
+  deletedMessageFileRetentionDays: z.number().int().min(1).max(365),
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -27,6 +29,8 @@ function loadConfig(): Config {
     uploadMaxSizeMb: parseInt(process.env.UPLOAD_MAX_SIZE_MB || '10', 10),
     uploadStoragePath: process.env.UPLOAD_STORAGE_PATH || '/app/data/uploads',
     uploadAllowedTypes: (process.env.UPLOAD_ALLOWED_TYPES || 'image/*,application/pdf,text/plain,text/markdown').split(',').map((entry) => entry.trim()).filter(Boolean),
+    uploadPendingTtlMinutes: parseInt(process.env.UPLOAD_PENDING_TTL_MINUTES || '30', 10),
+    deletedMessageFileRetentionDays: parseInt(process.env.DELETED_MESSAGE_FILE_RETENTION_DAYS || '30', 10),
   };
 
   const result = configSchema.safeParse(config);

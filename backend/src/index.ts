@@ -41,6 +41,46 @@ async function startServer() {
       }
     }, 60 * 60 * 1000); // Every hour
 
+    // Clean up expired pending files periodically
+    setInterval(async () => {
+      try {
+        const { fileService } = await import('./services/file');
+        const deleted = await fileService.cleanupExpiredFiles();
+        if (deleted > 0) {
+          console.log(`🧹 Cleaned up ${deleted} expired pending files`);
+        }
+      } catch (error) {
+        console.error('Error cleaning up expired files:', error);
+      }
+    }, 5 * 60 * 1000); // Every 5 minutes
+
+    // Clean up orphaned files periodically (attached status but no reference)
+    setInterval(async () => {
+      try {
+        const { fileService } = await import('./services/file');
+        const deleted = await fileService.cleanupOrphanedFiles();
+        if (deleted > 0) {
+          console.log(`🧹 Cleaned up ${deleted} orphaned files`);
+        }
+      } catch (error) {
+        console.error('Error cleaning up orphaned files:', error);
+      }
+    }, 60 * 60 * 1000); // Every hour
+
+    // Clean up files from soft-deleted messages (daily)
+    setInterval(async () => {
+      try {
+        const { fileService } = await import('./services/file');
+        const { config } = await import('./config');
+        const deleted = await fileService.cleanupDeletedMessageFiles(config.deletedMessageFileRetentionDays);
+        if (deleted > 0) {
+          console.log(`🧹 Cleaned up ${deleted} files from deleted messages`);
+        }
+      } catch (error) {
+        console.error('Error cleaning up deleted message files:', error);
+      }
+    }, 24 * 60 * 60 * 1000); // Every 24 hours
+
     // Explicitly start Bun server with WebSocket support
     Bun.serve({
       port: config.port,

@@ -130,6 +130,8 @@ export const files = pgTable('files', {
   sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull(),
   storagePath: text('storage_path').notNull(),
   uploadedBy: uuid('uploaded_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  status: varchar('status', { length: 20 }).notNull().default('pending'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

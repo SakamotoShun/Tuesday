@@ -473,6 +473,43 @@ const allProjects = isAdmin
 - Use Drizzle migrations for schema changes (`backend/src/db/migrations/`)
 - Define schema in `backend/src/db/schema.ts`
 
+## File Storage
+
+### Two-Phase Upload Lifecycle
+Files use a two-phase lifecycle to prevent orphaned files:
+
+1. **Pending** - Uploaded but not yet attached
+   - Auto-expires after `UPLOAD_PENDING_TTL_MINUTES` (default: 30)
+   - Can be deleted by uploader
+   
+2. **Attached** - Linked to a message
+   - Permanent until message/channel/project is deleted
+   - Access controlled by channel membership
+
+3. **Avatar** - Used as user profile picture
+   - Deleted when user uploads new avatar or removes it
+
+### File Cleanup (Automatic)
+The server runs periodic cleanup jobs:
+- **Every 5 minutes**: Delete expired pending files
+- **Every hour**: Delete orphaned files (attached but no reference)
+- **Every 24 hours**: Delete files from soft-deleted messages (older than 30 days)
+
+### Cascade Deletion
+When entities are deleted, their files are automatically cleaned up:
+- **Project deletion** → All files in project channels
+- **Channel deletion** → All message attachment files
+- **User deletion** → All files uploaded by user + avatar
+
+### Configuration
+```bash
+UPLOAD_MAX_SIZE_MB=10                    # Max file size (default: 10 MB)
+UPLOAD_STORAGE_PATH=/app/data/uploads    # Storage directory
+UPLOAD_ALLOWED_TYPES=image/*,application/pdf,text/plain,text/markdown
+UPLOAD_PENDING_TTL_MINUTES=30            # Pending file expiry
+DELETED_MESSAGE_FILE_RETENTION_DAYS=30   # Days to keep deleted message files
+```
+
 ## Testing Guidelines
 
 - Write unit tests for services and utilities

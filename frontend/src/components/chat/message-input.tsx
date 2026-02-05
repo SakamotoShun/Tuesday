@@ -1,7 +1,7 @@
 import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ArrowUp, Paperclip } from "lucide-react"
 import type { FileAttachment, User } from "@/api/types"
-import { uploadFile } from "@/api/files"
+import { uploadFile, deleteFile } from "@/api/files"
 import { Button } from "@/components/ui/button"
 import { AttachmentList, type PendingAttachment } from "@/components/chat/attachment-list"
 import { MentionAutocomplete, type MentionOption } from "@/components/chat/mention-autocomplete"
@@ -305,7 +305,11 @@ export function MessageInput({ onSend, onTyping, members = [], disabled = false 
           <AttachmentList
             attachments={attachments}
             pendingAttachments={pendingAttachments}
-            onRemove={(fileId) => setAttachments((current) => current.filter((attachment) => attachment.id !== fileId))}
+            onRemove={(fileId) => {
+              setAttachments((current) => current.filter((attachment) => attachment.id !== fileId))
+              // Best-effort delete on server - don't block on errors
+              deleteFile(fileId).catch(() => {})
+            }}
             onRemovePending={handleRemovePending}
             compact
           />

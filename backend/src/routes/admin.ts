@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { projectStatusRepository, taskStatusRepository, settingsRepository, userRepository } from '../repositories';
+import { fileService } from '../services/file';
 import { auth, requireAdmin } from '../middleware';
 import { success, errors } from '../utils/response';
 import { 
@@ -177,6 +178,38 @@ admin.patch('/users/:id', async (c) => {
   } catch (error) {
     console.error('Error updating user:', error);
     return errors.internal(c, 'Failed to update user');
+  }
+});
+
+// DELETE /api/v1/admin/users/:id - Delete user permanently
+admin.delete('/users/:id', async (c) => {
+  try {
+    const userId = c.req.param('id');
+    const currentUser = c.get('user');
+
+    // Prevent self-deletion
+    if (userId === currentUser.id) {
+      return errors.badRequest(c, 'Cannot delete your own account');
+    }
+
+    const user = await userRepository.findById(userId);
+    if (!user) {
+      return errors.notFound(c, 'User not found');
+    }
+
+    // Clean up all files uploaded by user before cascade delete
+    // This deletes physical files from disk; DB records will cascade
+    await fileService.cleanupUserFiles(userId);
+
+    const deleted = await userRepository.delete(userId);
+    if (!deleted) {
+      return errors.internal(c, 'Failed to delete user');
+    }
+
+    return success(c, { deleted: true });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    return errors.internal(c, 'Failed to delete user');
   }
 });
 
