@@ -12,7 +12,7 @@ interface NotificationPanelProps {
 
 export function NotificationPanel({ notifications, onMarkAllRead, onSelect }: NotificationPanelProps) {
   return (
-    <div className="w-80">
+    <div className="w-full">
       <div className="flex items-center justify-between px-3 py-2">
         <div className="text-sm font-semibold">Notifications</div>
         <Button variant="ghost" size="sm" onClick={onMarkAllRead}>

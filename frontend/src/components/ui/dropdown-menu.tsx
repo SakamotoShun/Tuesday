@@ -71,18 +71,62 @@ const DropdownMenuContent = React.forwardRef<
   React.HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => {
   const { open, setOpen, triggerRef } = useDropdownMenu()
-  const [position, setPosition] = React.useState({ top: 0, left: 0 })
+  const [position, setPosition] = React.useState({ top: -9999, left: -9999 })
+  const [isPositioned, setIsPositioned] = React.useState(false)
   const contentRef = React.useRef<HTMLDivElement>(null)
 
-  React.useEffect(() => {
-    if (open && triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect()
-      setPosition({
-        top: rect.bottom + window.scrollY + 4,
-        left: rect.right - 224 + window.scrollX,
-      })
+  const updatePosition = React.useCallback(() => {
+    if (!open || !triggerRef.current || !contentRef.current) return
+
+    const rect = triggerRef.current.getBoundingClientRect()
+    const contentRect = contentRef.current.getBoundingClientRect()
+    const viewportWidth = document.documentElement.clientWidth
+    const viewportHeight = document.documentElement.clientHeight
+    const padding = 8
+
+    let left = rect.right - contentRect.width
+    let top = rect.bottom + 4
+
+    if (left < padding) {
+      left = padding
     }
+
+    if (left + contentRect.width > viewportWidth - padding) {
+      left = viewportWidth - padding - contentRect.width
+    }
+
+    if (top + contentRect.height > viewportHeight - padding) {
+      const above = rect.top - contentRect.height - 4
+      if (above >= padding) {
+        top = above
+      } else {
+        top = Math.max(padding, viewportHeight - padding - contentRect.height)
+      }
+    }
+
+    setPosition({
+      top: top + window.scrollY,
+      left: left + window.scrollX,
+    })
+    setIsPositioned(true)
   }, [open, triggerRef])
+
+  React.useLayoutEffect(() => {
+    if (!open) {
+      setIsPositioned(false)
+      return
+    }
+
+    updatePosition()
+  }, [open, updatePosition])
+
+  React.useEffect(() => {
+    if (!open) return
+
+    const handleResize = () => updatePosition()
+    window.addEventListener("resize", handleResize)
+    return () => window.removeEventListener("resize", handleResize)
+  }, [open, updatePosition])
 
   React.useEffect(() => {
     if (!open) return
@@ -125,7 +169,12 @@ const DropdownMenuContent = React.forwardRef<
           ref.current = node
         }
       }}
-      style={{ position: "absolute", top: position.top, left: position.left }}
+      style={{
+        position: "absolute",
+        top: position.top,
+        left: position.left,
+        visibility: isPositioned ? "visible" : "hidden",
+      }}
       className={cn(
         "z-50 w-56 overflow-hidden rounded-md border border-border bg-card p-1 text-card-foreground shadow-md",
         className
