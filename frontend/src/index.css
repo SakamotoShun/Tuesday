@@ -103,3 +103,7 @@
   font-size: 0.7rem;
   opacity: 0.8;
 }
+
+.emoji-picker-panel .emoji-mart {
+  height: 320px;
+}
