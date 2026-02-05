@@ -1,6 +1,6 @@
-import { projectRepository, projectMemberRepository, projectStatusRepository } from '../repositories';
+import { projectRepository, projectMemberRepository, projectStatusRepository, teamProjectRepository } from '../repositories';
 import { fileService } from './file';
-import { ProjectMemberRole, UserRole } from '../db/schema';
+import { ProjectMemberRole, ProjectMemberSource, UserRole } from '../db/schema';
 import type { Project, ProjectMember, ProjectStatus, NewProject, NewProjectMember } from '../db/schema';
 import type { ProjectWithRelations } from '../repositories/project';
 import type { User } from '../types';
@@ -197,6 +197,20 @@ export class ProjectService {
   }
 
   /**
+   * Get teams assigned to a project
+   */
+  async getAssignedTeams(projectId: string, user: User) {
+    if (user.role !== UserRole.ADMIN) {
+      const isOwner = await projectMemberRepository.isOwner(projectId, user.id);
+      if (!isOwner) {
+        throw new Error('Only project owners can view team assignments');
+      }
+    }
+
+    return teamProjectRepository.findTeamsByProjectId(projectId);
+  }
+
+  /**
    * Add a member to a project
    * - Only owner can add members
    */
@@ -210,6 +224,17 @@ export class ProjectService {
     // Check if user is already a member
     const existing = await projectMemberRepository.findMembership(projectId, userId);
     if (existing) {
+      if (existing.source === ProjectMemberSource.TEAM) {
+        const updated = await projectMemberRepository.updateMembership(projectId, userId, {
+          role,
+          source: ProjectMemberSource.DIRECT,
+          sourceTeamId: null,
+        });
+        if (!updated) {
+          throw new Error('Failed to update membership');
+        }
+        return updated;
+      }
       throw new Error('User is already a member of this project');
     }
 
@@ -218,7 +243,7 @@ export class ProjectService {
       throw new Error('Invalid role');
     }
 
-    const member = await projectMemberRepository.addMember(projectId, userId, role);
+    const member = await projectMemberRepository.addMember(projectId, userId, role, ProjectMemberSource.DIRECT, null);
 
     const project = await projectRepository.findById(projectId);
     if (project) {
@@ -243,6 +268,15 @@ export class ProjectService {
     const isOwner = await projectMemberRepository.isOwner(projectId, currentUser.id);
     if (!isOwner && currentUser.role !== UserRole.ADMIN) {
       throw new Error('Only project owners can update member roles');
+    }
+
+    const membership = await projectMemberRepository.findMembership(projectId, userId);
+    if (!membership) {
+      return null;
+    }
+
+    if (membership.source === ProjectMemberSource.TEAM) {
+      throw new Error('Team members cannot have project roles changed');
     }
 
     // Cannot modify own role if you're the only owner
@@ -274,13 +308,28 @@ export class ProjectService {
       throw new Error('Only project owners can remove members');
     }
 
+    const membership = await projectMemberRepository.findMembership(projectId, userId);
+    if (!membership) {
+      return false;
+    }
+
     // Cannot remove yourself if you're the only owner
-    if (userId === currentUser.id) {
+    if (userId === currentUser.id && membership.role === ProjectMemberRole.OWNER) {
       const members = await projectMemberRepository.findByProjectId(projectId);
       const owners = members.filter(m => m.role === ProjectMemberRole.OWNER);
       if (owners.length === 1 && owners[0].userId === currentUser.id) {
         throw new Error('Cannot remove yourself as the only owner');
       }
+    }
+
+    const teamIds = await teamProjectRepository.findTeamIdsForUserProject(userId, projectId);
+    if (teamIds.length > 0) {
+      await projectMemberRepository.updateMembership(projectId, userId, {
+        role: ProjectMemberRole.MEMBER,
+        source: ProjectMemberSource.TEAM,
+        sourceTeamId: teamIds[0],
+      });
+      return true;
     }
 
     return projectMemberRepository.removeMember(projectId, userId);

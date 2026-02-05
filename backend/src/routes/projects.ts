@@ -128,6 +128,22 @@ projects.get('/:id/members', requireProjectMember, async (c) => {
   }
 });
 
+// GET /api/v1/projects/:id/teams - List teams assigned to project
+projects.get('/:id/teams', requireProjectOwner, async (c) => {
+  try {
+    const user = c.get('user');
+    const projectId = c.req.param('id');
+    const teams = await projectService.getAssignedTeams(projectId, user);
+    return success(c, teams);
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.forbidden(c, error.message);
+    }
+    console.error('Error fetching project teams:', error);
+    return errors.internal(c, 'Failed to fetch project teams');
+  }
+});
+
 // POST /api/v1/projects/:id/members - Add member
 projects.post('/:id/members', requireProjectOwner, async (c) => {
   try {

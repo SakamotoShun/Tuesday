@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -22,6 +22,9 @@ import {
 } from "@/components/ui/select"
 import type { Project, ProjectStatus, UpdateProjectInput } from "@/api/types"
 import { ApiErrorResponse } from "@/api/client"
+import { useAuth } from "@/hooks/use-auth"
+import { useTeams } from "@/hooks/use-teams"
+import { useProjectTeams } from "@/hooks/use-projects"
 
 const projectSchema = z.object({
   name: z.string().min(1, "Project name is required").max(255),
@@ -50,6 +53,16 @@ export function EditProjectDialog({
   onSubmit,
 }: EditProjectDialogProps) {
   const [error, setError] = useState<string | null>(null)
+  const [selectedTeamId, setSelectedTeamId] = useState("")
+  const { user } = useAuth()
+  const isAdmin = user?.role === "admin"
+  const { teams } = useTeams()
+  const {
+    teams: assignedTeams,
+    isLoading: isTeamsLoading,
+    assignTeam,
+    unassignTeam,
+  } = useProjectTeams(project?.id ?? "", { enabled: isAdmin && !!project })
 
   const {
     register,
@@ -83,6 +96,17 @@ export function EditProjectDialog({
       })
     }
   }, [project, open, reset])
+
+  useEffect(() => {
+    if (!open) {
+      setSelectedTeamId("")
+    }
+  }, [open])
+
+  const availableTeams = useMemo(() => {
+    const assignedIds = new Set(assignedTeams.map((team) => team.id))
+    return teams.filter((team) => !assignedIds.has(team.id))
+  }, [teams, assignedTeams])
 
   const handleFormSubmit = async (data: ProjectForm) => {
     try {
@@ -208,6 +232,85 @@ export function EditProjectDialog({
               />
             </div>
           </div>
+
+          {isAdmin && (
+            <div className="space-y-3">
+              <div className="text-sm font-semibold">Team Access</div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Select value={selectedTeamId || "none"} onValueChange={(value) => setSelectedTeamId(value === "none" ? "" : value)}>
+                  <SelectTrigger className="w-full sm:flex-1">
+                    <SelectValue placeholder="Assign a team" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Team</SelectItem>
+                    {availableTeams.map((team) => (
+                      <SelectItem key={team.id} value={team.id}>
+                        {team.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  onClick={async () => {
+                    if (!selectedTeamId) return
+                    try {
+                      setError(null)
+                      await assignTeam.mutateAsync(selectedTeamId)
+                      setSelectedTeamId("")
+                    } catch (err) {
+                      if (err instanceof ApiErrorResponse) {
+                        setError(err.message)
+                      } else {
+                        setError("Failed to assign team")
+                      }
+                    }
+                  }}
+                  disabled={!selectedTeamId || assignTeam.isPending}
+                  className="w-full sm:w-auto"
+                >
+                  {assignTeam.isPending ? "Assigning..." : "Assign"}
+                </Button>
+              </div>
+
+              {isTeamsLoading ? (
+                <div className="text-sm text-muted-foreground">Loading teams...</div>
+              ) : assignedTeams.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No team access assigned yet.</div>
+              ) : (
+                <div className="space-y-2">
+                  {assignedTeams.map((team) => (
+                    <div
+                      key={team.id}
+                      className="flex items-center justify-between rounded-md border border-border px-3 py-2"
+                    >
+                      <div className="text-sm font-medium">{team.name}</div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={unassignTeam.isPending}
+                        onClick={async () => {
+                          try {
+                            setError(null)
+                            await unassignTeam.mutateAsync(team.id)
+                          } catch (err) {
+                            if (err instanceof ApiErrorResponse) {
+                              setError(err.message)
+                            } else {
+                              setError("Failed to remove team access")
+                            }
+                          }
+                        }}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           <DialogFooter>
             <Button

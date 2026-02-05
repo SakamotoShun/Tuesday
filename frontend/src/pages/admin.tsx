@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { WorkspaceSettings } from "@/components/admin/workspace-settings"
 import { UserManagement } from "@/components/admin/user-management"
 import { StatusManager } from "@/components/admin/status-manager"
+import { TeamManagement } from "@/components/admin/team-management"
 
 export function AdminPage() {
   return (
@@ -23,6 +24,15 @@ export function AdminPage() {
         </CardHeader>
         <CardContent>
           <UserManagement />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Teams</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <TeamManagement />
         </CardContent>
       </Card>
 

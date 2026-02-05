@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -23,6 +23,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useProjects, useProjectStatuses } from "@/hooks/use-projects"
+import { useTeams } from "@/hooks/use-teams"
+import { useAuth } from "@/hooks/use-auth"
+import * as teamsApi from "@/api/teams"
 import { ApiErrorResponse } from "@/api/client"
 
 const projectSchema = z.object({
@@ -39,8 +42,13 @@ type ProjectForm = z.infer<typeof projectSchema>
 export function NewProjectDialog() {
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [selectedTeamId, setSelectedTeamId] = useState<string>("")
+  const [createdProjectId, setCreatedProjectId] = useState<string | null>(null)
+  const { user } = useAuth()
+  const isAdmin = user?.role === "admin"
   const { createProject } = useProjects()
   const { data: statuses } = useProjectStatuses()
+  const { teams } = useTeams()
 
   const {
     register,
@@ -61,24 +69,55 @@ export function NewProjectDialog() {
     },
   })
 
+  useEffect(() => {
+    if (!open) {
+      setError(null)
+      setSelectedTeamId("")
+      setCreatedProjectId(null)
+    }
+  }, [open])
+
   const onSubmit = async (data: ProjectForm) => {
+    let projectId = createdProjectId
     try {
       setError(null)
-      await createProject.mutateAsync({
-        name: data.name,
-        client: data.client || undefined,
-        type: data.type || undefined,
-        statusId: data.statusId || undefined,
-        startDate: data.startDate || undefined,
-        targetEndDate: data.targetEndDate || undefined,
-      })
+      if (!projectId) {
+        const project = await createProject.mutateAsync({
+          name: data.name,
+          client: data.client || undefined,
+          type: data.type || undefined,
+          statusId: data.statusId || undefined,
+          startDate: data.startDate || undefined,
+          targetEndDate: data.targetEndDate || undefined,
+        })
+        projectId = project.id
+        setCreatedProjectId(projectId)
+      }
+
+      if (isAdmin && selectedTeamId) {
+        await teamsApi.assignProject(selectedTeamId, projectId)
+      }
+
       reset()
+      setSelectedTeamId("")
+      setCreatedProjectId(null)
       setOpen(false)
     } catch (err) {
+      if (projectId && !createdProjectId) {
+        setCreatedProjectId(projectId)
+      }
       if (err instanceof ApiErrorResponse) {
-        setError(err.message)
+        if (projectId && isAdmin && selectedTeamId) {
+          setError("Project created, but team assignment failed. Please retry.")
+        } else {
+          setError(err.message)
+        }
       } else {
-        setError("Failed to create project")
+        if (projectId && isAdmin && selectedTeamId) {
+          setError("Project created, but team assignment failed. Please retry.")
+        } else {
+          setError("Failed to create project")
+        }
       }
     }
   }
@@ -112,6 +151,7 @@ export function NewProjectDialog() {
               id="name"
               placeholder="Website Redesign 2024"
               {...register("name")}
+              disabled={!!createdProjectId}
               className={errors.name ? "border-destructive" : ""}
             />
             {errors.name && (
@@ -127,6 +167,7 @@ export function NewProjectDialog() {
                 placeholder="Acme Corp"
                 {...register("client")}
                 value={watch("client") || ""}
+                disabled={!!createdProjectId}
                 onChange={(e) => setValue("client", e.target.value || null)}
               />
             </div>
@@ -138,6 +179,7 @@ export function NewProjectDialog() {
                 placeholder="Client Project"
                 {...register("type")}
                 value={watch("type") || ""}
+                disabled={!!createdProjectId}
                 onChange={(e) => setValue("type", e.target.value || null)}
               />
             </div>
@@ -150,6 +192,7 @@ export function NewProjectDialog() {
               onValueChange={(value) =>
                 setValue("statusId", value === "none" ? null : value)
               }
+              disabled={!!createdProjectId}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select a phase" />
@@ -173,6 +216,7 @@ export function NewProjectDialog() {
                 type="date"
                 {...register("startDate")}
                 value={watch("startDate") || ""}
+                disabled={!!createdProjectId}
                 onChange={(e) =>
                   setValue("startDate", e.target.value || null)
                 }
@@ -186,12 +230,32 @@ export function NewProjectDialog() {
                 type="date"
                 {...register("targetEndDate")}
                 value={watch("targetEndDate") || ""}
+                disabled={!!createdProjectId}
                 onChange={(e) =>
                   setValue("targetEndDate", e.target.value || null)
                 }
               />
             </div>
           </div>
+
+          {isAdmin && (
+            <div className="space-y-2">
+              <Label htmlFor="team">Assign Team</Label>
+              <Select value={selectedTeamId || "none"} onValueChange={(value) => setSelectedTeamId(value === "none" ? "" : value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a team" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Team</SelectItem>
+                  {teams.map((team) => (
+                    <SelectItem key={team.id} value={team.id}>
+                      {team.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <DialogFooter>
             <Button
@@ -202,7 +266,13 @@ export function NewProjectDialog() {
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Creating..." : "Create Project"}
+              {createdProjectId
+                ? isSubmitting
+                  ? "Assigning..."
+                  : "Retry assignment"
+                : isSubmitting
+                  ? "Creating..."
+                  : "Create Project"}
             </Button>
           </DialogFooter>
         </form>

@@ -117,6 +117,40 @@ export const updateMemberSchema = z.object({
 
 export type UpdateMemberInput = z.infer<typeof updateMemberSchema>;
 
+// Team validation schemas
+export const createTeamSchema = z.object({
+  name: z.string().min(1, 'Team name is required').max(255),
+  description: z.string().max(1000).optional().nullable(),
+});
+
+export type CreateTeamInput = z.infer<typeof createTeamSchema>;
+
+export const updateTeamSchema = z.object({
+  name: z.string().min(1, 'Team name is required').max(255).optional(),
+  description: z.string().max(1000).optional().nullable(),
+});
+
+export type UpdateTeamInput = z.infer<typeof updateTeamSchema>;
+
+export const addTeamMemberSchema = z.object({
+  userId: uuidSchema,
+  role: z.enum(['lead', 'member']).default('member'),
+});
+
+export type AddTeamMemberInput = z.infer<typeof addTeamMemberSchema>;
+
+export const updateTeamMemberSchema = z.object({
+  role: z.enum(['lead', 'member']),
+});
+
+export type UpdateTeamMemberInput = z.infer<typeof updateTeamMemberSchema>;
+
+export const assignTeamProjectSchema = z.object({
+  projectId: uuidSchema,
+});
+
+export type AssignTeamProjectInput = z.infer<typeof assignTeamProjectSchema>;
+
 // Status validation schemas
 export const createStatusSchema = z.object({
   name: z.string().min(1, 'Status name is required').max(50),

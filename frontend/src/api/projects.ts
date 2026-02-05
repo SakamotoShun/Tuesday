@@ -1,5 +1,5 @@
 import { api } from "./client"
-import type { Project, ProjectMember, CreateProjectInput, UpdateProjectInput, ProjectStatus } from "./types"
+import type { Project, ProjectMember, CreateProjectInput, UpdateProjectInput, ProjectStatus, Team } from "./types"
 
 export async function listStatuses(): Promise<ProjectStatus[]> {
   return api.get<ProjectStatus[]>("/statuses/project")
@@ -28,6 +28,10 @@ export async function remove(id: string): Promise<void> {
 // Members
 export async function getMembers(id: string): Promise<ProjectMember[]> {
   return api.get<ProjectMember[]>(`/projects/${id}/members`)
+}
+
+export async function getTeams(id: string): Promise<Team[]> {
+  return api.get<Team[]>(`/projects/${id}/teams`)
 }
 
 export async function addMember(

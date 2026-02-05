@@ -215,6 +215,8 @@ export function ManageMembersDialog({
                     isOwner={member.role === "owner"}
                     isLastOwner={member.role === "owner" && ownerCount === 1}
                     isSelf={member.userId === currentUserId}
+                    isTeamMember={member.source === "team"}
+                    sourceTeamName={member.sourceTeam?.name ?? undefined}
                     canManage={canManage}
                     isMutating={isMutating}
                     onRoleChange={handleRoleChange}
@@ -241,6 +243,8 @@ interface MemberRowProps {
   isOwner: boolean
   isLastOwner: boolean
   isSelf: boolean
+  isTeamMember: boolean
+  sourceTeamName?: string
   canManage: boolean
   isMutating: boolean
   onRoleChange: (userId: string, role: "owner" | "member") => void
@@ -252,6 +256,8 @@ function MemberRow({
   isOwner,
   isLastOwner,
   isSelf,
+  isTeamMember,
+  sourceTeamName,
   canManage,
   isMutating,
   onRoleChange,
@@ -272,6 +278,11 @@ function MemberRow({
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">{displayName}</span>
             {isSelf && <Badge variant="secondary">You</Badge>}
+            {isTeamMember && (
+              <Badge variant="outline">
+                {sourceTeamName ? `Team: ${sourceTeamName}` : "Team"}
+              </Badge>
+            )}
           </div>
           <div className="text-xs text-muted-foreground">{displayEmail}</div>
         </div>
@@ -282,7 +293,7 @@ function MemberRow({
           <Select
             value={member.role}
             onValueChange={(value) => onRoleChange(member.userId, value as "owner" | "member")}
-            disabled={isMutating || isLastOwner}
+            disabled={isMutating || isLastOwner || isTeamMember}
           >
             <SelectTrigger className="w-[120px]">
               <SelectValue placeholder="Role" />
@@ -303,9 +314,9 @@ function MemberRow({
             type="button"
             variant="ghost"
             size="icon"
-            disabled={isMutating || isLastOwner}
+            disabled={isMutating || isLastOwner || isTeamMember}
             onClick={() => onRemove(member.userId)}
-            className={cn(isLastOwner && "opacity-60")}
+            className={cn((isLastOwner || isTeamMember) && "opacity-60")}
           >
             <Trash2 className="h-4 w-4" />
           </Button>

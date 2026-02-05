@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import * as projectsApi from "@/api/projects"
+import * as teamsApi from "@/api/teams"
 import type { CreateProjectInput, UpdateProjectInput } from "@/api/types"
 
 export function useProjectStatuses() {
@@ -55,4 +56,38 @@ export function useProject(id: string) {
     queryFn: () => projectsApi.get(id),
     enabled: !!id,
   })
+}
+
+export function useProjectTeams(projectId: string, options?: { enabled?: boolean }) {
+  const queryClient = useQueryClient()
+
+  const teamsQuery = useQuery({
+    queryKey: ["projects", projectId, "teams"],
+    queryFn: () => projectsApi.getTeams(projectId),
+    enabled: options?.enabled ?? !!projectId,
+  })
+
+  const assignTeam = useMutation({
+    mutationFn: (teamId: string) => teamsApi.assignProject(teamId, projectId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "teams"] })
+      queryClient.invalidateQueries({ queryKey: ["teams"] })
+    },
+  })
+
+  const unassignTeam = useMutation({
+    mutationFn: (teamId: string) => teamsApi.unassignProject(teamId, projectId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "teams"] })
+      queryClient.invalidateQueries({ queryKey: ["teams"] })
+    },
+  })
+
+  return {
+    teams: teamsQuery.data ?? [],
+    isLoading: teamsQuery.isLoading,
+    error: teamsQuery.error,
+    assignTeam,
+    unassignTeam,
+  }
 }

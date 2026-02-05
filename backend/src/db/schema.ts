@@ -17,6 +17,22 @@ export const ProjectMemberRole = {
 
 export type ProjectMemberRole = typeof ProjectMemberRole[keyof typeof ProjectMemberRole];
 
+// Team member roles
+export const TeamMemberRole = {
+  LEAD: 'lead',
+  MEMBER: 'member',
+} as const;
+
+export type TeamMemberRole = typeof TeamMemberRole[keyof typeof TeamMemberRole];
+
+// Project member source
+export const ProjectMemberSource = {
+  DIRECT: 'direct',
+  TEAM: 'team',
+} as const;
+
+export type ProjectMemberSource = typeof ProjectMemberSource[keyof typeof ProjectMemberSource];
+
 const bytea = customType<{ data: Buffer }>({
   dataType() {
     return 'bytea';
@@ -77,14 +93,44 @@ export const projects = pgTable('projects', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+// Teams table
+export const teams = pgTable('teams', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 // Project members table
 export const projectMembers = pgTable('project_members', {
   projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   role: varchar('role', { length: 20 }).notNull().default(ProjectMemberRole.MEMBER),
+  source: varchar('source', { length: 20 }).notNull().default(ProjectMemberSource.DIRECT),
+  sourceTeamId: uuid('source_team_id').references(() => teams.id, { onDelete: 'set null' }),
   joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   pk: primaryKey({ columns: [table.projectId, table.userId] }),
+}));
+
+// Team members table
+export const teamMembers = pgTable('team_members', {
+  teamId: uuid('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  role: varchar('role', { length: 20 }).notNull().default(TeamMemberRole.MEMBER),
+  joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.teamId, table.userId] }),
+}));
+
+// Team projects table
+export const teamProjects = pgTable('team_projects', {
+  teamId: uuid('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  assignedAt: timestamp('assigned_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.teamId, table.projectId] }),
 }));
 
 // Chat channels table
@@ -191,6 +237,7 @@ export const docCollabUpdates = pgTable('doc_collab_updates', {
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   projects: many(projectMembers),
+  teams: many(teamMembers),
   createdProjects: many(projects, { relationName: 'createdProjects' }),
   sessions: many(sessions),
 }));
@@ -208,6 +255,11 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   members: many(projectMembers),
 }));
 
+export const teamsRelations = relations(teams, ({ many }) => ({
+  members: many(teamMembers),
+  projects: many(teamProjects),
+}));
+
 export const projectMembersRelations = relations(projectMembers, ({ one }) => ({
   project: one(projects, {
     fields: [projectMembers.projectId],
@@ -216,6 +268,32 @@ export const projectMembersRelations = relations(projectMembers, ({ one }) => ({
   user: one(users, {
     fields: [projectMembers.userId],
     references: [users.id],
+  }),
+  sourceTeam: one(teams, {
+    fields: [projectMembers.sourceTeamId],
+    references: [teams.id],
+  }),
+}));
+
+export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
+  team: one(teams, {
+    fields: [teamMembers.teamId],
+    references: [teams.id],
+  }),
+  user: one(users, {
+    fields: [teamMembers.userId],
+    references: [users.id],
+  }),
+}));
+
+export const teamProjectsRelations = relations(teamProjects, ({ one }) => ({
+  team: one(teams, {
+    fields: [teamProjects.teamId],
+    references: [teams.id],
+  }),
+  project: one(projects, {
+    fields: [teamProjects.projectId],
+    references: [projects.id],
   }),
 }));
 
@@ -526,6 +604,12 @@ export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 export type ProjectMember = typeof projectMembers.$inferSelect;
 export type NewProjectMember = typeof projectMembers.$inferInsert;
+export type Team = typeof teams.$inferSelect;
+export type NewTeam = typeof teams.$inferInsert;
+export type TeamMember = typeof teamMembers.$inferSelect;
+export type NewTeamMember = typeof teamMembers.$inferInsert;
+export type TeamProject = typeof teamProjects.$inferSelect;
+export type NewTeamProject = typeof teamProjects.$inferInsert;
 export type Channel = typeof channels.$inferSelect;
 export type NewChannel = typeof channels.$inferInsert;
 export type Message = typeof messages.$inferSelect;
