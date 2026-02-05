@@ -1,3 +1,5 @@
+import { useState } from "react"
+import { Trash2 } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import {
   Select,
@@ -6,11 +8,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Button } from "@/components/ui/button"
 import { InviteUserDialog } from "@/components/admin/invite-user-dialog"
+import { DeleteUserDialog } from "@/components/admin/delete-user-dialog"
 import { useAdminUsers } from "@/hooks/use-admin"
+import { useAuth } from "@/hooks/use-auth"
+import type { AdminDeleteUserInput, User } from "@/api/types"
 
 export function UserManagement() {
-  const { users, isLoading, updateUser } = useAdminUsers()
+  const { users, isLoading, updateUser, deleteUser } = useAdminUsers()
+  const { user: currentUser } = useAuth()
+  const [deleteTarget, setDeleteTarget] = useState<User | null>(null)
 
   return (
     <div className="space-y-4">
@@ -59,11 +67,34 @@ export function UserManagement() {
                     }
                   />
                 </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => setDeleteTarget(user)}
+                  disabled={user.id === currentUser?.id}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </Button>
               </div>
             </div>
           ))}
         </div>
       )}
+
+      <DeleteUserDialog
+        user={deleteTarget}
+        users={users}
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        currentUserId={currentUser?.id}
+        onConfirm={async (input: AdminDeleteUserInput) => {
+          if (!deleteTarget) return
+          await deleteUser.mutateAsync({ userId: deleteTarget.id, data: input })
+        }}
+      />
     </div>
   )
 }

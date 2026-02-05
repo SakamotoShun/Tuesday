@@ -1,6 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as adminApi from "@/api/admin"
-import type { AdminCreateUserInput, AdminUpdateUserInput, UpdateAdminSettingsInput, ProjectStatus, TaskStatus } from "@/api/types"
+import type {
+  AdminCreateUserInput,
+  AdminDeleteUserInput,
+  AdminUpdateUserInput,
+  UpdateAdminSettingsInput,
+  ProjectStatus,
+  TaskStatus,
+  AdminUserOwnerships,
+} from "@/api/types"
 
 export function useAdminSettings() {
   const queryClient = useQueryClient()
@@ -35,13 +43,31 @@ export function useAdminUsers() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "users"] }),
   })
 
+  const deleteUser = useMutation({
+    mutationFn: ({ userId, data }: { userId: string; data: AdminDeleteUserInput }) =>
+      adminApi.deleteUser(userId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] })
+      queryClient.invalidateQueries({ queryKey: ["admin", "users", variables.userId, "ownerships"] })
+    },
+  })
+
   return {
     users: usersQuery.data ?? [],
     isLoading: usersQuery.isLoading,
     error: usersQuery.error,
     createUser,
     updateUser,
+    deleteUser,
   }
+}
+
+export function useAdminUserOwnerships(userId?: string, enabled = true) {
+  return useQuery<AdminUserOwnerships>({
+    queryKey: ["admin", "users", userId, "ownerships"],
+    queryFn: () => adminApi.getUserOwnerships(userId ?? ""),
+    enabled: Boolean(userId) && enabled,
+  })
 }
 
 export function useAdminStatuses() {

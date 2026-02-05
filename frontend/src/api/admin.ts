@@ -5,6 +5,8 @@ import type {
   AdminCreateUserInput,
   AdminUpdateUserInput,
   AdminCreateUserResponse,
+  AdminDeleteUserInput,
+  AdminUserOwnerships,
   User,
   ProjectStatus,
   TaskStatus,
@@ -28,6 +30,14 @@ export async function createUser(data: AdminCreateUserInput): Promise<AdminCreat
 
 export async function updateUser(userId: string, data: AdminUpdateUserInput): Promise<User> {
   return api.patch<User>(`/admin/users/${userId}`, data)
+}
+
+export async function getUserOwnerships(userId: string): Promise<AdminUserOwnerships> {
+  return api.get<AdminUserOwnerships>(`/admin/users/${userId}/ownerships`)
+}
+
+export async function deleteUser(userId: string, data: AdminDeleteUserInput): Promise<{ deleted: boolean }> {
+  return api.post<{ deleted: boolean }>(`/admin/users/${userId}/delete`, data)
 }
 
 export async function listProjectStatuses(): Promise<ProjectStatus[]> {

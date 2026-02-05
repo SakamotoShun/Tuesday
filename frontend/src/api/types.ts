@@ -41,8 +41,37 @@ export interface ProjectMember {
   projectId: string
   userId: string
   role: "owner" | "member"
+  source: "direct" | "team"
+  sourceTeamId?: string | null
   joinedAt: string
   user?: User
+  sourceTeam?: { id: string; name: string } | null
+}
+
+// Team types
+export interface Team {
+  id: string
+  name: string
+  description?: string | null
+  createdAt: string
+  updatedAt: string
+  memberCount?: number
+  projectCount?: number
+}
+
+export interface TeamMember {
+  teamId: string
+  userId: string
+  role: "lead" | "member"
+  joinedAt: string
+  user?: User
+}
+
+export interface TeamProject {
+  teamId: string
+  projectId: string
+  assignedAt: string
+  project?: { id: string; name: string }
 }
 
 // Setup types
@@ -286,6 +315,24 @@ export interface AdminUpdateUserInput {
 
 export interface AdminCreateUserResponse extends User {
   temporaryPassword?: string
+}
+
+export interface AdminUserOwnerships {
+  ownedProjects: Array<{ id: string; name: string; ownerId: string }>
+  createdContent: {
+    docs: number
+    tasks: number
+    meetings: number
+    whiteboards: number
+    docCollabUpdates: number
+    whiteboardCollabUpdates: number
+  }
+  isLastAdmin: boolean
+}
+
+export interface AdminDeleteUserInput {
+  projectTransfers: Array<{ projectId: string; newOwnerId: string }>
+  reassignToUserId?: string
 }
 
 // Chat types

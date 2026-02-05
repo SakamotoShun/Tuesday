@@ -1,5 +1,21 @@
 import { Hono } from 'hono';
 import { projectStatusRepository, taskStatusRepository, settingsRepository, userRepository } from '../repositories';
+import { db } from '../db/client';
+import {
+  ProjectMemberRole,
+  ProjectMemberSource,
+  UserRole,
+  docCollabUpdates,
+  docs,
+  meetings,
+  projectMembers,
+  projects,
+  tasks,
+  users,
+  whiteboardCollabUpdates,
+  whiteboards,
+} from '../db/schema';
+import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import { fileService } from '../services/file';
 import { auth, requireAdmin } from '../middleware';
 import { success, errors } from '../utils/response';
@@ -12,6 +28,7 @@ import {
   emailSchema,
   nameSchema,
   passwordSchema,
+  uuidSchema,
 } from '../utils/validation';
 import { z } from 'zod';
 import { hashPassword } from '../utils/password';
@@ -33,6 +50,53 @@ const updateUserSchema = z.object({
   role: z.enum(['admin', 'member']).optional(),
   isDisabled: z.boolean().optional(),
 });
+
+const deleteUserSchema = z.object({
+  projectTransfers: z.array(z.object({
+    projectId: uuidSchema,
+    newOwnerId: uuidSchema,
+  })).optional(),
+  reassignToUserId: uuidSchema.optional(),
+});
+
+async function getCreatedContentCounts(userId: string) {
+  const [docsCount, tasksCount, meetingsCount, whiteboardsCount, docUpdatesCount, whiteboardUpdatesCount] = await Promise.all([
+    db.select({ count: sql<number>`count(*)` }).from(docs).where(eq(docs.createdBy, userId)),
+    db.select({ count: sql<number>`count(*)` }).from(tasks).where(eq(tasks.createdBy, userId)),
+    db.select({ count: sql<number>`count(*)` }).from(meetings).where(eq(meetings.createdBy, userId)),
+    db.select({ count: sql<number>`count(*)` }).from(whiteboards).where(eq(whiteboards.createdBy, userId)),
+    db.select({ count: sql<number>`count(*)` }).from(docCollabUpdates).where(eq(docCollabUpdates.actorId, userId)),
+    db.select({ count: sql<number>`count(*)` }).from(whiteboardCollabUpdates).where(eq(whiteboardCollabUpdates.actorId, userId)),
+  ]);
+
+  return {
+    docs: Number(docsCount[0]?.count ?? 0),
+    tasks: Number(tasksCount[0]?.count ?? 0),
+    meetings: Number(meetingsCount[0]?.count ?? 0),
+    whiteboards: Number(whiteboardsCount[0]?.count ?? 0),
+    docCollabUpdates: Number(docUpdatesCount[0]?.count ?? 0),
+    whiteboardCollabUpdates: Number(whiteboardUpdatesCount[0]?.count ?? 0),
+  };
+}
+
+async function getOwnedProjects(userId: string) {
+  return db.query.projects.findMany({
+    where: eq(projects.ownerId, userId),
+    columns: {
+      id: true,
+      name: true,
+      ownerId: true,
+    },
+  });
+}
+
+async function getOtherActiveAdminCount(userId: string) {
+  const result = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(users)
+    .where(and(eq(users.role, UserRole.ADMIN), eq(users.isDisabled, false), ne(users.id, userId)));
+  return Number(result[0]?.count ?? 0);
+}
 
 const admin = new Hono();
 
@@ -181,6 +245,36 @@ admin.patch('/users/:id', async (c) => {
   }
 });
 
+// GET /api/v1/admin/users/:id/ownerships - Get ownership and created content counts
+admin.get('/users/:id/ownerships', async (c) => {
+  try {
+    const userId = c.req.param('id');
+    const user = await userRepository.findById(userId);
+
+    if (!user) {
+      return errors.notFound(c, 'User not found');
+    }
+
+    const [ownedProjects, createdContent] = await Promise.all([
+      getOwnedProjects(userId),
+      getCreatedContentCounts(userId),
+    ]);
+
+    const isLastAdmin = user.role === UserRole.ADMIN
+      ? (await getOtherActiveAdminCount(userId)) === 0
+      : false;
+
+    return success(c, {
+      ownedProjects,
+      createdContent,
+      isLastAdmin,
+    });
+  } catch (error) {
+    console.error('Error fetching user ownerships:', error);
+    return errors.internal(c, 'Failed to fetch user ownerships');
+  }
+});
+
 // DELETE /api/v1/admin/users/:id - Delete user permanently
 admin.delete('/users/:id', async (c) => {
   try {
@@ -197,6 +291,23 @@ admin.delete('/users/:id', async (c) => {
       return errors.notFound(c, 'User not found');
     }
 
+    if (user.role === UserRole.ADMIN) {
+      const otherAdminCount = await getOtherActiveAdminCount(userId);
+      if (otherAdminCount === 0) {
+        return errors.badRequest(c, 'Cannot delete the last active admin');
+      }
+    }
+
+    const [ownedProjects, createdContent] = await Promise.all([
+      getOwnedProjects(userId),
+      getCreatedContentCounts(userId),
+    ]);
+
+    const createdContentTotal = Object.values(createdContent).reduce((total, count) => total + count, 0);
+    if (ownedProjects.length > 0 || createdContentTotal > 0) {
+      return errors.badRequest(c, 'User has owned projects or created content that must be transferred before deletion');
+    }
+
     // Clean up all files uploaded by user before cascade delete
     // This deletes physical files from disk; DB records will cascade
     await fileService.cleanupUserFiles(userId);
@@ -209,6 +320,162 @@ admin.delete('/users/:id', async (c) => {
     return success(c, { deleted: true });
   } catch (error) {
     console.error('Error deleting user:', error);
+    return errors.internal(c, 'Failed to delete user');
+  }
+});
+
+// POST /api/v1/admin/users/:id/delete - Delete user with transfers
+admin.post('/users/:id/delete', async (c) => {
+  try {
+    const userId = c.req.param('id');
+    const currentUser = c.get('user');
+    const body = await c.req.json();
+    const validation = validateBody(deleteUserSchema, body);
+
+    if (!validation.success) {
+      return errors.validation(c, formatValidationErrors(validation.errors));
+    }
+
+    // Prevent self-deletion
+    if (userId === currentUser.id) {
+      return errors.badRequest(c, 'Cannot delete your own account');
+    }
+
+    const user = await userRepository.findById(userId);
+    if (!user) {
+      return errors.notFound(c, 'User not found');
+    }
+
+    if (user.role === UserRole.ADMIN) {
+      const otherAdminCount = await getOtherActiveAdminCount(userId);
+      if (otherAdminCount === 0) {
+        return errors.badRequest(c, 'Cannot delete the last active admin');
+      }
+    }
+
+    const [ownedProjects, createdContent] = await Promise.all([
+      getOwnedProjects(userId),
+      getCreatedContentCounts(userId),
+    ]);
+
+    const createdContentTotal = Object.values(createdContent).reduce((total, count) => total + count, 0);
+    const projectTransfers = validation.data.projectTransfers ?? [];
+    const reassignToUserId = validation.data.reassignToUserId;
+
+    if (createdContentTotal > 0 && !reassignToUserId) {
+      return errors.badRequest(c, 'Created content must be reassigned before deletion');
+    }
+
+    if (reassignToUserId && reassignToUserId === userId) {
+      return errors.badRequest(c, 'Reassignment user must be different from the deleted user');
+    }
+
+    const ownedProjectIds = new Set(ownedProjects.map((project) => project.id));
+    const transferProjectIds = new Set(projectTransfers.map((transfer) => transfer.projectId));
+
+    if (ownedProjects.length > 0) {
+      const missingTransfers = ownedProjects.filter((project) => !transferProjectIds.has(project.id));
+      if (missingTransfers.length > 0) {
+        return errors.badRequest(c, 'All owned projects must be transferred before deletion');
+      }
+    }
+
+    const invalidTransfers = projectTransfers.filter((transfer) => !ownedProjectIds.has(transfer.projectId));
+    if (invalidTransfers.length > 0) {
+      return errors.badRequest(c, 'Cannot transfer projects not owned by the user');
+    }
+
+    if (projectTransfers.some((transfer) => transfer.newOwnerId === userId)) {
+      return errors.badRequest(c, 'Project ownership cannot be transferred to the deleted user');
+    }
+
+    const transferUserIds = new Set(projectTransfers.map((transfer) => transfer.newOwnerId));
+    if (reassignToUserId) {
+      transferUserIds.add(reassignToUserId);
+    }
+
+    if (transferUserIds.size === 0 && (ownedProjects.length > 0 || createdContentTotal > 0)) {
+      return errors.badRequest(c, 'A transfer user is required to delete this account');
+    }
+
+    const transferUsers = transferUserIds.size > 0
+      ? await db.query.users.findMany({ where: inArray(users.id, Array.from(transferUserIds)) })
+      : [];
+    const transferUserMap = new Map(transferUsers.map((transferUser) => [transferUser.id, transferUser]));
+
+    const missingUserIds = Array.from(transferUserIds).filter((id) => !transferUserMap.has(id));
+    if (missingUserIds.length > 0) {
+      return errors.badRequest(c, 'Transfer user not found');
+    }
+
+    const disabledTransferUser = Array.from(transferUserMap.values()).find((transferUser) => transferUser.isDisabled);
+    if (disabledTransferUser) {
+      return errors.badRequest(c, 'Transfer user must be active');
+    }
+
+    // Clean up all files uploaded by user before cascade delete
+    // This deletes physical files from disk; DB records will cascade
+    await fileService.cleanupUserFiles(userId);
+
+    const deleted = await db.transaction(async (tx) => {
+      for (const transfer of projectTransfers) {
+        await tx
+          .update(projects)
+          .set({ ownerId: transfer.newOwnerId, updatedAt: new Date() })
+          .where(eq(projects.id, transfer.projectId));
+
+        const membership = await tx.query.projectMembers.findFirst({
+          where: and(
+            eq(projectMembers.projectId, transfer.projectId),
+            eq(projectMembers.userId, transfer.newOwnerId)
+          ),
+        });
+
+        if (membership) {
+          await tx
+            .update(projectMembers)
+            .set({
+              role: ProjectMemberRole.OWNER,
+              source: ProjectMemberSource.DIRECT,
+              sourceTeamId: null,
+            })
+            .where(and(
+              eq(projectMembers.projectId, transfer.projectId),
+              eq(projectMembers.userId, transfer.newOwnerId)
+            ));
+        } else {
+          await tx
+            .insert(projectMembers)
+            .values({
+              projectId: transfer.projectId,
+              userId: transfer.newOwnerId,
+              role: ProjectMemberRole.OWNER,
+              source: ProjectMemberSource.DIRECT,
+              sourceTeamId: null,
+            });
+        }
+      }
+
+      if (reassignToUserId) {
+        await tx.update(docs).set({ createdBy: reassignToUserId }).where(eq(docs.createdBy, userId));
+        await tx.update(tasks).set({ createdBy: reassignToUserId }).where(eq(tasks.createdBy, userId));
+        await tx.update(meetings).set({ createdBy: reassignToUserId }).where(eq(meetings.createdBy, userId));
+        await tx.update(whiteboards).set({ createdBy: reassignToUserId }).where(eq(whiteboards.createdBy, userId));
+        await tx.update(docCollabUpdates).set({ actorId: reassignToUserId }).where(eq(docCollabUpdates.actorId, userId));
+        await tx.update(whiteboardCollabUpdates).set({ actorId: reassignToUserId }).where(eq(whiteboardCollabUpdates.actorId, userId));
+      }
+
+      const result = await tx.delete(users).where(eq(users.id, userId)).returning();
+      return result.length > 0;
+    });
+
+    if (!deleted) {
+      return errors.internal(c, 'Failed to delete user');
+    }
+
+    return success(c, { deleted: true });
+  } catch (error) {
+    console.error('Error deleting user with transfers:', error);
     return errors.internal(c, 'Failed to delete user');
   }
 });
