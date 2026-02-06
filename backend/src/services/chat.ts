@@ -86,10 +86,20 @@ export class ChatService {
     const channels = await channelRepository.findUserChannels(user.id);
     const memberships = await channelMemberRepository.findByUserId(user.id);
     const membershipMap = new Map(memberships.map((membership) => [membership.channelId, membership]));
+    const sortedChannels = [...channels].sort((left, right) => {
+      const leftSortOrder = membershipMap.get(left.id)?.sortOrder ?? Number.MAX_SAFE_INTEGER;
+      const rightSortOrder = membershipMap.get(right.id)?.sortOrder ?? Number.MAX_SAFE_INTEGER;
+
+      if (leftSortOrder !== rightSortOrder) {
+        return leftSortOrder - rightSortOrder;
+      }
+
+      return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+    });
 
     const results: ChannelWithState[] = [];
 
-    for (const channel of channels) {
+    for (const channel of sortedChannels) {
       let membership = membershipMap.get(channel.id) ?? null;
       if (!membership && (channel.type === 'dm' || channel.access === 'public')) {
         membership = await channelMemberRepository.join(channel.id, user.id);

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { db } from '../db/client';
 import { channelMembers, channels, projectMembers, projects, type Channel, type NewChannel } from '../db/schema';
 
@@ -118,10 +118,7 @@ export class ChannelRepository {
       with: {
         project: true,
       },
-      orderBy: [
-        asc(sql<number>`COALESCE((SELECT ${channelMembers.sortOrder} FROM ${channelMembers} WHERE ${channelMembers.channelId} = ${channels.id} AND ${channelMembers.userId} = ${userId}), 2147483647)`),
-        desc(channels.createdAt),
-      ],
+      orderBy: [desc(channels.createdAt)],
     });
   }
 
