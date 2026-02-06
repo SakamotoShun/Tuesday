@@ -9,7 +9,7 @@ if (typeof globalThis.document === "undefined") {
   globalThis.navigator = window.navigator as unknown as Navigator
 }
 
-const { render, fireEvent } = await import("@testing-library/react")
+const { render, fireEvent, act } = await import("@testing-library/react")
 import { MemoryRouter } from "react-router-dom"
 import { DocToolbar } from "./doc-toolbar"
 
@@ -45,11 +45,15 @@ describe("DocToolbar", () => {
     }
 
     const { getByText, getAllByText } = renderToolbar({ saveState: "saved", onDelete })
-    fireEvent.click(getByText("Delete"))
+    act(() => {
+      fireEvent.click(getByText("Delete"))
+    })
     // "Delete Doc" appears in both the dialog title and the confirm button; click the button
     const matches = getAllByText("Delete Doc")
     const confirmBtn = matches.find((el) => el.tagName === "BUTTON") || matches[matches.length - 1]
-    fireEvent.click(confirmBtn!)
+    await act(async () => {
+      fireEvent.click(confirmBtn!)
+    })
 
     expect(deleted).toBe(true)
   })

@@ -2,7 +2,7 @@ import "@/test/setup"
 import React from "react"
 import { describe, it, expect, beforeEach, mock } from "bun:test"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { renderHook, waitFor } from "@testing-library/react"
+import { act, renderHook, waitFor } from "@testing-library/react"
 import { useAuthStore } from "@/store/auth-store"
 
 let getCurrentUser: (...args: any[]) => Promise<any> = async () => null
@@ -66,7 +66,7 @@ describe("useAuth", () => {
     const { wrapper } = createWrapper()
     const { result } = renderHook(() => useAuth(), { wrapper })
 
-    await result.current.login.mutateAsync({ email: "user@example.com", password: "pw" })
+    await act(() => result.current.login.mutateAsync({ email: "user@example.com", password: "pw" }))
     await waitFor(() => expect(useAuthStore.getState().user?.id).toBe("user-1"))
   })
 
@@ -76,7 +76,7 @@ describe("useAuth", () => {
     const { wrapper } = createWrapper()
     const { result } = renderHook(() => useAuth(), { wrapper })
 
-    await result.current.logout.mutateAsync()
+    await act(() => result.current.logout.mutateAsync())
     await waitFor(() => expect(result.current.user).toBeNull())
   })
 })
