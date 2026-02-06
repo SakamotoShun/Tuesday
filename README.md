@@ -34,68 +34,23 @@ Single Docker container. Embedded PostgreSQL. No external dependencies.
 
 ## Features
 
-<table>
-<tr>
-<td width="50%" align="center">
-<br />
-<strong>Personal Dashboard</strong>
-<br /><br />
-<img src="wireframes/screenshots/02-home.png" alt="Dashboard" width="100%" />
-<br />
-Notifications, tasks, and upcoming meetings at a glance.
-<br /><br />
-</td>
-<td width="50%" align="center">
-<br />
-<strong>Kanban Tasks</strong>
-<br /><br />
-<img src="wireframes/screenshots/04-project-tasks.png" alt="Tasks" width="100%" />
-<br />
-Drag-and-drop boards with custom statuses and assignees.
-<br /><br />
-</td>
-</tr>
-<tr>
-<td width="50%" align="center">
-<br />
-<strong>Document Editor</strong>
-<br /><br />
-<img src="wireframes/screenshots/07-docs-page.png" alt="Docs" width="100%" />
-<br />
-Rich block editor with database-style properties and templates.
-<br /><br />
-</td>
-<td width="50%" align="center">
-<br />
-<strong>Team Chat</strong>
-<br /><br />
-<img src="wireframes/screenshots/12-project-chat.png" alt="Chat" width="100%" />
-<br />
-Channels, DMs, mentions, reactions, and typing indicators.
-<br /><br />
-</td>
-</tr>
-<tr>
-<td width="50%" align="center">
-<br />
-<strong>Whiteboards</strong>
-<br /><br />
-<img src="wireframes/screenshots/09-whiteboard-editor.png" alt="Whiteboard" width="100%" />
-<br />
-Excalidraw-powered collaborative drawing with export support.
-<br /><br />
-</td>
-<td width="50%" align="center">
-<br />
-<strong>Calendar & Meetings</strong>
-<br /><br />
-<img src="wireframes/screenshots/11-project-schedule.png" alt="Calendar" width="100%" />
-<br />
-Project schedules and personal calendar with month/week views.
-<br /><br />
-</td>
-</tr>
-</table>
+### Interface Preview
+
+| Screen | Preview |
+|---|---|
+| Login | <img src="wireframes/screenshots/01-login.png" alt="Tuesday login screen" width="100%" /> |
+| Home Dashboard | <img src="wireframes/screenshots/02-home.png" alt="Tuesday home dashboard" width="100%" /> |
+| Projects | <img src="wireframes/screenshots/03-projects.png" alt="Tuesday projects page" width="100%" /> |
+| Project Tasks | <img src="wireframes/screenshots/04-project-tasks.png" alt="Tuesday project tasks board" width="100%" /> |
+| Project Docs | <img src="wireframes/screenshots/05-project-docs.png" alt="Tuesday project docs list" width="100%" /> |
+| Docs Database | <img src="wireframes/screenshots/06-docs-database.png" alt="Tuesday docs database view" width="100%" /> |
+| Docs Page | <img src="wireframes/screenshots/07-docs-page.png" alt="Tuesday docs page editor" width="100%" /> |
+| Whiteboards | <img src="wireframes/screenshots/08-whiteboards.png" alt="Tuesday whiteboards list" width="100%" /> |
+| Whiteboard Editor | <img src="wireframes/screenshots/09-whiteboard-editor.png" alt="Tuesday whiteboard editor" width="100%" /> |
+| Project Schedule | <img src="wireframes/screenshots/11-project-schedule.png" alt="Tuesday project schedule calendar" width="100%" /> |
+| Project Chat | <img src="wireframes/screenshots/12-project-chat.png" alt="Tuesday project chat" width="100%" /> |
+| Notifications | <img src="wireframes/screenshots/13-notifications.png" alt="Tuesday notifications inbox" width="100%" /> |
+| Admin Panel | <img src="wireframes/screenshots/14-admin.png" alt="Tuesday admin panel" width="100%" /> |
 
 ### Everything Included
 
