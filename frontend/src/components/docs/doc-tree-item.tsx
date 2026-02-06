@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useRef, useState } from "react"
 import type { KeyboardEvent } from "react"
 import { useNavigate } from "react-router-dom"
 import {
@@ -50,14 +50,14 @@ export function DocTreeItem({
   const [isEditing, setIsEditing] = useState(false)
   const [draftTitle, setDraftTitle] = useState(doc.title)
   const [error, setError] = useState<string | null>(null)
+  const previousChildCount = useRef(children.length)
   const hasChildren = children.length > 0
   const leftPadding = 8 + level * 16
 
-  useEffect(() => {
-    if (children.length > 0 && !isExpanded) {
-      setIsExpanded(true)
-    }
-  }, [children.length, isExpanded])
+  if (previousChildCount.current === 0 && children.length > 0) {
+    setIsExpanded(true)
+  }
+  previousChildCount.current = children.length
 
   const Icon = doc.isDatabase ? Table : hasChildren ? Folder : FileText
 
