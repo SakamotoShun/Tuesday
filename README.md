@@ -111,6 +111,9 @@ Project schedules and personal calendar with month/week views.
 - **Teams** - Group users with cascading project access
 - **Admin Panel** - User management, workspace settings, status configuration
 - **File Uploads** - Attachments with automatic lifecycle management
+- **Project Templates** - Create projects from blueprints with cloned docs, tasks, channels, and whiteboards
+- **Webhook Bots** - Integrate external services that post rich messages to channels via webhooks
+- **AI Bots** - OpenAI-powered chat bots that respond to @mentions with configurable system prompts
 - **Dark Mode** - Light, dark, and system theme support
 
 ---
@@ -122,7 +125,7 @@ Project schedules and personal calendar with month/week views.
 | **Cost** | Free, forever | $8-25/user/month |
 | **Data** | Your server, your data | Vendor cloud |
 | **Deployment** | Single Docker container | N/A |
-| **Features** | Projects, docs, tasks, chat, whiteboards, calendar | Often split across multiple tools |
+| **Features** | Projects, docs, tasks, chat, whiteboards, calendar, bots | Often split across multiple tools |
 | **Setup** | 1 command, 30 seconds | Account creation, team setup, billing |
 
 ---
@@ -342,6 +345,13 @@ Base path: `/api/v1`
 - `PATCH /profile` - Update profile
 - `POST /files` - Upload file
 - `GET /files/:id` - Download file
+
+**Bots & Webhooks**
+- `GET /bots` - List bots
+- `POST /bots` - Create bot
+- `PATCH /bots/:id` - Update bot
+- `DELETE /bots/:id` - Delete bot
+- `POST /webhooks/:token` - Post webhook message
 
 </details>
 

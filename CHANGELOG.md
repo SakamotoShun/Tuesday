@@ -17,6 +17,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Comprehensive environment variable configuration
 - Deployment, configuration, upgrade, and backup documentation
 - Health check endpoint for container monitoring
+- AI bots with OpenAI integration and configurable system prompts
+- Webhook bots for external service integration with rich message rendering
+- Project templates with full content cloning (docs, tasks, channels, whiteboards)
 
 ## [0.1.0] - 2026-02-06
 
