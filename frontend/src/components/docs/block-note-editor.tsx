@@ -1,10 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import type { Block } from "@blocknote/core"
+import { BlockNoteSchema, createCodeBlockSpec, defaultBlockSpecs, type Block } from "@blocknote/core"
+import { codeBlockOptions } from "@blocknote/code-block"
 import { useCreateBlockNote } from "@blocknote/react"
 import { BlockNoteView } from "@blocknote/shadcn"
 import "@blocknote/shadcn/style.css"
 import { useUIStore } from "@/store/ui-store"
 import { useDocCollaboration } from "@/hooks/use-doc-collaboration"
+
+const schema = BlockNoteSchema.create({
+  blockSpecs: {
+    ...defaultBlockSpecs,
+    codeBlock: createCodeBlockSpec(codeBlockOptions),
+  },
+})
 
 interface BlockNoteEditorProps {
   docId: string
@@ -24,6 +32,7 @@ export function BlockNoteEditor({
   const { ydoc, awareness, syncState, hasRemoteContent } = useDocCollaboration(docId)
   const fragment = useMemo(() => ydoc.getXmlFragment("prosemirror"), [ydoc])
   const editor = useCreateBlockNote({
+    schema,
     collaboration: {
       fragment,
       user: awareness.getLocalState()?.user ?? { name: "Anonymous", color: "#0F766E" },

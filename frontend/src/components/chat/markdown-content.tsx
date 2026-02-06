@@ -1,9 +1,52 @@
-import { Children, isValidElement, type ReactNode } from "react"
+import { Children, isValidElement, useEffect, useMemo, useState, type ReactNode } from "react"
 import ReactMarkdown, { type Components } from "react-markdown"
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
+import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism"
 import remarkGfm from "remark-gfm"
+import { useUIStore } from "@/store/ui-store"
 
 interface MarkdownContentProps {
   content: string
+}
+
+interface CodeBlockProps {
+  code: string
+  language: string
+  isDark: boolean
+}
+
+function CodeBlock({ code, language, isDark }: CodeBlockProps) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    if (!navigator.clipboard) {
+      return
+    }
+
+    await navigator.clipboard.writeText(code)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  return (
+    <div className="group relative my-1">
+      <button
+        type="button"
+        onClick={() => void handleCopy()}
+        className="absolute right-2 top-2 rounded border border-border/60 bg-background/90 px-2 py-1 text-[11px] font-medium text-foreground opacity-0 transition-opacity hover:bg-background group-hover:opacity-100"
+      >
+        {copied ? "Copied" : "Copy"}
+      </button>
+      <SyntaxHighlighter
+        language={language}
+        style={isDark ? oneDark : oneLight}
+        customStyle={{ margin: 0, borderRadius: "0.375rem", fontSize: "13px" }}
+        codeTagProps={{ className: "font-mono" }}
+      >
+        {code}
+      </SyntaxHighlighter>
+    </div>
+  )
 }
 
 const mentionRegex = /(@[a-zA-Z0-9._-]+)/g
@@ -36,7 +79,7 @@ const renderMentions = (children: ReactNode) =>
     return child
   })
 
-const markdownComponents: Components = {
+const getMarkdownComponents = (isDark: boolean): Components => ({
   p: ({ children }) => <p className="mb-1 last:mb-0">{renderMentions(children)}</p>,
   strong: ({ children }) => <strong className="font-semibold">{renderMentions(children)}</strong>,
   em: ({ children }) => <em className="italic">{renderMentions(children)}</em>,
@@ -65,14 +108,23 @@ const markdownComponents: Components = {
   h5: ({ children }) => <h5 className="text-sm font-medium">{renderMentions(children)}</h5>,
   h6: ({ children }) => <h6 className="text-sm font-medium">{renderMentions(children)}</h6>,
   code: (props) => {
-    const { inline, children } = props as { inline?: boolean; children?: ReactNode }
-    return inline ? (
-      <code className="bg-muted px-1 py-0.5 rounded text-[13px] font-mono">{children}</code>
-    ) : (
-      <code className="text-[13px] font-mono">{children}</code>
-    )
+    const { inline, className, children } = props as {
+      inline?: boolean
+      className?: string
+      children?: ReactNode
+    }
+
+    if (inline) {
+      return <code className="bg-muted px-1 py-0.5 rounded text-[13px] font-mono">{children}</code>
+    }
+
+    const languageMatch = /language-([\w-]+)/.exec(className ?? "")
+    const language = languageMatch?.[1] ?? "text"
+    const code = String(children ?? "").replace(/\n$/, "")
+
+    return <CodeBlock code={code} language={language} isDark={isDark} />
   },
-  pre: ({ children }) => <pre className="bg-muted p-3 rounded-md overflow-x-auto my-1">{children}</pre>,
+  pre: ({ children }) => <>{children}</>,
   hr: () => <hr className="border-t border-border my-2" />,
   img: ({ alt, ...props }) => <img alt={alt ?? ""} className="max-w-full rounded my-1" {...props} />,
   table: ({ children }) => (
@@ -87,9 +139,30 @@ const markdownComponents: Components = {
   td: ({ children }) => (
     <td className="border border-border px-2 py-1 align-top">{renderMentions(children)}</td>
   ),
-}
+})
 
 export function MarkdownContent({ content }: MarkdownContentProps) {
+  const themePreference = useUIStore((state) => state.theme)
+  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light")
+
+  useEffect(() => {
+    if (themePreference === "system") {
+      const media = window.matchMedia("(prefers-color-scheme: dark)")
+      const updateTheme = () => setResolvedTheme(media.matches ? "dark" : "light")
+      updateTheme()
+      media.addEventListener("change", updateTheme)
+      return () => media.removeEventListener("change", updateTheme)
+    }
+
+    setResolvedTheme(themePreference)
+    return undefined
+  }, [themePreference])
+
+  const markdownComponents = useMemo(
+    () => getMarkdownComponents(resolvedTheme === "dark"),
+    [resolvedTheme]
+  )
+
   return (
     <div className="text-sm text-foreground leading-normal">
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>

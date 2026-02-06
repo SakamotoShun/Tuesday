@@ -23,9 +23,11 @@ export default defineConfig({
           excalidraw: ["@excalidraw/excalidraw"],
           blocknote: [
             "@blocknote/core",
+            "@blocknote/code-block",
             "@blocknote/react",
             "@blocknote/shadcn",
           ],
+          syntax: ["react-syntax-highlighter"],
           calendar: [
             "@fullcalendar/core",
             "@fullcalendar/daygrid",

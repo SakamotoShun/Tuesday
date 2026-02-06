@@ -26,6 +26,10 @@ mock.module("@blocknote/shadcn", () => ({
 
 mock.module("@blocknote/shadcn/style.css", () => ({}))
 
+mock.module("@blocknote/code-block", () => ({
+  codeBlockOptions: {},
+}))
+
 mock.module("@/hooks/use-doc-collaboration", () => ({
   useDocCollaboration: () => ({
     ydoc: { getXmlFragment: () => ({ length: 0 }) },
