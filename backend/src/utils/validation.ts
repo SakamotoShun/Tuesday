@@ -333,6 +333,12 @@ export const updateChannelSchema = z.object({
 
 export type UpdateChannelInput = z.infer<typeof updateChannelSchema>;
 
+export const reorderChannelsSchema = z.object({
+  channelIds: z.array(uuidSchema).min(1, 'At least one channel is required'),
+});
+
+export type ReorderChannelsInput = z.infer<typeof reorderChannelsSchema>;
+
 export const createMessageSchema = z.object({
   content: z.string().max(5000).optional(),
   attachmentIds: z.array(uuidSchema).optional(),

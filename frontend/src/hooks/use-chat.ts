@@ -34,6 +34,28 @@ const createOptimisticId = () =>
     ? `temp_${crypto.randomUUID()}`
     : `temp_${Date.now()}_${Math.random().toString(16).slice(2)}`
 
+const reorderChannelSubset = (channels: Channel[], orderedIds: string[]) => {
+  if (orderedIds.length === 0) return channels
+
+  const idSet = new Set(orderedIds)
+  const byId = new Map(channels.map((channel) => [channel.id, channel]))
+  const orderedSubset = orderedIds
+    .map((channelId) => byId.get(channelId))
+    .filter((channel): channel is Channel => Boolean(channel))
+
+  let reorderIndex = 0
+
+  return channels.map((channel) => {
+    if (!idSet.has(channel.id)) {
+      return channel
+    }
+
+    const reorderedChannel = orderedSubset[reorderIndex]
+    reorderIndex += 1
+    return reorderedChannel ?? channel
+  })
+}
+
 export function useChatChannels(activeChannelId?: string | null) {
   const queryClient = useQueryClient()
   const { onMessage } = useWebSocket()
@@ -96,7 +118,7 @@ export function useChatChannels(activeChannelId?: string | null) {
         queryClient.setQueryData<Channel[]>(["channels"], (channels) => {
           if (!channels) return [added]
           if (channels.some((channel) => channel.id === added.id)) return channels
-          return [added, ...channels]
+          return [...channels, added]
         })
       }
 
@@ -136,6 +158,29 @@ export function useChatChannels(activeChannelId?: string | null) {
     },
   })
 
+  const reorderChannels = useMutation({
+    mutationFn: (channelIds: string[]) => chatApi.reorderChannels(channelIds),
+    onMutate: async (channelIds) => {
+      await queryClient.cancelQueries({ queryKey: ["channels"] })
+
+      const previousChannels = queryClient.getQueryData<Channel[]>(["channels"])
+
+      queryClient.setQueryData<Channel[]>(["channels"], (channels) => {
+        if (!channels) return channels
+        return reorderChannelSubset(channels, channelIds)
+      })
+
+      return { previousChannels }
+    },
+    onError: (_error, _channelIds, context) => {
+      if (!context?.previousChannels) return
+      queryClient.setQueryData(["channels"], context.previousChannels)
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["channels"] })
+    },
+  })
+
   return {
     channels: channelsQuery.data ?? [],
     isLoading: channelsQuery.isLoading,
@@ -143,6 +188,7 @@ export function useChatChannels(activeChannelId?: string | null) {
     updateChannel,
     archiveChannel,
     deleteChannel,
+    reorderChannels,
   }
 }
 

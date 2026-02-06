@@ -19,6 +19,8 @@ export const chatApi = {
   createChannel: (input: CreateChannelInput) => api.post<Channel>("/channels", input),
   updateChannel: (channelId: string, input: UpdateChannelInput) =>
     api.patch<Channel>(`/channels/${channelId}`, input),
+  reorderChannels: (channelIds: string[]) =>
+    api.patch<{ reordered: boolean }>("/channels/reorder", { channelIds }),
   archiveChannel: (channelId: string) => api.delete<Channel>(`/channels/${channelId}`),
   deleteChannel: (channelId: string) => api.delete<{ deleted: boolean }>(`/channels/${channelId}/permanent`),
   listChannelMembers: (channelId: string) => api.get<ChannelMember[]>(`/channels/${channelId}/members`),

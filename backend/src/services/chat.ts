@@ -22,6 +22,10 @@ export interface UpdateChannelInput {
   description?: string | null;
 }
 
+export interface ReorderChannelsInput {
+  channelIds: string[];
+}
+
 export interface SendMessageInput {
   content?: string;
   attachmentIds?: string[];
@@ -107,6 +111,24 @@ export class ChatService {
     }
 
     return results;
+  }
+
+  async reorderChannels(input: ReorderChannelsInput, user: User): Promise<boolean> {
+    const uniqueIds = Array.from(new Set(input.channelIds));
+    if (uniqueIds.length === 0) {
+      throw new Error('At least one channel is required');
+    }
+
+    const memberships = await channelMemberRepository.findByUserId(user.id);
+    const memberChannelIds = new Set(memberships.map((membership) => membership.channelId));
+    const invalidChannelId = uniqueIds.find((channelId) => !memberChannelIds.has(channelId));
+
+    if (invalidChannelId) {
+      throw new Error('One or more channels are not accessible');
+    }
+
+    await channelMemberRepository.reorderForUser(user.id, uniqueIds);
+    return true;
   }
 
   async getChannel(channelId: string, user: User): Promise<ChannelWithProject | null> {

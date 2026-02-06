@@ -385,6 +385,7 @@ export interface Channel {
   type: "workspace" | "project" | "dm"
   access: "public" | "private" | "invite_only"
   projectId: string | null
+  sortOrder?: number
   createdAt: string
   archivedAt?: string | null
   project?: Project | null

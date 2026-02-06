@@ -214,6 +214,7 @@ export const channelMembers = pgTable('channel_members', {
   channelId: uuid('channel_id').notNull().references(() => channels.id, { onDelete: 'cascade' }),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   role: varchar('role', { length: 20 }).notNull().default(ChannelMemberRole.MEMBER),
+  sortOrder: integer('sort_order').notNull().default(0),
   lastReadAt: timestamp('last_read_at', { withTimezone: true }).notNull().defaultNow(),
   joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({

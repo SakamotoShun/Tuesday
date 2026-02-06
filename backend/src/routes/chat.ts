@@ -3,7 +3,7 @@ import { auth } from '../middleware';
 import { chatService } from '../services';
 import { botService } from '../services/bot';
 import { success, errors } from '../utils/response';
-import { validateBody, formatValidationErrors, createChannelSchema, createMessageSchema, updateChannelSchema, updateMessageSchema, addReactionSchema, addChannelMembersSchema } from '../utils/validation';
+import { validateBody, formatValidationErrors, createChannelSchema, createMessageSchema, updateChannelSchema, updateMessageSchema, addReactionSchema, addChannelMembersSchema, reorderChannelsSchema } from '../utils/validation';
 
 const chat = new Hono();
 
@@ -40,6 +40,28 @@ chat.post('/', async (c) => {
     }
     console.error('Error creating channel:', error);
     return errors.internal(c, 'Failed to create channel');
+  }
+});
+
+// PATCH /api/v1/channels/reorder - Reorder channels for current user
+chat.patch('/reorder', async (c) => {
+  try {
+    const user = c.get('user');
+    const body = await c.req.json();
+
+    const validation = validateBody(reorderChannelsSchema, body);
+    if (!validation.success) {
+      return errors.validation(c, formatValidationErrors(validation.errors));
+    }
+
+    await chatService.reorderChannels(validation.data, user);
+    return success(c, { reordered: true });
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error reordering channels:', error);
+    return errors.internal(c, 'Failed to reorder channels');
   }
 });
 

@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { db } from '../db/client';
 import { channelMembers, type ChannelMember, type NewChannelMember } from '../db/schema';
 
@@ -7,6 +7,15 @@ export type ChannelMemberWithUser = ChannelMember & {
 };
 
 export class ChannelMemberRepository {
+  private async getNextSortOrder(userId: string): Promise<number> {
+    const [result] = await db
+      .select({ maxSortOrder: sql<number>`COALESCE(MAX(${channelMembers.sortOrder}), -1000)` })
+      .from(channelMembers)
+      .where(eq(channelMembers.userId, userId));
+
+    return Number(result?.maxSortOrder ?? -1000) + 1000;
+  }
+
   async findByChannelId(channelId: string): Promise<ChannelMemberWithUser[]> {
     return db.query.channelMembers.findMany({
       where: eq(channelMembers.channelId, channelId),
@@ -37,24 +46,46 @@ export class ChannelMemberRepository {
   }
 
   async join(channelId: string, userId: string): Promise<ChannelMember> {
+    const sortOrder = await this.getNextSortOrder(userId);
     const [member] = await db
       .insert(channelMembers)
-      .values({ channelId, userId })
+      .values({ channelId, userId, sortOrder })
       .returning();
     return member;
   }
 
   async joinWithRole(channelId: string, userId: string, role: 'owner' | 'member'): Promise<ChannelMember> {
+    const sortOrder = await this.getNextSortOrder(userId);
     const [member] = await db
       .insert(channelMembers)
-      .values({ channelId, userId, role })
+      .values({ channelId, userId, role, sortOrder })
       .returning();
     return member;
   }
 
   async addMembers(channelId: string, userIds: string[], role: 'owner' | 'member' = 'member'): Promise<void> {
     if (userIds.length === 0) return;
-    await db.insert(channelMembers).values(userIds.map((userId) => ({ channelId, userId, role })));
+    const members = await Promise.all(
+      userIds.map(async (userId) => ({
+        channelId,
+        userId,
+        role,
+        sortOrder: await this.getNextSortOrder(userId),
+      }))
+    );
+
+    await db.insert(channelMembers).values(members);
+  }
+
+  async reorderForUser(userId: string, channelIds: string[]): Promise<void> {
+    await db.transaction(async (tx) => {
+      for (const [index, channelId] of channelIds.entries()) {
+        await tx
+          .update(channelMembers)
+          .set({ sortOrder: index * 1000 })
+          .where(and(eq(channelMembers.userId, userId), eq(channelMembers.channelId, channelId)));
+      }
+    });
   }
 
   async leave(channelId: string, userId: string): Promise<boolean> {
