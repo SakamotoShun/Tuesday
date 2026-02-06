@@ -39,6 +39,7 @@ import { hashPassword } from '../utils/password';
 const updateSettingsSchema = z.object({
   allowRegistration: z.boolean().optional(),
   workspaceName: z.string().max(255).optional(),
+  siteUrl: z.union([z.string().url('Invalid site URL').max(2000), z.literal('')]).optional(),
 });
 
 const createUserSchema = z.object({
@@ -112,10 +113,12 @@ admin.get('/settings', async (c) => {
   try {
     const allowRegistration = await settingsRepository.get<boolean>('allow_registration');
     const updatedWorkspaceName = await settingsRepository.get<string>('workspace_name');
+    const siteUrl = await settingsRepository.get<string>('site_url');
     
     return success(c, {
       allowRegistration: allowRegistration ?? false,
       workspaceName: updatedWorkspaceName ?? '',
+      siteUrl: siteUrl ?? '',
     });
   } catch (error) {
     console.error('Error fetching admin settings:', error);
@@ -133,7 +136,7 @@ admin.patch('/settings', async (c) => {
       return errors.validation(c, formatValidationErrors(validation.error));
     }
 
-    const { allowRegistration, workspaceName } = validation.data;
+    const { allowRegistration, workspaceName, siteUrl } = validation.data;
 
     if (allowRegistration !== undefined) {
       await settingsRepository.set('allow_registration', allowRegistration);
@@ -143,13 +146,25 @@ admin.patch('/settings', async (c) => {
       await settingsRepository.set('workspace_name', workspaceName.trim());
     }
 
+    if (siteUrl !== undefined) {
+      const trimmedSiteUrl = siteUrl.trim();
+      if (trimmedSiteUrl.length === 0) {
+        await settingsRepository.delete('site_url');
+      } else {
+        const normalized = trimmedSiteUrl.replace(/\/+$/, '');
+        await settingsRepository.set('site_url', normalized);
+      }
+    }
+
     // Return updated settings
     const updatedAllowRegistration = await settingsRepository.get<boolean>('allow_registration');
     const updatedWorkspaceName = await settingsRepository.get<string>('workspace_name');
+    const updatedSiteUrl = await settingsRepository.get<string>('site_url');
 
     return success(c, {
       allowRegistration: updatedAllowRegistration ?? false,
       workspaceName: updatedWorkspaceName ?? '',
+      siteUrl: updatedSiteUrl ?? '',
     });
   } catch (error) {
     console.error('Error updating admin settings:', error);

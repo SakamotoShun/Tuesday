@@ -4,6 +4,7 @@ import { UserManagement } from "@/components/admin/user-management"
 import { StatusManager } from "@/components/admin/status-manager"
 import { TeamManagement } from "@/components/admin/team-management"
 import { TemplateManagement } from "@/components/admin/template-management"
+import { BotManagement } from "@/components/admin/bot-management"
 
 export function AdminPage() {
   return (
@@ -52,6 +53,15 @@ export function AdminPage() {
         </CardHeader>
         <CardContent>
           <StatusManager />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Bots</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <BotManagement />
         </CardContent>
       </Card>
     </div>

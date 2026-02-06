@@ -303,11 +303,13 @@ export interface UpdateDocInput {
 export interface AdminSettings {
   allowRegistration: boolean
   workspaceName: string
+  siteUrl: string
 }
 
 export interface UpdateAdminSettingsInput {
   allowRegistration?: boolean
   workspaceName?: string
+  siteUrl?: string
 }
 
 export interface AdminCreateUserInput {
@@ -342,6 +344,25 @@ export interface AdminUserOwnerships {
 export interface AdminDeleteUserInput {
   projectTransfers: Array<{ projectId: string; newOwnerId: string }>
   reassignToUserId?: string
+}
+
+export interface Bot {
+  id: string
+  name: string
+  avatarUrl: string | null
+  webhookToken: string
+  createdBy: string
+  isDisabled: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface BotChannelMember {
+  botId: string
+  channelId: string
+  addedBy: string
+  addedAt: string
+  channel?: Channel
 }
 
 // Chat types
@@ -394,6 +415,7 @@ export interface Message {
   id: string
   channelId: string
   userId: string
+  botId?: string | null
   content: string
   mentions: string[]
   createdAt: string
@@ -401,6 +423,7 @@ export interface Message {
   editedAt?: string | null
   deletedAt?: string | null
   user?: User
+  bot?: Pick<Bot, "id" | "name" | "avatarUrl"> | null
   attachments?: FileAttachment[]
   reactions?: MessageReaction[]
 }

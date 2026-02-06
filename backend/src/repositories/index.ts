@@ -19,6 +19,8 @@ export { whiteboardCollabRepository, WhiteboardCollabRepository } from './whiteb
 export { channelRepository, ChannelRepository } from './channel';
 export { messageRepository, MessageRepository } from './message';
 export { channelMemberRepository, ChannelMemberRepository } from './channelMember';
+export { botRepository, BotRepository } from './bot';
+export { botChannelMemberRepository, BotChannelMemberRepository } from './botChannelMember';
 export { fileRepository, FileRepository } from './file';
 export { reactionRepository, ReactionRepository } from './reaction';
 export { notificationRepository, NotificationRepository } from './notification';

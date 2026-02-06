@@ -88,6 +88,18 @@ export const sessions = pgTable('sessions', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+// Bots table
+export const bots = pgTable('bots', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: varchar('name', { length: 100 }).notNull(),
+  avatarUrl: text('avatar_url'),
+  webhookToken: varchar('webhook_token', { length: 128 }).notNull().unique(),
+  createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  isDisabled: boolean('is_disabled').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 // Settings table (key-value store)
 export const settings = pgTable('settings', {
   key: varchar('key', { length: 255 }).primaryKey(),
@@ -177,6 +189,7 @@ export const messages = pgTable('messages', {
   id: uuid('id').primaryKey().defaultRandom(),
   channelId: uuid('channel_id').notNull().references(() => channels.id, { onDelete: 'cascade' }),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  botId: uuid('bot_id').references(() => bots.id, { onDelete: 'set null' }),
   content: text('content').notNull(),
   mentions: uuid('mentions').array().notNull().default([]),
   editedAt: timestamp('edited_at', { withTimezone: true }),
@@ -194,6 +207,16 @@ export const channelMembers = pgTable('channel_members', {
   joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   pk: primaryKey({ columns: [table.channelId, table.userId] }),
+}));
+
+// Bot channel members table
+export const botChannelMembers = pgTable('bot_channel_members', {
+  botId: uuid('bot_id').notNull().references(() => bots.id, { onDelete: 'cascade' }),
+  channelId: uuid('channel_id').notNull().references(() => channels.id, { onDelete: 'cascade' }),
+  addedBy: uuid('added_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  addedAt: timestamp('added_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.botId, table.channelId] }),
 }));
 
 // Files table
@@ -346,6 +369,15 @@ export const docsRelations = relations(docs, ({ one, many }) => ({
 }));
 
 // Chat relations
+export const botsRelations = relations(bots, ({ one, many }) => ({
+  createdBy: one(users, {
+    fields: [bots.createdBy],
+    references: [users.id],
+  }),
+  messages: many(messages),
+  channelMembers: many(botChannelMembers),
+}));
+
 export const channelsRelations = relations(channels, ({ one, many }) => ({
   project: one(projects, {
     fields: [channels.projectId],
@@ -353,6 +385,7 @@ export const channelsRelations = relations(channels, ({ one, many }) => ({
   }),
   messages: many(messages),
   members: many(channelMembers),
+  botMembers: many(botChannelMembers),
 }));
 
 export const messagesRelations = relations(messages, ({ one, many }) => ({
@@ -363,6 +396,10 @@ export const messagesRelations = relations(messages, ({ one, many }) => ({
   user: one(users, {
     fields: [messages.userId],
     references: [users.id],
+  }),
+  bot: one(bots, {
+    fields: [messages.botId],
+    references: [bots.id],
   }),
   attachments: many(messageAttachments),
   reactions: many(messageReactions),
@@ -375,6 +412,21 @@ export const channelMembersRelations = relations(channelMembers, ({ one }) => ({
   }),
   user: one(users, {
     fields: [channelMembers.userId],
+    references: [users.id],
+  }),
+}));
+
+export const botChannelMembersRelations = relations(botChannelMembers, ({ one }) => ({
+  bot: one(bots, {
+    fields: [botChannelMembers.botId],
+    references: [bots.id],
+  }),
+  channel: one(channels, {
+    fields: [botChannelMembers.channelId],
+    references: [channels.id],
+  }),
+  addedBy: one(users, {
+    fields: [botChannelMembers.addedBy],
     references: [users.id],
   }),
 }));
@@ -625,6 +677,8 @@ export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Session = typeof sessions.$inferSelect;
 export type NewSession = typeof sessions.$inferInsert;
+export type Bot = typeof bots.$inferSelect;
+export type NewBot = typeof bots.$inferInsert;
 export type Setting = typeof settings.$inferSelect;
 export type NewSetting = typeof settings.$inferInsert;
 export type ProjectStatus = typeof projectStatuses.$inferSelect;
@@ -645,6 +699,8 @@ export type Message = typeof messages.$inferSelect;
 export type NewMessage = typeof messages.$inferInsert;
 export type ChannelMember = typeof channelMembers.$inferSelect;
 export type NewChannelMember = typeof channelMembers.$inferInsert;
+export type BotChannelMember = typeof botChannelMembers.$inferSelect;
+export type NewBotChannelMember = typeof botChannelMembers.$inferInsert;
 export type File = typeof files.$inferSelect;
 export type NewFile = typeof files.$inferInsert;
 export type MessageAttachment = typeof messageAttachments.$inferSelect;

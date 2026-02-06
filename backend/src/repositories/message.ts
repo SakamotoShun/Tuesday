@@ -4,6 +4,7 @@ import { messageAttachments, messages, type Message, type MessageReaction, type 
 
 export type MessageWithUser = Message & {
   user: { id: string; name: string; email: string; avatarUrl: string | null };
+  bot?: { id: string; name: string; avatarUrl: string | null } | null;
   attachments?: Array<{ file: File; sortOrder: number; fileId: string; messageId: string }>;
   reactions?: MessageReaction[];
 };
@@ -23,6 +24,13 @@ export class MessageRepository {
             id: true,
             name: true,
             email: true,
+            avatarUrl: true,
+          },
+        },
+        bot: {
+          columns: {
+            id: true,
+            name: true,
             avatarUrl: true,
           },
         },
@@ -53,6 +61,13 @@ export class MessageRepository {
             id: true,
             name: true,
             email: true,
+            avatarUrl: true,
+          },
+        },
+        bot: {
+          columns: {
+            id: true,
+            name: true,
             avatarUrl: true,
           },
         },

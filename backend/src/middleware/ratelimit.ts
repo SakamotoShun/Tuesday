@@ -65,3 +65,8 @@ export const generalRateLimit = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   maxRequests: 100, // 100 requests per minute
 });
+
+export const webhookRateLimit = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  maxRequests: 30, // 30 requests per minute
+});

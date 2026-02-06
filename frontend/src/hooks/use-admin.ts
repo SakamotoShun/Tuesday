@@ -158,3 +158,73 @@ export function useAdminStatuses() {
     deleteTaskStatus,
   }
 }
+
+export function useAdminBots() {
+  const queryClient = useQueryClient()
+
+  const botsQuery = useQuery({
+    queryKey: ["admin", "bots"],
+    queryFn: adminApi.listBots,
+  })
+
+  const availableChannelsQuery = useQuery({
+    queryKey: ["admin", "bots", "channels"],
+    queryFn: adminApi.listBotAvailableChannels,
+  })
+
+  const createBot = useMutation({
+    mutationFn: (data: { name: string; avatarUrl?: string | null }) => adminApi.createBot(data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "bots"] }),
+  })
+
+  const updateBot = useMutation({
+    mutationFn: ({ botId, data }: { botId: string; data: { name?: string; avatarUrl?: string | null; isDisabled?: boolean } }) =>
+      adminApi.updateBot(botId, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "bots"] }),
+  })
+
+  const deleteBot = useMutation({
+    mutationFn: (botId: string) => adminApi.deleteBot(botId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "bots"] }),
+  })
+
+  const regenerateToken = useMutation({
+    mutationFn: (botId: string) => adminApi.regenerateBotToken(botId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "bots"] }),
+  })
+
+  const addBotToChannel = useMutation({
+    mutationFn: ({ botId, channelId }: { botId: string; channelId: string }) => adminApi.addBotToChannel(botId, channelId),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "bots", variables.botId, "channels"] })
+    },
+  })
+
+  const removeBotFromChannel = useMutation({
+    mutationFn: ({ botId, channelId }: { botId: string; channelId: string }) => adminApi.removeBotFromChannel(botId, channelId),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "bots", variables.botId, "channels"] })
+    },
+  })
+
+  return {
+    bots: botsQuery.data ?? [],
+    availableChannels: availableChannelsQuery.data ?? [],
+    isLoading: botsQuery.isLoading || availableChannelsQuery.isLoading,
+    error: botsQuery.error || availableChannelsQuery.error,
+    createBot,
+    updateBot,
+    deleteBot,
+    regenerateToken,
+    addBotToChannel,
+    removeBotFromChannel,
+  }
+}
+
+export function useAdminBotChannels(botId?: string, enabled = true) {
+  return useQuery({
+    queryKey: ["admin", "bots", botId, "channels"],
+    queryFn: () => adminApi.listBotChannels(botId ?? ""),
+    enabled: Boolean(botId) && enabled,
+  })
+}

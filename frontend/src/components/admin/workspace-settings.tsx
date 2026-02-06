@@ -8,10 +8,15 @@ import { useAdminSettings } from "@/hooks/use-admin"
 export function WorkspaceSettings() {
   const { settings, isLoading, updateSettings } = useAdminSettings()
   const [workspaceName, setWorkspaceName] = useState(settings?.workspaceName ?? "")
+  const [siteUrl, setSiteUrl] = useState(settings?.siteUrl ?? "")
 
   useEffect(() => {
     setWorkspaceName(settings?.workspaceName ?? "")
   }, [settings?.workspaceName])
+
+  useEffect(() => {
+    setSiteUrl(settings?.siteUrl ?? "")
+  }, [settings?.siteUrl])
 
   if (isLoading) {
     return <div className="text-sm text-muted-foreground">Loading settings...</div>
@@ -32,6 +37,26 @@ export function WorkspaceSettings() {
           />
           <Button
             onClick={() => updateSettings.mutate({ workspaceName })}
+            disabled={updateSettings.isPending}
+          >
+            Save
+          </Button>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="site-url">Site URL</Label>
+        <div className="text-sm text-muted-foreground">
+          The public URL used to access this instance. Used for generating webhook URLs.
+        </div>
+        <div className="flex flex-col md:flex-row gap-2">
+          <Input
+            id="site-url"
+            value={siteUrl}
+            onChange={(event) => setSiteUrl(event.target.value)}
+            placeholder="https://workhub.example.com"
+          />
+          <Button
+            onClick={() => updateSettings.mutate({ siteUrl: siteUrl.trim().replace(/\/+$/, "") })}
             disabled={updateSettings.isPending}
           >
             Save

@@ -64,6 +64,37 @@ export const setupSchema = z.object({
 
 export type SetupInput = z.infer<typeof setupSchema>;
 
+// Bot validation schemas
+const botNameSchema = z.string().min(1, 'Bot name is required').max(100);
+const botAvatarUrlSchema = z.string().url('Invalid avatar URL').max(2000).optional().nullable();
+
+export const createBotSchema = z.object({
+  name: botNameSchema,
+  avatarUrl: botAvatarUrlSchema,
+});
+
+export type CreateBotInput = z.infer<typeof createBotSchema>;
+
+export const updateBotSchema = z.object({
+  name: botNameSchema.optional(),
+  avatarUrl: botAvatarUrlSchema,
+  isDisabled: z.boolean().optional(),
+});
+
+export type UpdateBotInput = z.infer<typeof updateBotSchema>;
+
+export const addBotToChannelSchema = z.object({
+  channelId: uuidSchema,
+});
+
+export type AddBotToChannelInput = z.infer<typeof addBotToChannelSchema>;
+
+export const webhookMessageSchema = z.object({
+  content: z.string().min(1, 'Content is required').max(5000),
+});
+
+export type WebhookMessageInput = z.infer<typeof webhookMessageSchema>;
+
 // Validate request body helper
 export function validateBody<T>(schema: z.ZodSchema<T>, body: unknown): { success: true; data: T } | { success: false; errors: z.ZodError } {
   const result = schema.safeParse(body);

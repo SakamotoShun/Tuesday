@@ -7,6 +7,9 @@ import type {
   AdminCreateUserResponse,
   AdminDeleteUserInput,
   AdminUserOwnerships,
+  Bot,
+  BotChannelMember,
+  Channel,
   User,
   Project,
   ProjectStatus,
@@ -93,4 +96,45 @@ export async function listNonTemplateProjects(): Promise<Project[]> {
 
 export async function toggleTemplate(projectId: string, isTemplate: boolean): Promise<Project> {
   return api.post<Project>(`/admin/templates/${projectId}`, { isTemplate })
+}
+
+// Bots
+export async function listBots(): Promise<Bot[]> {
+  return api.get<Bot[]>("/admin/bots")
+}
+
+export async function listBotAvailableChannels(): Promise<Channel[]> {
+  return api.get<Channel[]>("/admin/bots/channels")
+}
+
+export async function createBot(data: { name: string; avatarUrl?: string | null }): Promise<Bot> {
+  return api.post<Bot>("/admin/bots", data)
+}
+
+export async function getBot(botId: string): Promise<Bot> {
+  return api.get<Bot>(`/admin/bots/${botId}`)
+}
+
+export async function updateBot(botId: string, data: { name?: string; avatarUrl?: string | null; isDisabled?: boolean }): Promise<Bot> {
+  return api.patch<Bot>(`/admin/bots/${botId}`, data)
+}
+
+export async function deleteBot(botId: string): Promise<{ deleted: boolean }> {
+  return api.delete<{ deleted: boolean }>(`/admin/bots/${botId}`)
+}
+
+export async function regenerateBotToken(botId: string): Promise<Bot> {
+  return api.post<Bot>(`/admin/bots/${botId}/regenerate-token`, {})
+}
+
+export async function listBotChannels(botId: string): Promise<BotChannelMember[]> {
+  return api.get<BotChannelMember[]>(`/admin/bots/${botId}/channels`)
+}
+
+export async function addBotToChannel(botId: string, channelId: string): Promise<BotChannelMember> {
+  return api.post<BotChannelMember>(`/admin/bots/${botId}/channels`, { channelId })
+}
+
+export async function removeBotFromChannel(botId: string, channelId: string): Promise<{ removed: boolean }> {
+  return api.delete<{ removed: boolean }>(`/admin/bots/${botId}/channels/${channelId}`)
 }

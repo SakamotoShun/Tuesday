@@ -55,6 +55,7 @@ export interface MessageReactionView {
 
 export interface MessageWithUser extends Message {
   user: { id: string; name: string; email: string; avatarUrl: string | null };
+  bot?: { id: string; name: string; avatarUrl: string | null } | null;
   attachments?: FileAttachment[];
   reactions?: MessageReactionView[];
 }
@@ -824,7 +825,7 @@ export class ChatService {
     };
   }
 
-  private mapMessage(message: RepositoryMessage): MessageWithUser {
+  mapMessage(message: RepositoryMessage): MessageWithUser {
     const rawAttachments = message.attachments ?? [];
     const rawReactions = message.reactions ?? [];
 
