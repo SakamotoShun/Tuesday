@@ -62,7 +62,7 @@ export function ResizableSplit({
       className="grid min-h-0"
       style={{
         gridTemplateColumns,
-        height: "calc(100vh - 72px - 4rem)",
+        height: "100%",
       }}
     >
       <div className="min-w-0 min-h-0 overflow-y-auto">

@@ -1,4 +1,5 @@
 import { useState } from "react"
+import type { ReactNode } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -37,9 +38,10 @@ interface NewDocDialogProps {
   parentOptions: Doc[]
   onCreate: (data: CreateDocInput) => Promise<unknown>
   isSubmitting?: boolean
+  trigger?: ReactNode
 }
 
-export function NewDocDialog({ parentOptions, onCreate, isSubmitting }: NewDocDialogProps) {
+export function NewDocDialog({ parentOptions, onCreate, isSubmitting, trigger }: NewDocDialogProps) {
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -83,10 +85,12 @@ export function NewDocDialog({ parentOptions, onCreate, isSubmitting }: NewDocDi
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="gap-1">
-          <Plus className="h-4 w-4" />
-          New Doc
-        </Button>
+        {trigger ?? (
+          <Button className="gap-1">
+            <Plus className="h-4 w-4" />
+            New Doc
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>

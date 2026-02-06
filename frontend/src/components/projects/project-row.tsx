@@ -39,7 +39,7 @@ export function ProjectRow({ project, onEdit, onDelete }: ProjectRowProps) {
     <div
       onClick={() => navigate(`/projects/${project.id}`)}
       className={cn(
-        "flex items-center px-4 py-3.5 border-b border-border gap-4 hover:bg-muted/30 cursor-pointer rounded-lg transition-colors"
+        "flex items-center px-4 py-3.5 border-b border-border gap-4 hover:bg-muted cursor-pointer rounded-lg transition-colors"
       )}
     >
       <div className="flex-[2] min-w-0">

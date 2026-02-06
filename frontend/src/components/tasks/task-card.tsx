@@ -57,8 +57,8 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
               <div {...listeners} className="cursor-grab active:cursor-grabbing">
                 <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
               </div>
-              <div className="flex items-center gap-2 min-w-0">
-                <p className="text-sm font-medium leading-tight truncate text-left">
+              <div className="min-w-0 space-y-1">
+                <p className="text-sm font-medium leading-tight break-words text-left">
                   {task.title}
                 </p>
                 {task.dueDate && (

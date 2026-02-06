@@ -13,15 +13,15 @@ export function TasksDueSoon({ tasks }: TasksDueSoonProps) {
   return (
     <div className="space-y-3">
       {tasks.map((task) => (
-        <div key={task.id} className="flex items-center justify-between">
-          <div>
-            <div className="text-sm font-medium">{task.title}</div>
+        <div key={task.id} className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-sm font-medium break-words">{task.title}</div>
             <div className="text-xs text-muted-foreground">
               {task.project?.name ?? "Project"}
             </div>
           </div>
           {task.dueDate && (
-            <Badge variant="secondary">
+            <Badge variant="secondary" className="shrink-0">
               {new Date(task.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
             </Badge>
           )}

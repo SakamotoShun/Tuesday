@@ -10,6 +10,7 @@ import { BlockNoteEditor } from "@/components/docs/block-note-editor"
 import { DatabaseView } from "@/components/docs/database-view"
 import { PropertiesPanel } from "@/components/docs/properties-panel"
 import { DocToolbar } from "@/components/docs/doc-toolbar"
+import { DocSidebar } from "@/components/docs/doc-sidebar"
 import { ResizableSplit } from "@/components/layout/resizable-split"
 import { ChatView } from "@/components/chat/chat-view"
 import { useDocWithChildren, useDocs } from "@/hooks/use-docs"
@@ -144,19 +145,6 @@ export function DocPage() {
 
   const docContent = (
     <div className="space-y-4 p-1">
-      <Button asChild variant="ghost" className="gap-2 text-muted-foreground">
-        <Link
-          to={
-            isDatabaseRow && parentDatabase
-              ? `/projects/${projectId}/docs/${parentDatabase.id}`
-              : `/projects/${projectId}`
-          }
-        >
-          <ArrowLeft className="h-4 w-4" />
-          {isDatabaseRow && parentDatabase ? `Back to ${parentDatabase.title}` : "Back to Docs"}
-        </Link>
-      </Button>
-
       <DocToolbar
         projectId={projectId}
         title={doc.title}
@@ -242,17 +230,23 @@ export function DocPage() {
   )
 
   return (
-    <div className="flex flex-col flex-1 min-h-0">
-      <ResizableSplit
-        sidePanel={chatPanel}
-        sidePanelOpen={isChatOpen}
-        sidePanelWidth={chatPanelWidth}
-        onWidthChange={setChatPanelWidth}
-        minWidth={300}
-        maxWidth={700}
-      >
-        {docContent}
-      </ResizableSplit>
+    <div
+      className="flex min-h-0 border border-border rounded-lg overflow-hidden bg-background"
+      style={{ height: "calc(100vh - 72px - 4rem)" }}
+    >
+      <DocSidebar projectId={projectId} activeDocId={doc.id} />
+      <div className="flex-1 min-w-0">
+        <ResizableSplit
+          sidePanel={chatPanel}
+          sidePanelOpen={isChatOpen}
+          sidePanelWidth={chatPanelWidth}
+          onWidthChange={setChatPanelWidth}
+          minWidth={300}
+          maxWidth={700}
+        >
+          {docContent}
+        </ResizableSplit>
+      </div>
     </div>
   )
 }

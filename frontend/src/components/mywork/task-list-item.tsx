@@ -20,13 +20,13 @@ export function TaskListItem({ task, onSelect }: TaskListItemProps) {
       onClick={() => onSelect?.(task)}
     >
       <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="text-sm font-medium">{task.title}</div>
+        <div className="min-w-0">
+          <div className="text-sm font-medium break-words">{task.title}</div>
           <div className="text-xs text-muted-foreground">
             {task.project?.name ?? "Project"}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {task.status && (
             <Badge variant="outline" style={{ borderColor: task.status.color, color: task.status.color }}>
               {task.status.name}

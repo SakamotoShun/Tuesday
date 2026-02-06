@@ -19,7 +19,7 @@ export function RailItem({ icon: Icon, label, href }: RailItemProps) {
       className={cn(
         "w-[60px] h-[60px] rounded-xl flex flex-col items-center justify-center gap-1 text-muted-foreground text-[11px] font-medium transition-colors",
         isActive && "bg-primary-light text-primary",
-        !isActive && "hover:bg-muted/50"
+        !isActive && "hover:bg-muted"
       )}
     >
       <Icon className="h-5 w-5" />

@@ -28,6 +28,8 @@ interface DocTreeItemProps {
   doc: Doc
   projectId: string
   children: Doc[]
+  childrenByParent?: Map<string, Doc[]>
+  activeDocId?: string
   level?: number
   onRename: (docId: string, title: string) => Promise<unknown>
   onDelete: (docId: string) => Promise<unknown>
@@ -37,6 +39,8 @@ export function DocTreeItem({
   doc,
   projectId,
   children,
+  childrenByParent,
+  activeDocId,
   level = 0,
   onRename,
   onDelete,
@@ -47,6 +51,7 @@ export function DocTreeItem({
   const [draftTitle, setDraftTitle] = useState(doc.title)
   const [error, setError] = useState<string | null>(null)
   const hasChildren = children.length > 0
+  const leftPadding = 8 + level * 16
 
   useEffect(() => {
     if (children.length > 0 && !isExpanded) {
@@ -110,13 +115,25 @@ export function DocTreeItem({
   }
 
   return (
-    <div>
+    <div className="relative">
+      {level > 0 &&
+        Array.from({ length: level }).map((_, index) => (
+          <span
+            key={`${doc.id}-guide-${index}`}
+            className="pointer-events-none absolute top-0 bottom-0 w-px bg-border/70"
+            style={{ left: `${8 + index * 16 + 7}px` }}
+          />
+        ))}
       <div
         className={cn(
-          "group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-foreground hover:bg-muted/60",
-          isEditing ? "bg-muted/50" : "cursor-pointer"
+          "group relative flex items-center gap-1.5 rounded-md px-1.5 py-1 text-sm transition-colors",
+          isEditing
+            ? "bg-muted/50"
+            : doc.id === activeDocId
+              ? "cursor-pointer bg-accent text-accent-foreground"
+              : "cursor-pointer hover:bg-muted"
         )}
-        style={{ paddingLeft: `${12 + level * 18}px` }}
+        style={{ paddingLeft: `${leftPadding}px` }}
         role="button"
         tabIndex={0}
         onClick={handleNavigate}
@@ -125,35 +142,38 @@ export function DocTreeItem({
         {hasChildren ? (
           <button
             type="button"
-            className="flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground"
+            className="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm"
             onClick={(event) => {
               event.stopPropagation()
               setIsExpanded((value) => !value)
             }}
           >
             {isExpanded ? (
-              <ChevronDown className="h-4 w-4" />
+              <ChevronDown className="h-3.5 w-3.5" />
             ) : (
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-3.5 w-3.5" />
             )}
           </button>
         ) : (
-          <span className="h-5 w-5" />
+          <span className="h-4 w-4 shrink-0" />
         )}
 
-        <Icon className="h-4 w-4 text-muted-foreground" />
+        <Icon className="h-3.5 w-3.5 shrink-0" />
 
         {isEditing ? (
-          <div className="flex flex-1 items-center gap-2">
+          <div className="flex flex-1 items-center gap-2 min-w-0">
             <Input
               value={draftTitle}
               onChange={(event) => setDraftTitle(event.target.value)}
-              className="h-7"
+              className="h-7 text-sm"
               onClick={(event) => event.stopPropagation()}
+              onBlur={() => {
+                void handleRename()
+              }}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
                   event.preventDefault()
-                  handleRename()
+                  void handleRename()
                 }
                 if (event.key === "Escape") {
                   event.preventDefault()
@@ -164,31 +184,9 @@ export function DocTreeItem({
               }}
               autoFocus
             />
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={(event) => {
-                event.stopPropagation()
-                handleRename()
-              }}
-            >
-              Save
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={(event) => {
-                event.stopPropagation()
-                setIsEditing(false)
-                setDraftTitle(doc.title)
-                setError(null)
-              }}
-            >
-              Cancel
-            </Button>
           </div>
         ) : (
-          <span className="flex-1 truncate">{doc.title}</span>
+          <span className="flex-1 truncate leading-6 font-medium">{doc.title}</span>
         )}
 
         {!isEditing && (
@@ -197,10 +195,10 @@ export function DocTreeItem({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                className="h-6 w-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
                 onClick={(event) => event.stopPropagation()}
               >
-                <MoreHorizontal className="h-4 w-4" />
+                <MoreHorizontal className="h-3.5 w-3.5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
@@ -239,13 +237,15 @@ export function DocTreeItem({
         </div>
       )}
       {hasChildren && isExpanded && (
-        <div className="mt-1 space-y-1">
+        <div>
           {children.map((child) => (
             <DocTreeItem
               key={child.id}
               doc={child}
               projectId={projectId}
-              children={[]}
+              children={childrenByParent?.get(child.id) ?? []}
+              childrenByParent={childrenByParent}
+              activeDocId={activeDocId}
               level={level + 1}
               onRename={onRename}
               onDelete={onDelete}

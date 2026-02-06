@@ -4,11 +4,12 @@ import { DocTreeItem } from "@/components/docs/doc-tree-item"
 interface DocListProps {
   docs: Doc[]
   projectId: string
+  activeDocId?: string
   onRename: (docId: string, title: string) => Promise<unknown>
   onDelete: (docId: string) => Promise<unknown>
 }
 
-export function DocList({ docs, projectId, onRename, onDelete }: DocListProps) {
+export function DocList({ docs, projectId, activeDocId, onRename, onDelete }: DocListProps) {
   const childrenByParent = new Map<string, Doc[]>()
 
   docs.forEach((doc) => {
@@ -25,13 +26,15 @@ export function DocList({ docs, projectId, onRename, onDelete }: DocListProps) {
   const rootDocs = docs.filter((doc) => !doc.parentId || !docIds.has(doc.parentId))
 
   return (
-    <div className="space-y-1">
+    <div>
       {rootDocs.map((doc) => (
         <DocTreeItem
           key={doc.id}
           doc={doc}
           projectId={projectId}
           children={childrenByParent.get(doc.id) ?? []}
+          childrenByParent={childrenByParent}
+          activeDocId={activeDocId}
           onRename={onRename}
           onDelete={onDelete}
         />
