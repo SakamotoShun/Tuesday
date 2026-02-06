@@ -10,6 +10,19 @@ This guide covers deploying Tuesday using Docker.
 
 ## Quick Start
 
+### Option 1: Pull from Docker Hub (fastest)
+
+```bash
+docker run -d \
+  --name tuesday \
+  -p 8080:8080 \
+  -v tuesday_data:/app/data \
+  --restart unless-stopped \
+  sohshunhong/tuesday:latest
+```
+
+### Option 2: Build from source
+
 ```bash
 # Clone the repository
 git clone https://github.com/your-org/tuesday.git
@@ -25,7 +38,21 @@ docker compose logs -f
 
 Tuesday will be available at `http://localhost:8080`. On first visit you will see the setup wizard to create your admin account.
 
+## Docker Hub
+
+Pre-built images are available on Docker Hub:
+
+- `sohshunhong/tuesday:latest` — Latest release
+- `sohshunhong/tuesday:0.1.0` — Pinned version
+
+```bash
+# Pull a specific version
+docker pull sohshunhong/tuesday:0.1.0
+```
+
 ## Building the Image
+
+If you prefer to build locally:
 
 ```bash
 # Build locally
@@ -56,7 +83,7 @@ docker run -d \
   -p 8080:8080 \
   -v tuesday_data:/app/data \
   --restart unless-stopped \
-  tuesday:latest
+  sohshunhong/tuesday:latest
 ```
 
 ### Environment Variables

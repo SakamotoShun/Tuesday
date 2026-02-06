@@ -7,10 +7,18 @@ Tuesday is a self-hosted project management tool (Bun + React + PostgreSQL) desi
 ## Quick Start
 
 ```bash
-# Build and run with Docker
-docker compose up -d
+# Pull and run from Docker Hub
+docker run -d --name tuesday -p 8080:8080 -v tuesday_data:/app/data sohshunhong/tuesday:latest
 
 # Visit http://localhost:8080 and complete the setup wizard
+```
+
+Or build from source:
+
+```bash
+git clone https://github.com/your-org/tuesday.git
+cd tuesday
+docker compose up -d
 ```
 
 That's it. Tuesday runs as a single Docker container with an embedded PostgreSQL database. No external dependencies required.
@@ -48,7 +56,18 @@ That's it. Tuesday runs as a single Docker container with an embedded PostgreSQL
 
 ## Deployment
 
-### Docker (recommended)
+### Docker Hub (easiest)
+
+```bash
+docker run -d \
+  --name tuesday \
+  -p 8080:8080 \
+  -v tuesday_data:/app/data \
+  --restart unless-stopped \
+  sohshunhong/tuesday:latest
+```
+
+### Build from Source
 
 ```bash
 # Clone the repository

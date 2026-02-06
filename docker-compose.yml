@@ -1,6 +1,6 @@
 services:
   tuesday:
-    image: tuesday:latest
+    image: sohshunhong/tuesday:latest
     build: .
     container_name: tuesday
     ports:
