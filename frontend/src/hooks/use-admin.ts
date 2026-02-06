@@ -10,6 +10,38 @@ import type {
   AdminUserOwnerships,
 } from "@/api/types"
 
+export function useAdminTemplates() {
+  const queryClient = useQueryClient()
+
+  const templatesQuery = useQuery({
+    queryKey: ["admin", "templates"],
+    queryFn: adminApi.listTemplates,
+  })
+
+  const projectsQuery = useQuery({
+    queryKey: ["admin", "templates", "projects"],
+    queryFn: adminApi.listNonTemplateProjects,
+  })
+
+  const toggleTemplate = useMutation({
+    mutationFn: ({ projectId, isTemplate }: { projectId: string; isTemplate: boolean }) =>
+      adminApi.toggleTemplate(projectId, isTemplate),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "templates"] })
+      queryClient.invalidateQueries({ queryKey: ["projects"] })
+      queryClient.invalidateQueries({ queryKey: ["project-templates"] })
+    },
+  })
+
+  return {
+    templates: templatesQuery.data ?? [],
+    projects: projectsQuery.data ?? [],
+    isLoading: templatesQuery.isLoading || projectsQuery.isLoading,
+    error: templatesQuery.error || projectsQuery.error,
+    toggleTemplate,
+  }
+}
+
 export function useAdminSettings() {
   const queryClient = useQueryClient()
   const settingsQuery = useQuery({

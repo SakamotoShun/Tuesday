@@ -115,6 +115,7 @@ export const projects = pgTable('projects', {
   type: varchar('type', { length: 50 }),
   startDate: date('start_date'),
   targetEndDate: date('target_end_date'),
+  isTemplate: boolean('is_template').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

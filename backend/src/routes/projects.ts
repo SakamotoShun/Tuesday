@@ -17,6 +17,18 @@ const projects = new Hono();
 // All project routes require authentication
 projects.use('*', auth);
 
+// GET /api/v1/projects/templates - List available project templates (for template picker)
+// NOTE: This must be defined BEFORE the /:id route to avoid matching "templates" as an ID
+projects.get('/templates', async (c) => {
+  try {
+    const templates = await projectService.getTemplates();
+    return success(c, templates);
+  } catch (error) {
+    console.error('Error fetching templates:', error);
+    return errors.internal(c, 'Failed to fetch templates');
+  }
+});
+
 // GET /api/v1/projects - List user's projects
 projects.get('/', async (c) => {
   try {

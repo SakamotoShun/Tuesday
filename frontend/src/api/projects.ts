@@ -1,8 +1,12 @@
 import { api } from "./client"
-import type { Project, ProjectMember, CreateProjectInput, UpdateProjectInput, ProjectStatus, Team } from "./types"
+import type { Project, ProjectMember, CreateProjectInput, UpdateProjectInput, ProjectStatus, ProjectTemplate, Team } from "./types"
 
 export async function listStatuses(): Promise<ProjectStatus[]> {
   return api.get<ProjectStatus[]>("/statuses/project")
+}
+
+export async function listTemplates(): Promise<ProjectTemplate[]> {
+  return api.get<ProjectTemplate[]>("/projects/templates")
 }
 
 export async function list(): Promise<Project[]> {

@@ -22,11 +22,19 @@ export interface Project {
   type: string | null
   startDate: string | null
   targetEndDate: string | null
+  isTemplate: boolean
   createdAt: string
   updatedAt: string
   status?: ProjectStatus
   owner?: User
   members?: ProjectMember[]
+}
+
+export interface ProjectTemplate extends Project {
+  docCount: number
+  taskCount: number
+  channelCount: number
+  whiteboardCount: number
 }
 
 export interface ProjectStatus {
@@ -118,6 +126,7 @@ export interface CreateProjectInput {
   type?: string
   startDate?: string
   targetEndDate?: string
+  templateId?: string
 }
 
 export interface UpdateProjectInput {

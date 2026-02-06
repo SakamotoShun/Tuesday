@@ -3,6 +3,7 @@ import { WorkspaceSettings } from "@/components/admin/workspace-settings"
 import { UserManagement } from "@/components/admin/user-management"
 import { StatusManager } from "@/components/admin/status-manager"
 import { TeamManagement } from "@/components/admin/team-management"
+import { TemplateManagement } from "@/components/admin/template-management"
 
 export function AdminPage() {
   return (
@@ -33,6 +34,15 @@ export function AdminPage() {
         </CardHeader>
         <CardContent>
           <TeamManagement />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Project Templates</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <TemplateManagement />
         </CardContent>
       </Card>
 

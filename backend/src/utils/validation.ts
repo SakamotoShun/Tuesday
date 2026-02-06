@@ -89,9 +89,16 @@ export const createProjectSchema = z.object({
   type: z.string().max(50).optional(),
   startDate: z.string().optional(),
   targetEndDate: z.string().optional(),
+  templateId: uuidSchema.optional(),
 });
 
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
+
+export const toggleTemplateSchema = z.object({
+  isTemplate: z.boolean(),
+});
+
+export type ToggleTemplateInput = z.infer<typeof toggleTemplateSchema>;
 
 export const updateProjectSchema = z.object({
   name: z.string().min(1, 'Project name cannot be empty').max(255).optional(),

@@ -25,11 +25,13 @@ import {
   createStatusSchema, 
   updateStatusSchema,
   reorderStatusSchema,
+  toggleTemplateSchema,
   emailSchema,
   nameSchema,
   passwordSchema,
   uuidSchema,
 } from '../utils/validation';
+import { projectService } from '../services/project';
 import { z } from 'zod';
 import { hashPassword } from '../utils/password';
 
@@ -663,6 +665,54 @@ admin.post('/statuses/task/reorder', async (c) => {
   } catch (error) {
     console.error('Error reordering task statuses:', error);
     return errors.internal(c, 'Failed to reorder statuses');
+  }
+});
+
+// ========== PROJECT TEMPLATES ==========
+
+// GET /api/v1/admin/templates - List all project templates with content counts
+admin.get('/templates', async (c) => {
+  try {
+    const templates = await projectService.getTemplates();
+    return success(c, templates);
+  } catch (error) {
+    console.error('Error fetching templates:', error);
+    return errors.internal(c, 'Failed to fetch templates');
+  }
+});
+
+// GET /api/v1/admin/templates/projects - List all non-template projects (for template picker in admin)
+admin.get('/templates/projects', async (c) => {
+  try {
+    const { projectRepository } = await import('../repositories');
+    const allProjects = await projectRepository.findAll();
+    return success(c, allProjects);
+  } catch (error) {
+    console.error('Error fetching projects for templates:', error);
+    return errors.internal(c, 'Failed to fetch projects');
+  }
+});
+
+// POST /api/v1/admin/templates/:id - Toggle project template status
+admin.post('/templates/:id', async (c) => {
+  try {
+    const user = c.get('user');
+    const projectId = c.req.param('id');
+    const body = await c.req.json();
+
+    const validation = validateBody(toggleTemplateSchema, body);
+    if (!validation.success) {
+      return errors.validation(c, formatValidationErrors(validation.errors));
+    }
+
+    const project = await projectService.toggleTemplate(projectId, validation.data.isTemplate, user);
+    return success(c, project);
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error toggling template:', error);
+    return errors.internal(c, 'Failed to update template status');
   }
 });
 

@@ -22,12 +22,15 @@ export class ProjectRepository {
 
   async findByUserId(userId: string): Promise<ProjectWithRelations[]> {
     return db.query.projects.findMany({
-      where: (projects, { exists }) => exists(
-        db.select().from(projectMembers)
-          .where(and(
-            eq(projectMembers.projectId, projects.id),
-            eq(projectMembers.userId, userId)
-          ))
+      where: (projects, { exists, and: andOp, eq: eqOp }) => andOp(
+        eqOp(projects.isTemplate, false),
+        exists(
+          db.select().from(projectMembers)
+            .where(and(
+              eq(projectMembers.projectId, projects.id),
+              eq(projectMembers.userId, userId)
+            ))
+        )
       ),
       with: {
         status: true,
@@ -39,12 +42,43 @@ export class ProjectRepository {
 
   async findAll(): Promise<ProjectWithRelations[]> {
     return db.query.projects.findMany({
+      where: eq(projects.isTemplate, false),
       with: {
         status: true,
         owner: true,
       },
       orderBy: [desc(projects.updatedAt)],
     });
+  }
+
+  async findAllIncludingTemplates(): Promise<ProjectWithRelations[]> {
+    return db.query.projects.findMany({
+      with: {
+        status: true,
+        owner: true,
+      },
+      orderBy: [desc(projects.updatedAt)],
+    });
+  }
+
+  async findTemplates(): Promise<ProjectWithRelations[]> {
+    return db.query.projects.findMany({
+      where: eq(projects.isTemplate, true),
+      with: {
+        status: true,
+        owner: true,
+      },
+      orderBy: [desc(projects.updatedAt)],
+    });
+  }
+
+  async setTemplate(id: string, isTemplate: boolean): Promise<Project | null> {
+    const [project] = await db
+      .update(projects)
+      .set({ isTemplate, updatedAt: new Date() })
+      .where(eq(projects.id, id))
+      .returning();
+    return project || null;
   }
 
   async create(data: NewProject): Promise<Project> {

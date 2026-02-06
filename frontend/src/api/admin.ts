@@ -8,7 +8,9 @@ import type {
   AdminDeleteUserInput,
   AdminUserOwnerships,
   User,
+  Project,
   ProjectStatus,
+  ProjectTemplate,
   TaskStatus,
 } from "./types"
 
@@ -78,4 +80,17 @@ export async function deleteTaskStatus(id: string): Promise<{ deleted: boolean }
 
 export async function reorderTaskStatuses(ids: string[]): Promise<{ reordered: boolean }> {
   return api.post<{ reordered: boolean }>("/admin/statuses/task/reorder", { ids })
+}
+
+// Templates
+export async function listTemplates(): Promise<ProjectTemplate[]> {
+  return api.get<ProjectTemplate[]>("/admin/templates")
+}
+
+export async function listNonTemplateProjects(): Promise<Project[]> {
+  return api.get<Project[]>("/admin/templates/projects")
+}
+
+export async function toggleTemplate(projectId: string, isTemplate: boolean): Promise<Project> {
+  return api.post<Project>(`/admin/templates/${projectId}`, { isTemplate })
 }

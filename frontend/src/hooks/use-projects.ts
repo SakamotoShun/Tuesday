@@ -10,6 +10,13 @@ export function useProjectStatuses() {
   })
 }
 
+export function useProjectTemplates() {
+  return useQuery({
+    queryKey: ["project-templates"],
+    queryFn: projectsApi.listTemplates,
+  })
+}
+
 export function useProjects() {
   const queryClient = useQueryClient()
 
