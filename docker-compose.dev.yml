@@ -1,0 +1,26 @@
+# Development compose - provides PostgreSQL for local development.
+# Usage:
+#   docker compose -f docker-compose.dev.yml up -d
+#   cd backend && bun run dev
+#   cd frontend && bun run dev
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: tuesday-dev-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tuesday
+      POSTGRES_PASSWORD: tuesday
+      POSTGRES_DB: tuesday
+    ports:
+      - "5432:5432"
+    volumes:
+      - dev_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tuesday -d tuesday"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  dev_postgres_data:

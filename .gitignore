@@ -4,11 +4,13 @@ node_modules/
 # Build output
 dist/
 *.exe
+tuesday
 
 # Environment files
 .env
 .env.local
 .env.*.local
+.env.production
 
 # Logs
 logs/
@@ -38,3 +40,7 @@ coverage/
 
 # Drizzle
 .drizzle/
+
+# Backups
+backups/
+*.sql.gz

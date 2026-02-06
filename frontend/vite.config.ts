@@ -13,6 +13,32 @@ export default defineConfig({
       ),
     },
   },
+  build: {
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ["react", "react-dom", "react-router-dom"],
+          query: ["@tanstack/react-query"],
+          excalidraw: ["@excalidraw/excalidraw"],
+          blocknote: [
+            "@blocknote/core",
+            "@blocknote/react",
+            "@blocknote/shadcn",
+          ],
+          calendar: [
+            "@fullcalendar/core",
+            "@fullcalendar/daygrid",
+            "@fullcalendar/timegrid",
+            "@fullcalendar/interaction",
+            "@fullcalendar/react",
+          ],
+          editor: ["yjs"],
+          dnd: ["@dnd-kit/core", "@dnd-kit/sortable", "@dnd-kit/utilities"],
+        },
+      },
+    },
+  },
   server: {
     port: 3000,
     host: true,

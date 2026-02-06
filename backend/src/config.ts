@@ -13,6 +13,7 @@ const configSchema = z.object({
   uploadAllowedTypes: z.array(z.string().min(1)),
   uploadPendingTtlMinutes: z.number().int().min(1).max(1440),
   deletedMessageFileRetentionDays: z.number().int().min(1).max(365),
+  staticDir: z.string().optional(),
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -31,6 +32,7 @@ function loadConfig(): Config {
     uploadAllowedTypes: (process.env.UPLOAD_ALLOWED_TYPES || 'image/*,application/pdf,text/plain,text/markdown').split(',').map((entry) => entry.trim()).filter(Boolean),
     uploadPendingTtlMinutes: parseInt(process.env.UPLOAD_PENDING_TTL_MINUTES || '30', 10),
     deletedMessageFileRetentionDays: parseInt(process.env.DELETED_MESSAGE_FILE_RETENTION_DAYS || '30', 10),
+    staticDir: process.env.STATIC_DIR || undefined,
   };
 
   const result = configSchema.safeParse(config);

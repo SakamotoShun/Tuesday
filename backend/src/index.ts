@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { Hono } from 'hono';
 import { config } from './config';
 import { routes } from './routes';
-import { recovery, logging, cors, securityHeaders } from './middleware';
+import { recovery, logging, cors, securityHeaders, serveStatic } from './middleware';
 import { websocket } from './websocket';
 
 const app = new Hono();
@@ -15,6 +15,9 @@ app.use('*', securityHeaders);
 
 // Mount routes
 app.route('/', routes);
+
+// Serve frontend static files and SPA fallback (production only)
+app.use('*', serveStatic);
 
 // 404 handler
 app.notFound((c) => {

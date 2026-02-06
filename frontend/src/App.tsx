@@ -1,23 +1,37 @@
+import { lazy, Suspense } from "react"
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { QueryProvider } from "@/providers/query-provider"
 import { ProtectedRoute } from "@/components/auth/protected-route"
 import { AppLayout } from "@/components/layout/app-layout"
 import { useSetup } from "@/hooks/use-setup"
+import { LoadingSpinner } from "@/components/common/loading-spinner"
 import { SetupPage } from "@/pages/setup"
 import { LoginPage } from "@/pages/login"
 import { RegisterPage } from "@/pages/register"
 import { HomePage } from "@/pages/home"
 import { ProjectsPage } from "@/pages/projects"
 import { ProjectDetailPage } from "@/pages/project-detail"
-import { DocPage } from "@/pages/doc-page"
 import { NotFoundPage } from "@/pages/not-found"
 import { AdminPage } from "@/pages/admin"
-import { MyCalendarPage } from "@/pages/my-calendar"
-import { WhiteboardEditorPage } from "@/pages/whiteboard-editor"
 import { MyWorkPage } from "@/pages/my-work"
-import { ChatPage } from "@/pages/chat"
 import { NotificationsPage } from "@/pages/notifications"
 import { ProfilePage } from "@/pages/profile"
+
+// Lazy-loaded pages with heavy dependencies
+const DocPage = lazy(() =>
+  import("@/pages/doc-page").then((m) => ({ default: m.DocPage }))
+)
+const WhiteboardEditorPage = lazy(() =>
+  import("@/pages/whiteboard-editor").then((m) => ({
+    default: m.WhiteboardEditorPage,
+  }))
+)
+const MyCalendarPage = lazy(() =>
+  import("@/pages/my-calendar").then((m) => ({ default: m.MyCalendarPage }))
+)
+const ChatPage = lazy(() =>
+  import("@/pages/chat").then((m) => ({ default: m.ChatPage }))
+)
 
 function AppRoutes() {
   const { isInitialized, isLoading } = useSetup()
@@ -57,7 +71,15 @@ function AppRoutes() {
         <Route
           element={
             <ProtectedRoute>
-              <AppLayout />
+              <Suspense
+                fallback={
+                  <div className="min-h-screen bg-background flex items-center justify-center">
+                    <LoadingSpinner />
+                  </div>
+                }
+              >
+                <AppLayout />
+              </Suspense>
             </ProtectedRoute>
           }
         >
