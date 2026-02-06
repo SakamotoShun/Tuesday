@@ -9,7 +9,7 @@ Run your team's work hub without per-seat SaaS pricing.
 [![Docker Hub](https://img.shields.io/docker/pulls/sohshunhong/tuesday?style=flat-square&logo=docker&label=Docker%20Hub)](https://hub.docker.com/r/sohshunhong/tuesday)
 [![Docker Image Size](https://img.shields.io/docker/image-size/sohshunhong/tuesday/latest?style=flat-square&logo=docker&label=Image%20Size)](https://hub.docker.com/r/sohshunhong/tuesday)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.1.0-green?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.2.0-green?style=flat-square)](CHANGELOG.md)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20Tuesday-ff5e5b?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/sakamotoshun)
 
 <br />

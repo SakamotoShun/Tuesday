@@ -43,11 +43,11 @@ Tuesday will be available at `http://localhost:8080`. On first visit you will se
 Pre-built images are available on Docker Hub:
 
 - `sohshunhong/tuesday:latest` — Latest release
-- `sohshunhong/tuesday:1.1.0` — Pinned version
+- `sohshunhong/tuesday:1.2.0` — Pinned version
 
 ```bash
 # Pull a specific version
-docker pull sohshunhong/tuesday:1.1.0
+docker pull sohshunhong/tuesday:1.2.0
 ```
 
 ## Building the Image
