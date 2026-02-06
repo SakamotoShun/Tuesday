@@ -1,3 +1,4 @@
+import type { ReactNode } from "react"
 import "@/test/setup"
 import { describe, it, expect, mock } from "bun:test"
 import { Window } from "happy-dom"
@@ -15,16 +16,33 @@ mock.module("@blocknote/react", () => ({
   useCreateBlockNote: () => ({
     document: [{ id: "block-1", type: "paragraph", props: {}, content: [] }],
   }),
+  SideMenuController: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  SideMenu: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  DragHandleMenu: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  RemoveBlockItem: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  BlockColorsItem: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  useBlockNoteEditor: () => ({}),
+  useComponentsContext: () => ({
+    Generic: {
+      Menu: {
+        Item: ({ children }: { children?: ReactNode }) => <>{children}</>,
+      },
+    },
+  }),
+  useExtensionState: () => undefined,
 }))
 
 mock.module("@blocknote/shadcn", () => ({
-  BlockNoteView: ({ onChange }: { onChange?: () => void }) => {
+  BlockNoteView: ({ onChange, children }: { onChange?: () => void; children?: ReactNode }) => {
     onChange?.()
-    return <div data-testid="blocknote-view" />
+    return <div data-testid="blocknote-view">{children}</div>
   },
 }))
 
 mock.module("@blocknote/shadcn/style.css", () => ({}))
+mock.module("@blocknote/core/extensions", () => ({
+  SideMenuExtension: {},
+}))
 
 mock.module("@blocknote/code-block", () => ({
   codeBlockOptions: {},

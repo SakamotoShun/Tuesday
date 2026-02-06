@@ -9,46 +9,6 @@ interface MarkdownContentProps {
   content: string
 }
 
-interface CodeBlockProps {
-  code: string
-  language: string
-  isDark: boolean
-}
-
-function CodeBlock({ code, language, isDark }: CodeBlockProps) {
-  const [copied, setCopied] = useState(false)
-
-  const handleCopy = async () => {
-    if (!navigator.clipboard) {
-      return
-    }
-
-    await navigator.clipboard.writeText(code)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-  }
-
-  return (
-    <div className="group relative my-1">
-      <button
-        type="button"
-        onClick={() => void handleCopy()}
-        className="absolute right-2 top-2 rounded border border-border/60 bg-background/90 px-2 py-1 text-[11px] font-medium text-foreground opacity-0 transition-opacity hover:bg-background group-hover:opacity-100"
-      >
-        {copied ? "Copied" : "Copy"}
-      </button>
-      <SyntaxHighlighter
-        language={language}
-        style={isDark ? oneDark : oneLight}
-        customStyle={{ margin: 0, borderRadius: "0.375rem", fontSize: "13px" }}
-        codeTagProps={{ className: "font-mono" }}
-      >
-        {code}
-      </SyntaxHighlighter>
-    </div>
-  )
-}
-
 const mentionRegex = /(@[a-zA-Z0-9._-]+)/g
 
 const highlightMentions = (text: string) => {
@@ -122,7 +82,16 @@ const getMarkdownComponents = (isDark: boolean): Components => ({
     const language = languageMatch?.[1] ?? "text"
     const code = String(children ?? "").replace(/\n$/, "")
 
-    return <CodeBlock code={code} language={language} isDark={isDark} />
+    return (
+      <SyntaxHighlighter
+        language={language}
+        style={isDark ? oneDark : oneLight}
+        customStyle={{ margin: 0, borderRadius: "0.375rem", fontSize: "13px" }}
+        codeTagProps={{ className: "font-mono" }}
+      >
+        {code}
+      </SyntaxHighlighter>
+    )
   },
   pre: ({ children }) => <>{children}</>,
   hr: () => <hr className="border-t border-border my-2" />,
