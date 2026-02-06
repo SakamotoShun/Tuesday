@@ -1,62 +1,134 @@
+<div align="center">
+
 # Tuesday
 
-> A free, self-hosted alternative to Basecamp, Mattermost, Notion, and Monday.
+**A free, self-hosted alternative to Basecamp, Mattermost, Notion, and Monday.**
 
-Tuesday is a self-hosted project management tool (Bun + React + PostgreSQL) designed for simplicity and ease of deployment. Run your team's work hub without per-seat SaaS pricing.
+Run your team's work hub without per-seat SaaS pricing.
+
+[![Docker Hub](https://img.shields.io/docker/pulls/sohshunhong/tuesday?style=flat-square&logo=docker&label=Docker%20Hub)](https://hub.docker.com/r/sohshunhong/tuesday)
+[![Docker Image Size](https://img.shields.io/docker/image-size/sohshunhong/tuesday/latest?style=flat-square&logo=docker&label=Image%20Size)](https://hub.docker.com/r/sohshunhong/tuesday)
+[![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.1.0-green?style=flat-square)](CHANGELOG.md)
+
+<br />
+
+<img src="wireframes/screenshots/04-project-tasks.png" alt="Tuesday - Kanban Board" width="800" />
+
+</div>
+
+<br />
 
 ## Quick Start
 
 ```bash
-# Pull and run from Docker Hub
 docker run -d --name tuesday -p 8080:8080 -v tuesday_data:/app/data sohshunhong/tuesday:latest
-
-# Visit http://localhost:8080 and complete the setup wizard
 ```
 
-Or build from source:
+Visit **http://localhost:8080** and complete the setup wizard. That's it.
 
-```bash
-git clone https://github.com/your-org/tuesday.git
-cd tuesday
-docker compose up -d
-```
+Single Docker container. Embedded PostgreSQL. No external dependencies.
 
-That's it. Tuesday runs as a single Docker container with an embedded PostgreSQL database. No external dependencies required.
+---
 
 ## Features
 
-- **First-Time Setup Wizard** - No config files needed, configure via UI
-- **Authentication** - Secure session-based auth with bcrypt password hashing
-- **Projects** - Create and manage projects with members and statuses
-- **Docs** - BlockNote editor + database-style docs with real-time collaboration
-- **Tasks** - Kanban boards with drag-and-drop + My Work aggregation
-- **Meetings** - Project calendar + My Calendar
-- **Whiteboards** - Excalidraw editor with real-time collaboration + exports
-- **Chat** - Channels, DMs, mentions, reactions, typing indicators
-- **Notifications** - Real-time notification inbox
-- **Admin** - Users, statuses, workspace settings, teams
-- **Profile** - Avatar uploads + password change
-- **File Uploads** - Attachments with lifecycle management
-- **Dark Mode** - Full light/dark/system support
+<table>
+<tr>
+<td width="50%" align="center">
+<br />
+<strong>Personal Dashboard</strong>
+<br /><br />
+<img src="wireframes/screenshots/02-home.png" alt="Dashboard" width="100%" />
+<br />
+Notifications, tasks, and upcoming meetings at a glance.
+<br /><br />
+</td>
+<td width="50%" align="center">
+<br />
+<strong>Kanban Tasks</strong>
+<br /><br />
+<img src="wireframes/screenshots/04-project-tasks.png" alt="Tasks" width="100%" />
+<br />
+Drag-and-drop boards with custom statuses and assignees.
+<br /><br />
+</td>
+</tr>
+<tr>
+<td width="50%" align="center">
+<br />
+<strong>Document Editor</strong>
+<br /><br />
+<img src="wireframes/screenshots/07-docs-page.png" alt="Docs" width="100%" />
+<br />
+Rich block editor with database-style properties and templates.
+<br /><br />
+</td>
+<td width="50%" align="center">
+<br />
+<strong>Team Chat</strong>
+<br /><br />
+<img src="wireframes/screenshots/12-project-chat.png" alt="Chat" width="100%" />
+<br />
+Channels, DMs, mentions, reactions, and typing indicators.
+<br /><br />
+</td>
+</tr>
+<tr>
+<td width="50%" align="center">
+<br />
+<strong>Whiteboards</strong>
+<br /><br />
+<img src="wireframes/screenshots/09-whiteboard-editor.png" alt="Whiteboard" width="100%" />
+<br />
+Excalidraw-powered collaborative drawing with export support.
+<br /><br />
+</td>
+<td width="50%" align="center">
+<br />
+<strong>Calendar & Meetings</strong>
+<br /><br />
+<img src="wireframes/screenshots/11-project-schedule.png" alt="Calendar" width="100%" />
+<br />
+Project schedules and personal calendar with month/week views.
+<br /><br />
+</td>
+</tr>
+</table>
 
-## Technology Stack
+### Everything Included
 
-| Layer | Technology |
-|-------|------------|
-| Runtime | Bun 1.x |
-| Backend | Hono |
-| Database | PostgreSQL 16 (embedded) |
-| ORM | Drizzle ORM |
-| Frontend | React 19 + TypeScript |
-| UI | shadcn/ui (Nova/Stone theme) |
-| State | TanStack Query + Zustand |
-| Editor | BlockNote |
-| Whiteboard | Excalidraw |
-| Calendar | FullCalendar |
+- **Setup Wizard** - No config files needed, configure via browser
+- **Authentication** - Secure session-based auth with bcrypt
+- **Projects** - Organize work with members, roles, and custom statuses
+- **Docs** - BlockNote editor with database views and real-time collaboration
+- **Tasks** - Kanban boards with drag-and-drop, filters, and My Work view
+- **Meetings** - Project and personal calendars
+- **Whiteboards** - Excalidraw editor with real-time collaboration
+- **Chat** - Channels, DMs, mentions, reactions, file attachments
+- **Notifications** - Real-time inbox with WebSocket delivery
+- **Teams** - Group users with cascading project access
+- **Admin Panel** - User management, workspace settings, status configuration
+- **File Uploads** - Attachments with automatic lifecycle management
+- **Dark Mode** - Light, dark, and system theme support
+
+---
+
+## Why Tuesday?
+
+| | Tuesday | SaaS Alternatives |
+|---|---|---|
+| **Cost** | Free, forever | $8-25/user/month |
+| **Data** | Your server, your data | Vendor cloud |
+| **Deployment** | Single Docker container | N/A |
+| **Features** | Projects, docs, tasks, chat, whiteboards, calendar | Often split across multiple tools |
+| **Setup** | 1 command, 30 seconds | Account creation, team setup, billing |
+
+---
 
 ## Deployment
 
-### Docker Hub (easiest)
+### Docker Hub (recommended)
 
 ```bash
 docker run -d \
@@ -70,35 +142,12 @@ docker run -d \
 ### Build from Source
 
 ```bash
-# Clone the repository
 git clone https://github.com/your-org/tuesday.git
 cd tuesday
-
-# Copy and edit environment variables (optional - defaults work out of the box)
-cp .env.example .env
-
-# Build and start
 docker compose up -d
 ```
 
-Visit `http://localhost:8080` to complete the setup wizard and create your admin account.
-
-### Configuration
-
-All settings are optional with sensible defaults. Key options:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `TUESDAY_PORT` | `8080` | Host port mapping |
-| `TUESDAY_BASE_URL` | `http://localhost:8080` | Public URL |
-| `SESSION_SECRET` | Auto-generated | Session signing key |
-| `UPLOAD_MAX_SIZE_MB` | `10` | Max upload size |
-
-See [docs/configuration.md](docs/configuration.md) for the full reference.
-
-### Reverse Proxy
-
-For HTTPS, put Tuesday behind a reverse proxy:
+### Reverse Proxy (HTTPS)
 
 **Caddy** (automatic HTTPS):
 ```
@@ -107,44 +156,45 @@ tuesday.example.com {
 }
 ```
 
-**Nginx**: See [docs/deployment.md](docs/deployment.md) for full Nginx configuration with WebSocket support.
+See [docs/deployment.md](docs/deployment.md) for Nginx configuration with WebSocket support.
 
-### Backup & Restore
-
-```bash
-# Backup
-./scripts/backup.sh
-
-# Restore
-./scripts/restore.sh backups/tuesday_backup_20260101_120000.sql.gz
-```
-
-See [docs/backup.md](docs/backup.md) for detailed procedures.
-
-### Upgrading
-
-```bash
-git pull origin master
-docker compose build
-docker compose up -d
-```
-
-Migrations run automatically on startup. See [docs/upgrade.md](docs/upgrade.md) for details.
+---
 
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
-| [docs/deployment.md](docs/deployment.md) | Docker deployment, reverse proxy setup |
-| [docs/configuration.md](docs/configuration.md) | All environment variables |
-| [docs/backup.md](docs/backup.md) | Backup and restore procedures |
-| [docs/upgrade.md](docs/upgrade.md) | Version upgrade guide |
+| [Deployment Guide](docs/deployment.md) | Docker deployment, reverse proxy setup |
+| [Configuration](docs/configuration.md) | All environment variables |
+| [Backup & Restore](docs/backup.md) | Backup and restore procedures |
+| [Upgrade Guide](docs/upgrade.md) | Version upgrades and rollback |
+| [Changelog](CHANGELOG.md) | Release history |
 
-## Development Setup
+---
+
+## Technology Stack
+
+| Layer | Technology |
+|-------|------------|
+| Runtime | [Bun](https://bun.sh) |
+| Backend | [Hono](https://hono.dev) |
+| Database | PostgreSQL 16 (embedded) |
+| ORM | [Drizzle](https://orm.drizzle.team) |
+| Frontend | React 19 + TypeScript |
+| UI | [shadcn/ui](https://ui.shadcn.com) |
+| State | TanStack Query + Zustand |
+| Editor | [BlockNote](https://www.blocknotejs.org) |
+| Whiteboard | [Excalidraw](https://excalidraw.com) |
+| Calendar | [FullCalendar](https://fullcalendar.io) |
+
+---
+
+<details>
+<summary><strong>Development Setup</strong></summary>
 
 ### Prerequisites
 
-- Bun 1.x (install from https://bun.sh)
+- [Bun 1.x](https://bun.sh)
 - Docker (for PostgreSQL)
 
 ### Backend
@@ -170,7 +220,7 @@ bun install
 bun run dev
 ```
 
-Frontend runs at `http://localhost:3000` and proxies API calls to `http://localhost:8080`.
+Frontend runs at `http://localhost:3000` and proxies API calls to the backend.
 
 ### First-Time Setup
 
@@ -178,7 +228,124 @@ Frontend runs at `http://localhost:3000` and proxies API calls to `http://localh
 2. Complete the setup wizard to create the admin account
 3. Login and start exploring
 
-## Project Structure
+### Common Commands
+
+```bash
+# Backend
+cd backend
+bun test                    # Run tests
+bun test --coverage         # Tests with coverage
+bun run typecheck           # Type check
+bun run db:migrate          # Run migrations
+bun run db:studio           # Open Drizzle Studio
+
+# Frontend
+cd frontend
+bun test                    # Run tests
+bun run typecheck           # Type check
+bun run build               # Production build
+
+# Docker
+docker compose up -d        # Start
+docker compose down         # Stop
+docker compose logs -f      # View logs
+docker compose build        # Rebuild image
+```
+
+</details>
+
+<details>
+<summary><strong>Configuration</strong></summary>
+
+All settings are optional with sensible defaults.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TUESDAY_PORT` | `8080` | Host port mapping |
+| `TUESDAY_BASE_URL` | `http://localhost:8080` | Public URL |
+| `SESSION_SECRET` | Auto-generated | Session signing key (min 32 chars) |
+| `SESSION_DURATION_HOURS` | `24` | Session expiry |
+| `UPLOAD_MAX_SIZE_MB` | `10` | Max upload size |
+| `RATE_LIMIT_ENABLED` | `true` | Enable rate limiting |
+| `CORS_ORIGIN` | `http://localhost:5173` | CORS origin (dev only) |
+
+See [docs/configuration.md](docs/configuration.md) for the full reference.
+
+</details>
+
+<details>
+<summary><strong>API Reference</strong></summary>
+
+Base path: `/api/v1`
+
+**Setup**
+- `GET /setup/status` - Check if setup is complete
+- `POST /setup/complete` - Complete first-time setup
+
+**Authentication**
+- `POST /auth/register` - Register new user (if enabled)
+- `POST /auth/login` - Login
+- `POST /auth/logout` - Logout
+- `GET /auth/me` - Current user info
+
+**Projects**
+- `GET /projects` - List my projects
+- `POST /projects` - Create project
+- `GET /projects/:id` - Get project
+- `PATCH /projects/:id` - Update project
+- `DELETE /projects/:id` - Delete project
+
+**Tasks**
+- `GET /projects/:id/tasks` - List project tasks
+- `POST /projects/:id/tasks` - Create task
+- `GET /tasks/:id` - Get task
+- `PATCH /tasks/:id` - Update task
+- `DELETE /tasks/:id` - Delete task
+- `GET /tasks/my` - List my tasks
+
+**Docs**
+- `GET /projects/:id/docs` - List project docs
+- `POST /projects/:id/docs` - Create project doc
+- `GET /docs/:id` - Get doc
+- `PATCH /docs/:id` - Update doc
+- `DELETE /docs/:id` - Delete doc
+
+**Meetings**
+- `GET /projects/:id/meetings` - List meetings
+- `POST /projects/:id/meetings` - Create meeting
+- `GET /meetings/my` - List my meetings
+
+**Whiteboards**
+- `GET /projects/:id/whiteboards` - List whiteboards
+- `POST /projects/:id/whiteboards` - Create whiteboard
+- `GET /whiteboards/:id` - Get whiteboard
+
+**Chat & DMs**
+- `GET /channels` - List channels
+- `POST /channels` - Create channel
+- `GET /channels/:id/messages` - List messages
+- `POST /channels/:id/messages` - Send message
+- `GET /dms` - List DMs
+- `POST /dms` - Create/open DM
+
+**Teams**
+- `GET /teams` - List teams
+- `POST /teams` - Create team
+
+**Notifications**
+- `GET /notifications` - List notifications
+- `POST /notifications/read-all` - Mark all as read
+
+**Profile & Files**
+- `GET /profile` - Get profile
+- `PATCH /profile` - Update profile
+- `POST /files` - Upload file
+- `GET /files/:id` - Download file
+
+</details>
+
+<details>
+<summary><strong>Project Structure</strong></summary>
 
 ```
 tuesday/
@@ -214,151 +381,63 @@ tuesday/
 └── .env.example             # Configuration template
 ```
 
-## Common Commands
+</details>
 
-### Development
+<details>
+<summary><strong>Security</strong></summary>
 
-```bash
-# Backend
-cd backend
-bun test                    # Run tests
-bun test --coverage         # Tests with coverage
-bun run typecheck           # Type check
-bun run db:migrate          # Run migrations
-bun run db:studio           # Open Drizzle Studio
+- **Authentication** - bcrypt password hashing (cost factor 12), secure HTTP-only session cookies with SameSite=Strict
+- **Rate Limiting** - Auth endpoints limited to 5 requests/minute per IP
+- **Access Control** - Two-level model: workspace role (admin/member) + project membership (owner/member)
+- **SQL Injection** - Prevented via Drizzle ORM parameterized queries
+- **XSS Prevention** - React auto-escaping + server-side sanitization
+- **Security Headers** - CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy
 
-# Frontend
-cd frontend
-bun test                    # Run tests
-bun run typecheck           # Type check
-bun run build               # Production build
-```
+</details>
 
-### Docker
+<details>
+<summary><strong>Troubleshooting</strong></summary>
 
-```bash
-docker compose up -d        # Start
-docker compose down         # Stop
-docker compose logs -f      # View logs
-docker compose ps           # Check status
-docker compose build        # Rebuild image
-```
-
-## API
-
-Base path: `/api/v1`
-
-### Setup
-- `GET /setup/status` - Check if setup is complete
-- `POST /setup/complete` - Complete first-time setup
-
-### Authentication
-- `POST /auth/register` - Register new user (if enabled)
-- `POST /auth/login` - Login
-- `POST /auth/logout` - Logout
-- `GET /auth/me` - Current user info
-
-### Projects
-- `GET /projects` - List my projects
-- `POST /projects` - Create project
-- `GET /projects/:id` - Get project
-- `PATCH /projects/:id` - Update project
-- `DELETE /projects/:id` - Delete project
-
-### Tasks
-- `GET /projects/:id/tasks` - List project tasks
-- `POST /projects/:id/tasks` - Create task
-- `GET /tasks/:id` - Get task
-- `PATCH /tasks/:id` - Update task
-- `DELETE /tasks/:id` - Delete task
-- `GET /tasks/my` - List my tasks
-
-### Docs
-- `GET /projects/:id/docs` - List project docs
-- `POST /projects/:id/docs` - Create project doc
-- `GET /docs/:id` - Get doc
-- `PATCH /docs/:id` - Update doc
-- `DELETE /docs/:id` - Delete doc
-
-### Meetings
-- `GET /projects/:id/meetings` - List meetings
-- `POST /projects/:id/meetings` - Create meeting
-- `GET /meetings/my` - List my meetings
-
-### Whiteboards
-- `GET /projects/:id/whiteboards` - List whiteboards
-- `POST /projects/:id/whiteboards` - Create whiteboard
-- `GET /whiteboards/:id` - Get whiteboard
-
-### Chat + DMs
-- `GET /channels` - List channels
-- `POST /channels` - Create channel
-- `GET /channels/:id/messages` - List messages
-- `POST /channels/:id/messages` - Send message
-- `GET /dms` - List DMs
-- `POST /dms` - Create/open DM
-
-### Teams
-- `GET /teams` - List teams
-- `POST /teams` - Create team
-
-### Notifications
-- `GET /notifications` - List notifications
-- `POST /notifications/read-all` - Mark all as read
-
-### Profile & Files
-- `GET /profile` - Get profile
-- `PATCH /profile` - Update profile
-- `POST /files` - Upload file
-- `GET /files/:id` - Download file
-
-See `plan/architecture.md` for complete API documentation.
-
-## Security
-
-- **Rate Limiting**: Auth endpoints limited to 5 requests/minute per IP
-- **Session Management**: Secure, HTTP-only cookies with SameSite=Strict
-- **Access Control**: Two-level model (workspace role + project membership)
-- **SQL Injection**: Prevented via Drizzle ORM parameterized queries
-- **XSS Prevention**: React auto-escaping + server-side sanitization
-- **Security Headers**: CSP, X-Frame-Options, X-Content-Type-Options
-
-## Troubleshooting
-
-### Container won't start
-
+**Container won't start**
 ```bash
 docker compose logs --tail 50
 ```
 
-### Can't connect to database in development
-
+**Can't connect to database (development)**
 ```bash
 docker ps | grep tuesday-dev-db
-# If not running:
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-### WebSocket not connecting through reverse proxy
+**WebSocket not connecting through reverse proxy**
 
-Ensure your proxy passes WebSocket headers. See [docs/deployment.md](docs/deployment.md).
+Ensure your proxy passes `Upgrade` and `Connection` headers. See [docs/deployment.md](docs/deployment.md).
 
-### Reset to fresh state
-
+**Reset to fresh state**
 ```bash
 docker compose down -v
 docker compose up -d
 ```
 
+</details>
+
+---
+
 ## Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes following the guidelines in `AGENTS.md`
+3. Follow the guidelines in [AGENTS.md](AGENTS.md)
 4. Run tests (`bun test` in both `backend/` and `frontend/`)
 5. Commit (`git commit -m 'feat: add amazing feature'`)
 6. Push and open a Pull Request
 
-## License
+---
 
-[License Type] - See LICENSE file for details
+<div align="center">
+
+**[Documentation](docs/deployment.md)** &middot; **[Docker Hub](https://hub.docker.com/r/sohshunhong/tuesday)** &middot; **[Changelog](CHANGELOG.md)**
+
+MIT License &copy; 2026 UltreonAI
+
+</div>
