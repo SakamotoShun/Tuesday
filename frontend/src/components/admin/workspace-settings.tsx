@@ -9,6 +9,7 @@ export function WorkspaceSettings() {
   const { settings, isLoading, updateSettings } = useAdminSettings()
   const [workspaceName, setWorkspaceName] = useState(settings?.workspaceName ?? "")
   const [siteUrl, setSiteUrl] = useState(settings?.siteUrl ?? "")
+  const [openaiApiKey, setOpenaiApiKey] = useState("")
 
   useEffect(() => {
     setWorkspaceName(settings?.workspaceName ?? "")
@@ -21,6 +22,8 @@ export function WorkspaceSettings() {
   if (isLoading) {
     return <div className="text-sm text-muted-foreground">Loading settings...</div>
   }
+
+  const hasApiKey = Boolean(settings?.openaiApiKey)
 
   return (
     <div className="space-y-4">
@@ -61,6 +64,47 @@ export function WorkspaceSettings() {
           >
             Save
           </Button>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="openai-api-key">OpenAI API Key</Label>
+        <div className="text-sm text-muted-foreground">
+          Required for AI bots. Get your API key from platform.openai.com.
+          {hasApiKey && (
+            <span className="ml-1 font-medium text-foreground">
+              Current key: {settings?.openaiApiKey}
+            </span>
+          )}
+        </div>
+        <div className="flex flex-col md:flex-row gap-2">
+          <Input
+            id="openai-api-key"
+            type="password"
+            value={openaiApiKey}
+            onChange={(event) => setOpenaiApiKey(event.target.value)}
+            placeholder={hasApiKey ? "Enter new key to replace" : "sk-..."}
+          />
+          <Button
+            onClick={() => {
+              updateSettings.mutate({ openaiApiKey: openaiApiKey.trim() })
+              setOpenaiApiKey("")
+            }}
+            disabled={updateSettings.isPending || !openaiApiKey.trim()}
+          >
+            Save
+          </Button>
+          {hasApiKey && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                updateSettings.mutate({ openaiApiKey: "" })
+                setOpenaiApiKey("")
+              }}
+              disabled={updateSettings.isPending}
+            >
+              Remove
+            </Button>
+          )}
         </div>
       </div>
       <div className="flex items-center justify-between border border-border rounded-lg p-3">

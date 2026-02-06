@@ -40,6 +40,7 @@ const updateSettingsSchema = z.object({
   allowRegistration: z.boolean().optional(),
   workspaceName: z.string().max(255).optional(),
   siteUrl: z.union([z.string().url('Invalid site URL').max(2000), z.literal('')]).optional(),
+  openaiApiKey: z.union([z.string().max(500), z.literal('')]).optional(),
 });
 
 const createUserSchema = z.object({
@@ -114,11 +115,23 @@ admin.get('/settings', async (c) => {
     const allowRegistration = await settingsRepository.get<boolean>('allow_registration');
     const updatedWorkspaceName = await settingsRepository.get<string>('workspace_name');
     const siteUrl = await settingsRepository.get<string>('site_url');
-    
+    const openaiApiKey = await settingsRepository.get<string>('openai_api_key');
+
+    // Mask the API key for display
+    let maskedKey = '';
+    if (openaiApiKey) {
+      if (openaiApiKey.length > 8) {
+        maskedKey = `${openaiApiKey.slice(0, 5)}...${openaiApiKey.slice(-4)}`;
+      } else {
+        maskedKey = '****';
+      }
+    }
+
     return success(c, {
       allowRegistration: allowRegistration ?? false,
       workspaceName: updatedWorkspaceName ?? '',
       siteUrl: siteUrl ?? '',
+      openaiApiKey: maskedKey,
     });
   } catch (error) {
     console.error('Error fetching admin settings:', error);
@@ -156,15 +169,35 @@ admin.patch('/settings', async (c) => {
       }
     }
 
+    if (validation.data.openaiApiKey !== undefined) {
+      const trimmedKey = validation.data.openaiApiKey.trim();
+      if (trimmedKey.length === 0) {
+        await settingsRepository.delete('openai_api_key');
+      } else {
+        await settingsRepository.set('openai_api_key', trimmedKey);
+      }
+    }
+
     // Return updated settings
     const updatedAllowRegistration = await settingsRepository.get<boolean>('allow_registration');
     const updatedWorkspaceName = await settingsRepository.get<string>('workspace_name');
     const updatedSiteUrl = await settingsRepository.get<string>('site_url');
+    const updatedOpenaiApiKey = await settingsRepository.get<string>('openai_api_key');
+
+    let maskedKey = '';
+    if (updatedOpenaiApiKey) {
+      if (updatedOpenaiApiKey.length > 8) {
+        maskedKey = `${updatedOpenaiApiKey.slice(0, 5)}...${updatedOpenaiApiKey.slice(-4)}`;
+      } else {
+        maskedKey = '****';
+      }
+    }
 
     return success(c, {
       allowRegistration: updatedAllowRegistration ?? false,
       workspaceName: updatedWorkspaceName ?? '',
       siteUrl: updatedSiteUrl ?? '',
+      openaiApiKey: maskedKey,
     });
   } catch (error) {
     console.error('Error updating admin settings:', error);

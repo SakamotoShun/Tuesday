@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { auth } from '../middleware';
 import { chatService } from '../services';
+import { botService } from '../services/bot';
 import { success, errors } from '../utils/response';
 import { validateBody, formatValidationErrors, createChannelSchema, createMessageSchema, updateChannelSchema, updateMessageSchema, addReactionSchema, addChannelMembersSchema } from '../utils/validation';
 
@@ -290,6 +291,38 @@ chat.delete('/:channelId/messages/:messageId', async (c) => {
     }
     console.error('Error deleting message:', error);
     return errors.internal(c, 'Failed to delete message');
+  }
+});
+
+// GET /api/v1/channels/:id/bots - List bots in channel
+chat.get('/:id/bots', async (c) => {
+  try {
+    const user = c.get('user');
+    const channelId = c.req.param('id');
+
+    // Verify user has access to the channel
+    const channel = await chatService.getChannel(channelId, user);
+    if (!channel) {
+      return errors.notFound(c, 'Channel not found');
+    }
+
+    const bots = await botService.getChannelBots(channelId);
+    // Return only non-disabled bots with minimal data needed for mentions
+    const activeBots = bots
+      .filter((bot) => !bot.isDisabled)
+      .map((bot) => ({
+        id: bot.id,
+        name: bot.name,
+        avatarUrl: bot.avatarUrl,
+        type: bot.type,
+      }));
+    return success(c, activeBots);
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error fetching channel bots:', error);
+    return errors.internal(c, 'Failed to fetch channel bots');
   }
 });
 

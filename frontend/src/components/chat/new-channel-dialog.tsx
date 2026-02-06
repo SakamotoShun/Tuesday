@@ -84,6 +84,7 @@ export function NewChannelDialog({ projectId, onCreated, trigger }: NewChannelDi
       }),
     onSuccess: (channel) => {
       queryClient.invalidateQueries({ queryKey: ["channels"] })
+      queryClient.invalidateQueries({ queryKey: ["admin", "bots", "channels"] })
       setName("")
       setDescription("")
       setAccess("public")

@@ -107,7 +107,7 @@ export async function listBotAvailableChannels(): Promise<Channel[]> {
   return api.get<Channel[]>("/admin/bots/channels")
 }
 
-export async function createBot(data: { name: string; avatarUrl?: string | null }): Promise<Bot> {
+export async function createBot(data: { name: string; avatarUrl?: string | null; type?: "webhook" | "ai"; systemPrompt?: string | null; model?: string | null }): Promise<Bot> {
   return api.post<Bot>("/admin/bots", data)
 }
 
@@ -115,7 +115,7 @@ export async function getBot(botId: string): Promise<Bot> {
   return api.get<Bot>(`/admin/bots/${botId}`)
 }
 
-export async function updateBot(botId: string, data: { name?: string; avatarUrl?: string | null; isDisabled?: boolean }): Promise<Bot> {
+export async function updateBot(botId: string, data: { name?: string; avatarUrl?: string | null; isDisabled?: boolean; systemPrompt?: string | null; model?: string | null }): Promise<Bot> {
   return api.patch<Bot>(`/admin/bots/${botId}`, data)
 }
 

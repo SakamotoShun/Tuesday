@@ -173,12 +173,12 @@ export function useAdminBots() {
   })
 
   const createBot = useMutation({
-    mutationFn: (data: { name: string; avatarUrl?: string | null }) => adminApi.createBot(data),
+    mutationFn: (data: { name: string; avatarUrl?: string | null; type?: "webhook" | "ai"; systemPrompt?: string | null; model?: string | null }) => adminApi.createBot(data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "bots"] }),
   })
 
   const updateBot = useMutation({
-    mutationFn: ({ botId, data }: { botId: string; data: { name?: string; avatarUrl?: string | null; isDisabled?: boolean } }) =>
+    mutationFn: ({ botId, data }: { botId: string; data: { name?: string; avatarUrl?: string | null; isDisabled?: boolean; systemPrompt?: string | null; model?: string | null } }) =>
       adminApi.updateBot(botId, data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "bots"] }),
   })
@@ -197,6 +197,7 @@ export function useAdminBots() {
     mutationFn: ({ botId, channelId }: { botId: string; channelId: string }) => adminApi.addBotToChannel(botId, channelId),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["admin", "bots", variables.botId, "channels"] })
+      queryClient.invalidateQueries({ queryKey: ["admin", "bots", "channels"] })
     },
   })
 
@@ -204,6 +205,7 @@ export function useAdminBots() {
     mutationFn: ({ botId, channelId }: { botId: string; channelId: string }) => adminApi.removeBotFromChannel(botId, channelId),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["admin", "bots", variables.botId, "channels"] })
+      queryClient.invalidateQueries({ queryKey: ["admin", "bots", "channels"] })
     },
   })
 

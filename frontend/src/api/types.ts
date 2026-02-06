@@ -304,12 +304,14 @@ export interface AdminSettings {
   allowRegistration: boolean
   workspaceName: string
   siteUrl: string
+  openaiApiKey: string
 }
 
 export interface UpdateAdminSettingsInput {
   allowRegistration?: boolean
   workspaceName?: string
   siteUrl?: string
+  openaiApiKey?: string
 }
 
 export interface AdminCreateUserInput {
@@ -353,8 +355,18 @@ export interface Bot {
   webhookToken: string
   createdBy: string
   isDisabled: boolean
+  type: "webhook" | "ai"
+  systemPrompt: string | null
+  model: string | null
   createdAt: string
   updatedAt: string
+}
+
+export interface ChannelBot {
+  id: string
+  name: string
+  avatarUrl: string | null
+  type: "webhook" | "ai"
 }
 
 export interface BotChannelMember {

@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query"
 import type { ChannelMember, ProjectMember, User } from "@/api/types"
 import * as projectsApi from "@/api/projects"
 import { usersApi } from "@/api/users"
+import { chatApi } from "@/api/chat"
 import { useAuth } from "@/hooks/use-auth"
 import { useChatChannels, useChatMessages } from "@/hooks/use-chat"
 import { useChannelMembers } from "@/hooks/use-channel-members"
@@ -69,6 +70,12 @@ export function ChatView({ projectId, title, variant = "page" }: ChatViewProps) 
     queryKey: ["users", "mentionable"],
     queryFn: usersApi.listMentionable,
     enabled: activeChannel?.type === "workspace" && activeChannel?.access === "public",
+  })
+
+  const channelBotsQuery = useQuery({
+    queryKey: ["channels", activeChannel?.id, "bots"],
+    queryFn: () => activeChannel?.id ? chatApi.listChannelBots(activeChannel.id) : Promise.resolve([]),
+    enabled: Boolean(activeChannel?.id) && activeChannel?.type !== "dm",
   })
 
   const members = activeChannel?.type === "dm" || activeChannel?.access !== "public"
@@ -245,7 +252,7 @@ export function ChatView({ projectId, title, variant = "page" }: ChatViewProps) 
         </div>
         <div className="border-t border-border p-4 space-y-2 flex-shrink-0">
           <TypingIndicator users={messages.typingUsers} />
-          <MessageInput
+            <MessageInput
             onSend={(payload) => {
               if (!activeChannel) return
               return messages.sendMessage.mutateAsync(payload)
@@ -256,6 +263,7 @@ export function ChatView({ projectId, title, variant = "page" }: ChatViewProps) 
               }
             }}
             members={members}
+            channelBots={channelBotsQuery.data ?? []}
             disabled={isArchived}
           />
         </div>

@@ -1,6 +1,6 @@
 import { eq, desc } from 'drizzle-orm';
 import { db } from '../db/client';
-import { bots, type Bot, type NewBot } from '../db/schema';
+import { bots, botChannelMembers, type Bot, type NewBot } from '../db/schema';
 
 export class BotRepository {
   async findAll(): Promise<Bot[]> {
@@ -21,6 +21,18 @@ export class BotRepository {
       where: eq(bots.webhookToken, token),
     });
     return result || null;
+  }
+
+  async findByChannelId(channelId: string): Promise<Bot[]> {
+    const memberships = await db.query.botChannelMembers.findMany({
+      where: eq(botChannelMembers.channelId, channelId),
+      with: {
+        bot: true,
+      },
+    });
+    return memberships
+      .map((membership) => membership.bot)
+      .filter((bot): bot is Bot => bot !== null && bot !== undefined);
   }
 
   async create(data: NewBot): Promise<Bot> {

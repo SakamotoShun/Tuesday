@@ -71,6 +71,9 @@ const botAvatarUrlSchema = z.string().url('Invalid avatar URL').max(2000).option
 export const createBotSchema = z.object({
   name: botNameSchema,
   avatarUrl: botAvatarUrlSchema,
+  type: z.enum(['webhook', 'ai']).default('webhook'),
+  systemPrompt: z.string().max(10000).optional().nullable(),
+  model: z.string().max(100).optional().nullable(),
 });
 
 export type CreateBotInput = z.infer<typeof createBotSchema>;
@@ -79,6 +82,8 @@ export const updateBotSchema = z.object({
   name: botNameSchema.optional(),
   avatarUrl: botAvatarUrlSchema,
   isDisabled: z.boolean().optional(),
+  systemPrompt: z.string().max(10000).optional().nullable(),
+  model: z.string().max(100).optional().nullable(),
 });
 
 export type UpdateBotInput = z.infer<typeof updateBotSchema>;

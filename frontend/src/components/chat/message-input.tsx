@@ -1,6 +1,6 @@
 import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ArrowUp, Paperclip } from "lucide-react"
-import type { FileAttachment, User } from "@/api/types"
+import type { ChannelBot, FileAttachment, User } from "@/api/types"
 import { uploadFile, deleteFile } from "@/api/files"
 import { Button } from "@/components/ui/button"
 import { AttachmentList, type PendingAttachment } from "@/components/chat/attachment-list"
@@ -11,6 +11,7 @@ interface MessageInputProps {
   onSend: (payload: { content: string; attachments: FileAttachment[] }) => Promise<unknown> | void
   onTyping: (isTyping: boolean) => void
   members?: User[]
+  channelBots?: ChannelBot[]
   disabled?: boolean
 }
 
@@ -33,7 +34,7 @@ interface PendingUpload {
   previewUrl: string | null
 }
 
-export function MessageInput({ onSend, onTyping, members = [], disabled = false }: MessageInputProps) {
+export function MessageInput({ onSend, onTyping, members = [], channelBots = [], disabled = false }: MessageInputProps) {
   const [value, setValue] = useState("")
   const [query, setQuery] = useState("")
   const [showAutocomplete, setShowAutocomplete] = useState(false)
@@ -72,13 +73,19 @@ export function MessageInput({ onSend, onTyping, members = [], disabled = false 
         description: special.description,
       }))
 
+    const botMatches = channelBots
+      .filter((bot) => handleFromName(bot.name).startsWith(lower))
+      .slice(0, 4)
+      .map<MentionOption>((bot) => ({ type: "bot", bot }))
+
+    const remaining = Math.max(0, 8 - specials.length - botMatches.length)
     const userMatches = members
       .filter((member) => handleFromName(member.name).startsWith(lower))
-      .slice(0, Math.max(0, 8 - specials.length))
+      .slice(0, remaining)
       .map<MentionOption>((member) => ({ type: "user", user: member }))
 
-    return [...specials, ...userMatches]
-  }, [members, query, showAutocomplete])
+    return [...specials, ...botMatches, ...userMatches]
+  }, [members, channelBots, query, showAutocomplete])
 
   useEffect(() => {
     if (showAutocomplete) {
@@ -149,6 +156,10 @@ export function MessageInput({ onSend, onTyping, members = [], disabled = false 
   const handleSelectOption = (option: MentionOption) => {
     if (option.type === "user") {
       insertMention(handleFromName(option.user.name))
+      return
+    }
+    if (option.type === "bot") {
+      insertMention(handleFromName(option.bot.name))
       return
     }
     insertMention(option.key)

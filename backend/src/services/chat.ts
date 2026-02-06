@@ -1,8 +1,9 @@
-import { channelRepository, messageRepository, channelMemberRepository, userRepository, projectMemberRepository, fileRepository, reactionRepository } from '../repositories';
+import { channelRepository, messageRepository, channelMemberRepository, userRepository, projectMemberRepository, fileRepository, reactionRepository, botRepository } from '../repositories';
 import { projectService } from './project';
 import { fileService } from './file';
 import { chatHub } from '../collab/chatHub';
 import type { Channel, Message, File } from '../db/schema';
+import { BotType } from '../db/schema';
 import type { ChannelWithProject } from '../repositories/channel';
 import type { MessageWithUser as RepositoryMessage } from '../repositories/message';
 import type { User } from '../types';
@@ -296,7 +297,7 @@ export class ChatService {
       ? []
       : await this.validateMemberIds(memberIds, { type, projectId: input.projectId ?? null });
 
-    const channel = await channelRepository.create({
+    const created = await channelRepository.create({
       name: input.name.trim(),
       projectId: input.projectId ?? null,
       description: input.description?.trim() || null,
@@ -304,12 +305,21 @@ export class ChatService {
       access,
     });
 
-    await channelMemberRepository.joinWithRole(channel.id, user.id, 'owner');
+    await channelMemberRepository.joinWithRole(created.id, user.id, 'owner');
 
     if (validatedMemberIds.length > 0) {
-      await channelMemberRepository.addMembers(channel.id, validatedMemberIds, 'member');
-      await this.notifyChannelAdded(validatedMemberIds, channel.id);
+      await channelMemberRepository.addMembers(created.id, validatedMemberIds, 'member');
+      await this.notifyChannelAdded(validatedMemberIds, created.id);
     }
+    const channel = await channelRepository.findById(created.id);
+    if (!channel) {
+      throw new Error('Failed to create channel');
+    }
+
+    if (access === 'public') {
+      await this.notifyPublicChannelCreated(channel);
+    }
+
     return channel;
   }
 
@@ -499,6 +509,13 @@ export class ChatService {
         authorName: user.name,
         mentions: mentionTargets,
         content: trimmedContent,
+      });
+    }
+
+    // Check for AI bot mentions (fire-and-forget, don't block message send)
+    if (trimmedContent) {
+      this.checkAiBotMentions(channel, trimmedContent, user.name).catch((error: unknown) => {
+        console.error('Error checking AI bot mentions:', error);
       });
     }
 
@@ -891,7 +908,7 @@ export class ChatService {
     return uniqueIds;
   }
 
-  private async emitChannelEvent(
+  async emitChannelEvent(
     channel: ChannelWithProject,
     payload: Record<string, unknown>,
     excludeUserId?: string
@@ -934,6 +951,58 @@ export class ChatService {
           otherUser,
         },
       }));
+    }
+  }
+
+  private async notifyPublicChannelCreated(channel: ChannelWithProject) {
+    const payload = JSON.stringify({
+      type: 'channel_added',
+      channel: {
+        ...channel,
+        unreadCount: 0,
+        lastReadAt: null,
+        otherUser: null,
+      },
+    });
+
+    if (channel.type === 'workspace') {
+      chatHub.broadcastToAll(payload);
+      return;
+    }
+
+    if (channel.type !== 'project' || !channel.projectId) {
+      return;
+    }
+
+    const members = await projectMemberRepository.findByProjectId(channel.projectId);
+    for (const member of members) {
+      chatHub.sendToUser(member.user.id, payload);
+    }
+  }
+
+  private async checkAiBotMentions(channel: ChannelWithProject, content: string, authorName: string): Promise<void> {
+    const mentionMatches = content.match(/@([a-zA-Z0-9._-]+)/g) ?? [];
+    if (mentionMatches.length === 0) return;
+
+    const handles = Array.from(new Set(mentionMatches.map((match) => match.slice(1).toLowerCase())));
+    if (handles.length === 0) return;
+
+    // Get all bots in this channel
+    const channelBots = await botRepository.findByChannelId(channel.id);
+    if (channelBots.length === 0) return;
+
+    // Filter to AI bots that are active and mentioned
+    const { aiBotService } = await import('./ai-bot');
+    for (const bot of channelBots) {
+      if (bot.type !== BotType.AI || bot.isDisabled) continue;
+
+      const botHandle = normalizeHandle(bot.name);
+      if (handles.includes(botHandle)) {
+        // Fire-and-forget for each mentioned AI bot
+        aiBotService.handleMention(bot, channel, content, authorName).catch((error: unknown) => {
+          console.error(`AI bot ${bot.id} mention handler error:`, error);
+        });
+      }
     }
   }
 

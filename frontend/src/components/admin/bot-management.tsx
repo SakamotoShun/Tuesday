@@ -69,12 +69,17 @@ export function BotManagement() {
   const [createdBot, setCreatedBot] = useState<BotType | null>(null)
   const [newName, setNewName] = useState("")
   const [newAvatarUrl, setNewAvatarUrl] = useState("")
+  const [newBotType, setNewBotType] = useState<"webhook" | "ai">("webhook")
+  const [newSystemPrompt, setNewSystemPrompt] = useState("")
+  const [newModel, setNewModel] = useState("gpt5.2")
 
   const [manageOpen, setManageOpen] = useState(false)
   const [selectedBot, setSelectedBot] = useState<BotType | null>(null)
   const [editName, setEditName] = useState("")
   const [editAvatarUrl, setEditAvatarUrl] = useState("")
   const [editDisabled, setEditDisabled] = useState(false)
+  const [editSystemPrompt, setEditSystemPrompt] = useState("")
+  const [editModel, setEditModel] = useState("")
   const [channelToAdd, setChannelToAdd] = useState<string | null>(null)
 
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -94,6 +99,8 @@ export function BotManagement() {
       setEditName(selectedBot.name)
       setEditAvatarUrl(selectedBot.avatarUrl ?? "")
       setEditDisabled(selectedBot.isDisabled)
+      setEditSystemPrompt(selectedBot.systemPrompt ?? "")
+      setEditModel(selectedBot.model ?? "gpt5.2")
       setChannelToAdd(null)
     }
   }, [selectedBot])
@@ -118,6 +125,9 @@ export function BotManagement() {
     const bot = await createBot.mutateAsync({
       name: newName.trim(),
       avatarUrl: newAvatarUrl.trim() ? newAvatarUrl.trim() : null,
+      type: newBotType,
+      systemPrompt: newBotType === "ai" ? (newSystemPrompt.trim() || null) : null,
+      model: newBotType === "ai" ? (newModel.trim() || null) : null,
     })
     setCreatedBot(bot)
   }
@@ -130,6 +140,10 @@ export function BotManagement() {
         name: editName.trim(),
         avatarUrl: editAvatarUrl.trim() ? editAvatarUrl.trim() : null,
         isDisabled: editDisabled,
+        ...(selectedBot.type === "ai" ? {
+          systemPrompt: editSystemPrompt.trim() || null,
+          model: editModel.trim() || null,
+        } : {}),
       },
     })
     setSelectedBot(updated)
@@ -201,6 +215,9 @@ export function BotManagement() {
             if (!next) {
               setNewName("")
               setNewAvatarUrl("")
+              setNewBotType("webhook")
+              setNewSystemPrompt("")
+              setNewModel("gpt5.2")
               setCreatedBot(null)
             }
           }}
@@ -214,9 +231,37 @@ export function BotManagement() {
           <DialogContent className="sm:max-w-[520px]">
             <DialogHeader>
               <DialogTitle>Create Bot</DialogTitle>
-              <DialogDescription>Generate a webhook bot to post messages from external services.</DialogDescription>
+              <DialogDescription>Create a webhook bot or an AI assistant bot.</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleCreateBot} className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Bot Type</Label>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant={newBotType === "webhook" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setNewBotType("webhook")}
+                    className="flex-1"
+                  >
+                    Webhook Bot
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={newBotType === "ai" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setNewBotType("ai")}
+                    className="flex-1"
+                  >
+                    AI Bot
+                  </Button>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {newBotType === "webhook"
+                    ? "Receive messages from external services via webhook URL."
+                    : "An AI assistant powered by OpenAI that responds to @mentions."}
+                </div>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="bot-name">Name</Label>
                 <Input id="bot-name" value={newName} onChange={(event) => setNewName(event.target.value)} />
@@ -230,6 +275,33 @@ export function BotManagement() {
                   placeholder="https://..."
                 />
               </div>
+              {newBotType === "ai" && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="bot-system-prompt">System Prompt</Label>
+                    <textarea
+                      id="bot-system-prompt"
+                      value={newSystemPrompt}
+                      onChange={(event) => setNewSystemPrompt(event.target.value)}
+                      placeholder="You are a helpful assistant..."
+                      className="w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      rows={3}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="bot-model">Model</Label>
+                    <Input
+                      id="bot-model"
+                      value={newModel}
+                      onChange={(event) => setNewModel(event.target.value)}
+                      placeholder="gpt5.2"
+                    />
+                    <div className="text-xs text-muted-foreground">
+                      The OpenAI model to use. Requires an OpenAI API key in Workspace Settings.
+                    </div>
+                  </div>
+                </>
+              )}
               {createdBot && baseUrl && (
                 <div className="space-y-2 rounded-lg border border-border p-3">
                   <div className="text-sm font-medium">Webhook URL template</div>
@@ -294,7 +366,9 @@ export function BotManagement() {
                   <div>
                     <div className="text-sm font-medium flex items-center gap-2">
                       {bot.name}
-                      <Badge variant="secondary" className="text-[10px] px-2 py-0">BOT</Badge>
+                      <Badge variant="secondary" className="text-[10px] px-2 py-0">
+                        {bot.type === "ai" ? "AI BOT" : "BOT"}
+                      </Badge>
                       {bot.isDisabled && <Badge variant="outline">Disabled</Badge>}
                     </div>
                     <div className="text-xs text-muted-foreground">Created {new Date(bot.createdAt).toLocaleDateString()}</div>
@@ -376,6 +450,35 @@ export function BotManagement() {
                   </Button>
                 </div>
               </div>
+
+              {selectedBot.type === "ai" && (
+                <div className="rounded-lg border border-border p-4 space-y-4">
+                  <div className="text-sm font-medium">AI Configuration</div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-system-prompt">System Prompt</Label>
+                    <textarea
+                      id="edit-system-prompt"
+                      value={editSystemPrompt}
+                      onChange={(event) => setEditSystemPrompt(event.target.value)}
+                      placeholder="You are a helpful assistant..."
+                      className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      rows={4}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-model">Model</Label>
+                    <Input
+                      id="edit-model"
+                      value={editModel}
+                      onChange={(event) => setEditModel(event.target.value)}
+                      placeholder="gpt5.2"
+                    />
+                    <div className="text-xs text-muted-foreground">
+                      The OpenAI model to use for this bot.
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="rounded-lg border border-border p-4 space-y-3">
                 <div className="text-sm font-medium">Webhook</div>

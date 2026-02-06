@@ -1,9 +1,7 @@
 import { randomBytes, timingSafeEqual } from 'crypto';
 import { botRepository, botChannelMemberRepository, channelRepository, messageRepository } from '../repositories';
-import { chatHub } from '../collab/chatHub';
 import { chatService } from './chat';
 import type { Bot, NewBot } from '../db/schema';
-import type { ChannelWithProject } from '../repositories/channel';
 import type { User } from '../types';
 
 interface WebhookMessageInput {
@@ -11,6 +9,22 @@ interface WebhookMessageInput {
   token: string;
   channelId: string;
   content: string;
+}
+
+interface CreateBotInput {
+  name: string;
+  avatarUrl?: string | null;
+  type?: 'webhook' | 'ai';
+  systemPrompt?: string | null;
+  model?: string | null;
+}
+
+interface UpdateBotInput {
+  name?: string;
+  avatarUrl?: string | null;
+  isDisabled?: boolean;
+  systemPrompt?: string | null;
+  model?: string | null;
 }
 
 export class BotService {
@@ -22,23 +36,31 @@ export class BotService {
     return botRepository.findById(botId);
   }
 
-  async createBot(input: { name: string; avatarUrl?: string | null }, user: User): Promise<Bot> {
+  async getChannelBots(channelId: string): Promise<Bot[]> {
+    return botRepository.findByChannelId(channelId);
+  }
+
+  async createBot(input: CreateBotInput, user: User): Promise<Bot> {
     const token = this.generateToken();
     const name = input.name.trim();
     if (!name) {
       throw new Error('Bot name is required');
     }
     const avatarUrl = this.normalizeAvatarUrl(input.avatarUrl);
+    const type = input.type ?? 'webhook';
     return botRepository.create({
       name,
       avatarUrl,
       webhookToken: token,
       createdBy: user.id,
       isDisabled: false,
+      type,
+      systemPrompt: type === 'ai' ? (input.systemPrompt?.trim() || null) : null,
+      model: type === 'ai' ? (input.model?.trim() || null) : null,
     });
   }
 
-  async updateBot(botId: string, input: { name?: string; avatarUrl?: string | null; isDisabled?: boolean }): Promise<Bot | null> {
+  async updateBot(botId: string, input: UpdateBotInput): Promise<Bot | null> {
     const data: Partial<NewBot> = {};
     if (input.name !== undefined) {
       const name = input.name.trim();
@@ -52,6 +74,12 @@ export class BotService {
     }
     if (input.isDisabled !== undefined) {
       data.isDisabled = input.isDisabled;
+    }
+    if (input.systemPrompt !== undefined) {
+      data.systemPrompt = input.systemPrompt?.trim() || null;
+    }
+    if (input.model !== undefined) {
+      data.model = input.model?.trim() || null;
     }
     return botRepository.update(botId, data);
   }
@@ -143,17 +171,12 @@ export class BotService {
     }
 
     const mapped = chatService.mapMessage(messageRecord);
-    this.emitChannelEvent(channel, mapped);
-    return mapped;
-  }
-
-  private emitChannelEvent(channel: ChannelWithProject, message: unknown) {
-    const payload = JSON.stringify({
+    await chatService.emitChannelEvent(channel, {
       type: 'message',
       channelId: channel.id,
-      message,
+      message: mapped,
     });
-    chatHub.broadcastToChannel(channel.id, payload);
+    return mapped;
   }
 
   private generateToken(): string {

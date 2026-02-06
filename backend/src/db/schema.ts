@@ -88,6 +88,14 @@ export const sessions = pgTable('sessions', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+// Bot types
+export const BotType = {
+  WEBHOOK: 'webhook',
+  AI: 'ai',
+} as const;
+
+export type BotType = typeof BotType[keyof typeof BotType];
+
 // Bots table
 export const bots = pgTable('bots', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -96,6 +104,9 @@ export const bots = pgTable('bots', {
   webhookToken: varchar('webhook_token', { length: 128 }).notNull().unique(),
   createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
   isDisabled: boolean('is_disabled').notNull().default(false),
+  type: varchar('type', { length: 20 }).notNull().default(BotType.WEBHOOK),
+  systemPrompt: text('system_prompt'),
+  model: varchar('model', { length: 100 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

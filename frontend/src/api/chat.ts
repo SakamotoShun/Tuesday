@@ -1,6 +1,7 @@
 import { api } from "./client"
 import type {
   Channel,
+  ChannelBot,
   CreateChannelInput,
   UpdateChannelInput,
   Message,
@@ -43,4 +44,5 @@ export const chatApi = {
   removeReaction: (channelId: string, messageId: string, emoji: string) =>
     api.delete<Message>(`/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`),
   markChannelRead: (channelId: string) => api.patch<{ read: boolean }>(`/channels/${channelId}/read`, {}),
+  listChannelBots: (channelId: string) => api.get<ChannelBot[]>(`/channels/${channelId}/bots`),
 }
