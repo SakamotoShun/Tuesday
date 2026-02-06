@@ -10,6 +10,11 @@ This is the backend for Tuesday - a self-hosted project management tool built wi
 - **PostgreSQL** - Robust relational database
 - **bcrypt** - Secure password hashing
 - **Session-based Auth** - HTTP-only cookies with secure defaults
+- **Real-time** - WebSocket support for chat, notifications, docs, and whiteboards
+- **Chat + DMs** - Channels, direct messages, reactions, file attachments
+- **Notifications** - Real-time notification delivery
+- **Files** - Upload lifecycle (pending/attached/avatar)
+- **Teams** - Team membership and project assignment
 
 ## Quick Start
 
@@ -66,22 +71,117 @@ This will start both the database and backend services.
 
 ## API Endpoints
 
+Base path: `/api/v1`
+
 ### Setup
-- `GET /api/v1/setup/status` - Check if setup is complete
-- `POST /api/v1/setup/complete` - Complete first-time setup
+- `GET /setup/status`
+- `POST /setup/complete`
 
 ### Authentication
-- `POST /api/v1/auth/register` - Register new user (if enabled)
-- `POST /api/v1/auth/login` - Login with email/password
-- `POST /api/v1/auth/logout` - Logout current user
-- `GET /api/v1/auth/me` - Get current user info
+- `POST /auth/register`
+- `POST /auth/login`
+- `POST /auth/logout`
+- `GET /auth/me`
+
+### Projects
+- `GET /projects`
+- `POST /projects`
+- `GET /projects/:id`
+- `PATCH /projects/:id`
+- `DELETE /projects/:id`
+- `GET /projects/:id/members`
+- `POST /projects/:id/members`
+- `PATCH /projects/:id/members/:userId`
+- `DELETE /projects/:id/members/:userId`
+
+### Docs
+- `GET /projects/:id/docs`
+- `POST /projects/:id/docs`
+- `GET /docs/:id`
+- `PATCH /docs/:id`
+- `DELETE /docs/:id`
+- `GET /docs/personal`
+- `POST /docs/personal`
+
+### Tasks
+- `GET /projects/:id/tasks`
+- `POST /projects/:id/tasks`
+- `GET /tasks/:id`
+- `PATCH /tasks/:id`
+- `DELETE /tasks/:id`
+- `PATCH /tasks/:id/status`
+- `PATCH /tasks/:id/assignees`
+- `PATCH /tasks/:id/order`
+- `GET /tasks/my`
+
+### Meetings
+- `GET /projects/:id/meetings`
+- `POST /projects/:id/meetings`
+- `GET /meetings/:id`
+- `PATCH /meetings/:id`
+- `DELETE /meetings/:id`
+- `GET /meetings/my`
+
+### Whiteboards
+- `GET /projects/:id/whiteboards`
+- `POST /projects/:id/whiteboards`
+- `GET /whiteboards/:id`
+- `PATCH /whiteboards/:id`
+- `DELETE /whiteboards/:id`
+
+### Chat + DMs
+- `GET /channels`
+- `POST /channels`
+- `GET /channels/:id/messages`
+- `POST /channels/:id/messages`
+- `PATCH /channels/:id/read`
+- `GET /dms`
+- `POST /dms`
+
+### Notifications
+- `GET /notifications`
+- `PATCH /notifications/:id/read`
+- `POST /notifications/read-all`
+
+### Teams
+- `GET /teams`
+- `POST /teams`
+- `GET /teams/:id`
+- `PATCH /teams/:id`
+- `DELETE /teams/:id`
+
+### Profile
+- `GET /profile`
+- `PATCH /profile`
+- `POST /profile/avatar`
+- `DELETE /profile/avatar`
+- `POST /profile/password`
+
+### Files
+- `POST /files`
+- `GET /files/:id`
+- `DELETE /files/:id`
 
 ### Admin
-- `GET /api/v1/admin/settings` - Get admin settings
-- `PATCH /api/v1/admin/settings` - Update admin settings (e.g. allow registration)
+- `GET /admin/settings`
+- `PATCH /admin/settings`
+- `GET /admin/users`
+- `POST /admin/users`
+- `PATCH /admin/users/:id`
+- `DELETE /admin/users/:id`
+- `GET /admin/statuses/project`
+- `POST /admin/statuses/project`
+- `PATCH /admin/statuses/project/:id`
+- `DELETE /admin/statuses/project/:id`
+- `POST /admin/statuses/project/reorder`
+- `GET /admin/statuses/task`
+- `POST /admin/statuses/task`
+- `PATCH /admin/statuses/task/:id`
+- `DELETE /admin/statuses/task/:id`
+- `POST /admin/statuses/task/reorder`
 
 ### Health
-- `GET /health` - Health check endpoint
+- `GET /health`
 
 ## Testing
 
@@ -99,34 +199,15 @@ bun test --coverage
 
 ```
 src/
-├── db/                    # Database configuration
-│   ├── client.ts          # PostgreSQL connection
-│   ├── schema.ts          # Drizzle schema definitions
-│   ├── migrations/        # SQL migration files
-│   └── migrate.ts         # Migration runner
-├── middleware/            # HTTP middleware
-│   ├── auth.ts            # Session validation
-│   ├── cors.ts            # CORS handling
-│   ├── logging.ts         # Request logging
-│   ├── ratelimit.ts       # Rate limiting
-│   ├── recovery.ts        # Error recovery
-│   └── security.ts        # Security headers
-├── repositories/          # Database access layer
-│   ├── user.ts            # User repository
-│   ├── session.ts         # Session repository
-│   └── settings.ts        # Settings repository
-├── routes/                # HTTP route handlers
-│   ├── auth.ts            # Auth endpoints
-│   ├── setup.ts           # Setup endpoints
-│   └── index.ts           # Route aggregation
-├── services/              # Business logic
-│   ├── auth.ts            # Authentication service
-│   └── setup.ts           # Setup service
-├── types/                 # TypeScript types
-├── utils/                 # Utilities
-│   ├── password.ts        # Password hashing
-│   ├── response.ts        # API response helpers
-│   └── validation.ts      # Zod schemas
+├── collab/                # Real-time collaboration hubs
+├── db/                    # Database configuration + migrations
+├── middleware/            # Auth, CORS, rate limiting, access control
+├── repositories/          # Drizzle data access layer
+├── routes/                # API route handlers
+├── services/              # Business logic services
+├── types/                 # Shared TypeScript types
+├── utils/                 # Helpers (validation, response, password)
+├── websocket.ts           # WebSocket server setup
 ├── config.ts              # Environment configuration
 └── index.ts               # Application entry point
 ```
@@ -150,6 +231,11 @@ src/
 | `SESSION_DURATION_HOURS` | `24` | Session expiry time |
 | `CORS_ORIGIN` | `http://localhost:5173` | CORS allowed origin |
 | `RATE_LIMIT_ENABLED` | `true` | Enable rate limiting |
+| `UPLOAD_MAX_SIZE_MB` | `10` | Max upload size (MB) |
+| `UPLOAD_STORAGE_PATH` | `/app/data/uploads` | Upload storage path |
+| `UPLOAD_ALLOWED_TYPES` | `image/*,application/pdf,text/plain,text/markdown` | Allowed MIME types |
+| `UPLOAD_PENDING_TTL_MINUTES` | `30` | Pending file TTL (minutes) |
+| `DELETED_MESSAGE_FILE_RETENTION_DAYS` | `30` | Retention for deleted message files |
 
 ## First-Time Setup
 

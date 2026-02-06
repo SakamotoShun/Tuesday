@@ -1,5 +1,15 @@
+import "@/test/setup"
 import { describe, it, expect, mock } from "bun:test"
-import { render, screen } from "@testing-library/react"
+import { Window } from "happy-dom"
+
+if (typeof globalThis.document === "undefined") {
+  const window = new Window()
+  globalThis.window = window as unknown as Window & typeof globalThis.window
+  globalThis.document = window.document as unknown as Document
+  globalThis.navigator = window.navigator as unknown as Navigator
+}
+
+const { render } = await import("@testing-library/react")
 
 mock.module("@blocknote/react", () => ({
   useCreateBlockNote: () => ({
@@ -28,7 +38,7 @@ mock.module("@/hooks/use-doc-collaboration", () => ({
 describe("BlockNoteEditor", () => {
   it("should render the editor view", async () => {
     const { BlockNoteEditor } = await import("./block-note-editor")
-    render(
+    const { getByTestId } = render(
       <BlockNoteEditor
         docId="doc-1"
         initialContent={[]}
@@ -38,7 +48,7 @@ describe("BlockNoteEditor", () => {
       />
     )
 
-    expect(screen.getByTestId("blocknote-view")).toBeDefined()
+    expect(getByTestId("blocknote-view")).toBeDefined()
   })
 
   it("should call onChange with document blocks", async () => {

@@ -1,6 +1,7 @@
+import "@/test/setup"
 import { describe, it, expect } from "bun:test"
 import { useEffect } from "react"
-import { render } from "@testing-library/react"
+import { act, render } from "@testing-library/react"
 import { useDebounce } from "./use-debounce"
 
 function DebounceProbe({
@@ -30,14 +31,22 @@ describe("useDebounce", () => {
       <DebounceProbe value="alpha" delay={25} onChange={handleChange} />
     )
 
-    await new Promise((resolve) => setTimeout(resolve, 30))
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 30))
+    })
 
-    rerender(<DebounceProbe value="beta" delay={25} onChange={handleChange} />)
+    act(() => {
+      rerender(<DebounceProbe value="beta" delay={25} onChange={handleChange} />)
+    })
 
-    await new Promise((resolve) => setTimeout(resolve, 10))
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
     expect(updates[updates.length - 1]).toBe("alpha")
 
-    await new Promise((resolve) => setTimeout(resolve, 30))
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 30))
+    })
     expect(updates[updates.length - 1]).toBe("beta")
   })
 })

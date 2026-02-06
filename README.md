@@ -11,21 +11,24 @@ Tuesday is a self-hosted project management tool (Bun + React + PostgreSQL) desi
 | Phase 1 | ✅ Complete | Backend Foundation (Auth, Database, API) |
 | Phase 2 | ✅ Complete | Core Features (Projects, Docs, Tasks APIs) |
 | Phase 3 | ✅ Complete | Frontend Foundation (React, Auth UI, Project Views) |
-| Phase 4 | 🔄 Pending | Feature Completion (Docs, Tasks, Timeline UI) |
-| Phase 5 | 🔄 Pending | Real-time & Polish (WebSocket, Chat, Notifications) |
+| Phase 4 | ✅ Complete | Feature Completion (Docs, Tasks, Meetings, Whiteboards) |
+| Phase 5 | ✅ Complete | Real-time & Polish (WebSocket, Chat, Notifications, Admin) |
 | Phase 6 | 🔄 Pending | Deployment (Docker, Documentation) |
 
-## Quick Start
+## Quick Start (Development)
 
 ```bash
-# Deploy Tuesday with a single command
-docker run -d \
-  -p 3000:8080 \
-  -v tuesday:/app/data \
-  --name tuesday \
-  ghcr.io/your-org/tuesday:latest
+# Backend
+cd backend
+docker compose up -d
+bun install
+bun run db:migrate
+bun run dev
 
-# Open http://localhost:3000 and complete the setup wizard
+# Frontend (new terminal)
+cd ../frontend
+bun install
+bun run dev
 ```
 
 ## Overview
@@ -36,26 +39,29 @@ This repo includes:
 - **Frontend**: React 18 + TypeScript + Vite + shadcn/ui
 - **Database**: PostgreSQL 16 (embedded in container)
 - **ORM**: Drizzle ORM with type-safe queries
-- **Real-time**: WebSockets for chat and notifications (coming in Phase 5)
+- **Real-time**: WebSockets for chat and notifications
 
 ## Features
 
 ### Implemented
-- **Single Container Deployment** - Everything in one Docker container
-- **First-Time Setup Wizard** - No config files needed, just run and configure via UI
+- **First-Time Setup Wizard** - No config files needed, configure via UI
 - **Authentication** - Secure session-based auth with bcrypt password hashing
 - **Projects** - Create and manage projects with members and statuses
-- **Dark Mode** - Full dark/light/system theme support
+- **Docs** - BlockNote editor + database-style docs
+- **Tasks** - Kanban boards + My Work aggregation
+- **Meetings** - Project calendar + My Calendar
+- **Whiteboards** - Excalidraw editor + exports
+- **Chat** - Channels, DMs, mentions, reactions, typing indicators
+- **Notifications** - Real-time notification inbox
+- **Admin** - Users, statuses, workspace settings, teams
+- **Profile** - Avatar uploads + password change
+- **File Uploads** - Attachments with lifecycle management
+- **Dark Mode** - Full light/dark/system support
 - **Responsive Layout** - Works on desktop and mobile
 
-### Coming Soon (Phase 4-6)
-- **Tasks** - Kanban boards, task management
-- **Documentation** - Notion-style docs with BlockNote editor
-- **Whiteboards** - Collaborative drawing with Excalidraw
-- **Chat** - Real-time messaging with WebSockets
-- **Meetings** - Calendar and scheduling
-- **Notifications** - Real-time notifications with @mentions
-- **Admin Settings** - Manage users, workspace settings, and custom statuses
+### Coming Soon (Phase 6)
+- **Single Container Deployment** - Production Docker image + static serving
+- **Operational Docs** - Backup/restore, upgrades, deployment guide
 
 ## Technology Stack
 
@@ -65,7 +71,7 @@ This repo includes:
 | Backend | Hono |
 | Database | PostgreSQL 16 (embedded) |
 | ORM | Drizzle ORM |
-| Frontend | React 18 + TypeScript |
+| Frontend | React 19 + TypeScript |
 | UI | shadcn/ui (Nova/Stone theme) |
 | State | TanStack Query + Zustand |
 | Editor | BlockNote |
@@ -74,86 +80,35 @@ This repo includes:
 
 ## Deployment
 
-### Production
+Phase 6 (deployment) is not implemented yet. For now, use the development setup above.
 
-```bash
-# Simple deployment
-docker run -d \
-  -p 3000:8080 \
-  -v tuesday:/app/data \
-  --name tuesday \
-  ghcr.io/your-org/tuesday:latest
-
-# With custom options
-docker run -d \
-  -p 8080:8080 \
-  -v /path/to/data:/app/data \
-  -e TUESDAY_BASE_URL=https://tuesday.example.com \
-  --name tuesday \
-  ghcr.io/your-org/tuesday:latest
-```
-
-The first time you access Tuesday, you'll be redirected to the setup wizard where you can:
-- Set your workspace/company name
-- Create the first admin user
-
-### Docker Compose (Alternative)
-
-If you prefer using Docker Compose:
-
-```yaml
-version: '3.8'
-
-services:
-  tuesday:
-    image: ghcr.io/your-org/tuesday:latest
-    container_name: tuesday
-    restart: unless-stopped
-    ports:
-      - "3000:8080"
-    volumes:
-      - tuesday-data:/app/data
-    environment:
-      - TUESDAY_BASE_URL=https://tuesday.example.com
-
-volumes:
-  tuesday-data:
-```
-
-### Environment Variables
+### Environment Variables (Development)
 
 All optional - sensible defaults provided:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TUESDAY_PORT` | `8080` | HTTP server port |
-| `TUESDAY_BASE_URL` | `http://localhost:8080` | Public URL for links |
-| `TUESDAY_DATA_DIR` | `/app/data` | Data directory path |
+| `DATABASE_URL` | `postgresql://tuesday:tuesday@localhost:5432/tuesday` | PostgreSQL connection string |
+| `PORT` | `8080` | HTTP server port |
+| `NODE_ENV` | `development` | Environment mode |
+| `SESSION_SECRET` | `default-secret-change-in-production-min-32-chars` | Session signing secret |
+| `SESSION_DURATION_HOURS` | `24` | Session expiry time |
+| `CORS_ORIGIN` | `http://localhost:5173` | CORS allowed origin |
+| `RATE_LIMIT_ENABLED` | `true` | Enable rate limiting |
+| `UPLOAD_MAX_SIZE_MB` | `10` | Max upload size (MB) |
+| `UPLOAD_STORAGE_PATH` | `/app/data/uploads` | Upload storage path |
+| `UPLOAD_ALLOWED_TYPES` | `image/*,application/pdf,text/plain,text/markdown` | Allowed MIME types |
+| `UPLOAD_PENDING_TTL_MINUTES` | `30` | Pending file TTL (minutes) |
+| `DELETED_MESSAGE_FILE_RETENTION_DAYS` | `30` | Retention for deleted message files |
 
-**Note**: `SESSION_SECRET` is auto-generated on first run and saved to `/app/data/.session_secret`
+### Data Persistence (Development)
 
-### Data Persistence
+- PostgreSQL data is stored in your Docker volume (see `tuesday-dev`).
+- File uploads are stored in `UPLOAD_STORAGE_PATH` (defaults to `/app/data/uploads`).
 
-All data is stored in the `/app/data` volume:
-- `postgres/` - PostgreSQL database files
-- `.session_secret` - Auto-generated session secret
-- `uploads/` - File uploads (future feature)
+### Reverse Proxy Setup (Planned)
 
-### Reverse Proxy Setup
-
-Tuesday is designed to run behind a reverse proxy for HTTPS termination. Configure your reverse proxy to forward to `http://tuesday:8080`.
-
-**Nginx Proxy Manager example:**
-- Forward Hostname/IP: `tuesday`
-- Forward Port: `8080`
-- Scheme: `http`
-
-**Caddy example:**
-```
-tuesday.example.com {
-    reverse_proxy localhost:3000
-}
-```
+Reverse proxy configuration is planned for Phase 6 deployment.
 
 ## Development Setup
 
@@ -249,7 +204,7 @@ tuesday/
 │   ├── phases.md            # Development phases
 │   └── scope.md             # Project scope
 │
-├── Dockerfile               # Production build
+├── backend/Dockerfile       # Backend-only container build
 ├── AGENTS.md                # Development guidelines
 └── README.md                # This file
 ```
@@ -372,7 +327,73 @@ Base path: `/api/v1`
 - `PATCH /projects/:id` - Update project
 - `DELETE /projects/:id` - Delete project
 
-### And more...
+### Docs
+- `GET /projects/:id/docs` - List project docs
+- `POST /projects/:id/docs` - Create project doc
+- `GET /docs/:id` - Get doc
+- `PATCH /docs/:id` - Update doc
+- `DELETE /docs/:id` - Delete doc
+- `GET /docs/personal` - List personal docs
+- `POST /docs/personal` - Create personal doc
+
+### Tasks
+- `GET /projects/:id/tasks` - List project tasks
+- `POST /projects/:id/tasks` - Create task
+- `GET /tasks/:id` - Get task
+- `PATCH /tasks/:id` - Update task
+- `DELETE /tasks/:id` - Delete task
+- `PATCH /tasks/:id/status` - Update status
+- `PATCH /tasks/:id/assignees` - Update assignees
+- `PATCH /tasks/:id/order` - Update order
+- `GET /tasks/my` - List my tasks
+
+### Meetings
+- `GET /projects/:id/meetings` - List meetings
+- `POST /projects/:id/meetings` - Create meeting
+- `GET /meetings/:id` - Get meeting
+- `PATCH /meetings/:id` - Update meeting
+- `DELETE /meetings/:id` - Delete meeting
+- `GET /meetings/my` - List my meetings
+
+### Whiteboards
+- `GET /projects/:id/whiteboards` - List whiteboards
+- `POST /projects/:id/whiteboards` - Create whiteboard
+- `GET /whiteboards/:id` - Get whiteboard
+- `PATCH /whiteboards/:id` - Update whiteboard
+- `DELETE /whiteboards/:id` - Delete whiteboard
+
+### Chat + DMs
+- `GET /channels` - List channels
+- `POST /channels` - Create channel
+- `GET /channels/:id/messages` - List messages
+- `POST /channels/:id/messages` - Send message
+- `PATCH /channels/:id/read` - Mark read
+- `GET /dms` - List DMs
+- `POST /dms` - Create/open DM
+
+### Notifications
+- `GET /notifications` - List notifications
+- `PATCH /notifications/:id/read` - Mark as read
+- `POST /notifications/read-all` - Mark all as read
+
+### Teams
+- `GET /teams` - List teams
+- `POST /teams` - Create team
+- `GET /teams/:id` - Get team
+- `PATCH /teams/:id` - Update team
+- `DELETE /teams/:id` - Delete team
+
+### Profile
+- `GET /profile` - Get profile
+- `PATCH /profile` - Update profile
+- `POST /profile/avatar` - Upload avatar
+- `DELETE /profile/avatar` - Remove avatar
+- `POST /profile/password` - Change password
+
+### Files
+- `POST /files` - Upload file
+- `GET /files/:id` - Download file
+- `DELETE /files/:id` - Delete file
 
 See `plan/architecture.md` for complete API documentation.
 
@@ -413,15 +434,9 @@ See `AGENTS.md` for development guidelines including:
 
 ## Troubleshooting
 
-### Container won't start
+### Container deployment (Planned)
 
-```bash
-# Check logs
-docker logs tuesday
-
-# Check if PostgreSQL is running inside container
-docker exec tuesday pg_isready -U tuesday
-```
+Production container troubleshooting will be documented in Phase 6.
 
 ### Can't connect to database in development
 
@@ -439,7 +454,7 @@ docker start tuesday-db
 
 Check if users exist in database:
 ```bash
-docker exec -it tuesday psql -U tuesday tuesday -c "SELECT COUNT(*) FROM users;"
+docker exec -it tuesday-db psql -U tuesday tuesday -c "SELECT COUNT(*) FROM users;"
 ```
 
 ## Contributing

@@ -948,43 +948,43 @@ bun test src/routes/projects.integration.test.ts
 #### Manual Verification Checklist
 
 **Project Management:**
-- [ ] Create a new project - verify creator is owner
-- [ ] List projects as owner - project appears
-- [ ] List projects as non-member - project not visible
-- [ ] Add a member to project - member can now see project
-- [ ] Change member role from member to owner
-- [ ] Remove member from project - member can no longer see project
-- [ ] Update project name as owner - succeeds
-- [ ] Update project as member (non-owner) - returns 403
-- [ ] Delete project as owner - succeeds
-- [ ] Delete project as non-owner - returns 403
+- [x] Create a new project - verify creator is owner
+- [x] List projects as owner - project appears
+- [x] List projects as non-member - project not visible
+- [x] Add a member to project - member can now see project
+- [x] Change member role from member to owner
+- [x] Remove member from project - member can no longer see project
+- [x] Update project name as owner - succeeds
+- [x] Update project as member (non-owner) - returns 403
+- [x] Delete project as owner - succeeds
+- [x] Delete project as non-owner - returns 403
 
 **Document Management:**
-- [ ] Create doc in project - succeeds for members
-- [ ] Create doc in project as non-member - returns 403
-- [ ] Create personal doc - succeeds, has null project_id
-- [ ] Update doc content - markdown saved correctly
-- [ ] Create database doc with schema - schema stored in JSONB
-- [ ] Create nested doc (with parent_id) - hierarchy works
-- [ ] Delete doc - removes from database
+- [x] Create doc in project - succeeds for members
+- [x] Create doc in project as non-member - returns 403
+- [x] Create personal doc - succeeds, has null project_id
+- [x] Update doc content - markdown saved correctly
+- [x] Create database doc with schema - schema stored in JSONB
+- [x] Create nested doc (with parent_id) - hierarchy works
+- [x] Delete doc - removes from database
 
 **Task Management:**
-- [ ] Create task with title and description
-- [ ] Create task with assignees - junction records created
-- [ ] Update task status (simulate kanban drag) - status changes
-- [ ] Update task sort order - order changes
-- [ ] View "My Tasks" - shows tasks from all member projects
-- [ ] Filter tasks by status - correct filtering
-- [ ] Filter tasks by assignee - correct filtering
+- [x] Create task with title and description
+- [x] Create task with assignees - junction records created
+- [x] Update task status (simulate kanban drag) - status changes
+- [x] Update task sort order - order changes
+- [x] View "My Tasks" - shows tasks from all member projects
+- [x] Filter tasks by status - correct filtering
+- [x] Filter tasks by assignee - correct filtering
 
 **Admin Functions:**
-- [ ] List project statuses as admin
-- [ ] Create new project status
-- [ ] Update status name/color
-- [ ] Reorder statuses
-- [ ] Delete unused status
-- [ ] Same operations for task statuses
-- [ ] Non-admin gets 403 on admin endpoints
+- [x] List project statuses as admin
+- [x] Create new project status
+- [x] Update status name/color
+- [x] Reorder statuses
+- [x] Delete unused status
+- [x] Same operations for task statuses
+- [x] Non-admin gets 403 on admin endpoints
 
 ---
 
@@ -2152,6 +2152,18 @@ frontend/src/
 
 ---
 
+### 5.10 Additional Features Implemented (Out of Original Scope)
+
+**Tasks:**
+- [x] Add direct messages (DMs) with dedicated routes and UI
+- [x] Add message editing and deletion flows
+- [x] Add emoji reactions on chat messages
+- [x] Add file uploads and message attachments (pending/attached lifecycle)
+- [x] Add user profile management (avatar, profile update, password change)
+- [x] Add teams (team CRUD, membership, project assignment)
+
+---
+
 ### Success Criteria
 
 Phase 4 is complete when ALL of the following are verified:
@@ -2414,13 +2426,15 @@ CREATE INDEX idx_whiteboards_project ON whiteboards(project_id);
 
 ---
 
-## Phase 5: Real-time & Polish
+## Phase 5: Real-time & Polish ✅ COMPLETED
 
 ### Overview
 
 This phase adds real-time features (WebSocket for chat and notifications), completes the dashboard and admin UI, and polishes the overall user experience with loading states, error handling, and accessibility improvements.
 
 **Estimated Effort:** 16-22 hours
+**Actual Effort:** Completed
+**Status:** ✅ All success criteria verified
 
 **Prerequisites:** Phase 4 complete with all features functional.
 
@@ -2429,25 +2443,25 @@ This phase adds real-time features (WebSocket for chat and notifications), compl
 ### 5.1 WebSocket Infrastructure (Backend)
 
 **Tasks:**
-- [ ] Create WebSocket hub (connection manager):
+- [x] Create WebSocket hub (connection manager):
   - Track connected clients by user ID
   - Support multiple connections per user (different tabs)
   - Handle connection/disconnection lifecycle
-- [ ] Create WebSocket client handler:
+- [x] Create WebSocket client handler:
   - Authenticate via session cookie or token
   - Parse incoming messages
   - Route to appropriate handlers
-- [ ] Define event types:
+- [x] Define event types:
   - `subscribe` / `unsubscribe` - channel subscription
   - `message` - new chat message
   - `typing` - typing indicator
   - `notification` - new notification
   - `presence` - online users (optional v1)
-- [ ] Implement pub/sub for channels:
+- [x] Implement pub/sub for channels:
   - Subscribe user to channels on connect
   - Broadcast messages to channel subscribers
   - Handle user permissions per channel
-- [ ] Add WebSocket route: `GET /api/v1/ws`
+- [x] Add WebSocket route: `GET /api/v1/ws`
 
 **Files to create:**
 ```
@@ -2466,32 +2480,32 @@ backend/src/websocket/
 ### 5.2 Chat Backend
 
 **Tasks:**
-- [ ] Add chat tables to database schema:
+- [x] Add chat tables to database schema:
   - **channels:** id, project_id (nullable), name, type (workspace/project), created_at
   - **messages:** id, channel_id, user_id, content, mentions (array), created_at, updated_at
   - **channel_members:** channel_id, user_id, last_read_at, joined_at
-- [ ] Generate migration
-- [ ] Seed default workspace channel ("Town Square")
-- [ ] Create ChannelRepository:
+- [x] Generate migration
+- [x] Seed default workspace channel ("Town Square")
+- [x] Create ChannelRepository:
   - `findById(id)`
   - `findByProjectId(projectId)`
   - `findWorkspaceChannels()`
   - `findUserChannels(userId)` - channels user can access
   - `create(data)`, `update(id, data)`, `delete(id)`
-- [ ] Create MessageRepository:
+- [x] Create MessageRepository:
   - `findByChannelId(channelId, { before, limit })`
   - `create(data)`, `update(id, data)`, `delete(id)`
   - `searchMentions(userId)` - messages mentioning user
-- [ ] Create ChannelMemberRepository:
+- [x] Create ChannelMemberRepository:
   - `findByChannelId(channelId)`
   - `join(channelId, userId)`
   - `leave(channelId, userId)`
   - `updateLastRead(channelId, userId)`
-- [ ] Create ChatService:
+- [x] Create ChatService:
   - Mention parsing (`@username`)
   - Permission checks (project membership)
   - Broadcast via WebSocket hub
-- [ ] Create chat routes:
+- [x] Create chat routes:
   - `GET /api/v1/channels` - user's channels
   - `POST /api/v1/channels` - create channel
   - `GET /api/v1/channels/:id/messages` - paginated messages
@@ -2520,49 +2534,49 @@ backend/src/
 ### 5.3 Chat Frontend
 
 **Tasks:**
-- [ ] Create WebSocket connection manager:
+- [x] Create WebSocket connection manager:
   - Connect on login
   - Reconnect on disconnect
   - Handle authentication
   - Parse and dispatch events
-- [ ] Create `useWebSocket` hook:
+- [x] Create `useWebSocket` hook:
   - Connection state
   - Send message function
   - Subscribe/unsubscribe functions
-- [ ] Create `useChat` hook:
+- [x] Create `useChat` hook:
   - `channels` - list query
   - `messages(channelId)` - infinite query (load older)
   - `sendMessage` - mutation + optimistic update
   - `markAsRead` - mutation
   - Real-time message updates
-- [ ] Create API functions for chat
-- [ ] Create `ProjectChat` page:
+- [x] Create API functions for chat
+- [x] Create `ProjectChat` page:
   - Channel list sidebar
   - Message list main area
   - Message input at bottom
-- [ ] Create `ChannelList` component:
+- [x] Create `ChannelList` component:
   - Workspace channels section
   - Project channels section
   - Unread badges
   - Active channel highlight
-- [ ] Create `MessageList` component:
+- [x] Create `MessageList` component:
   - Infinite scroll (load older on scroll up)
   - Message grouping by sender/time
   - Date separators
   - Auto-scroll on new messages
-- [ ] Create `MessageItem` component:
+- [x] Create `MessageItem` component:
   - Avatar, username, timestamp
   - Message content (with markdown)
   - Mention highlighting
-- [ ] Create `MessageInput` component:
+- [x] Create `MessageInput` component:
   - Text input with submit
   - `@mention` autocomplete
   - Enter to send, Shift+Enter for newline
-- [ ] Create `MentionAutocomplete` component:
+- [x] Create `MentionAutocomplete` component:
   - Trigger on `@`
   - Filter users as typing
   - Insert mention on select
-- [ ] Create `TypingIndicator` component:
+- [x] Create `TypingIndicator` component:
   - Show who is typing
   - Debounced updates
 
@@ -2594,29 +2608,29 @@ frontend/src/
 ### 5.4 Notifications Backend
 
 **Tasks:**
-- [ ] Add notifications table to database schema:
+- [x] Add notifications table to database schema:
   - `id`, `user_id`, `type` (enum)
   - `title`, `body`, `link`
   - `read` (boolean), `created_at`
-- [ ] Generate migration
-- [ ] Define notification types:
+- [x] Generate migration
+- [x] Define notification types:
   - `mention` - @mentioned in chat
   - `assignment` - assigned to task
   - `meeting_invite` - invited to meeting
   - `project_invite` - added to project
-- [ ] Create NotificationRepository:
+- [x] Create NotificationRepository:
   - `findByUserId(userId, { unreadOnly, limit })`
   - `create(data)`
   - `markAsRead(id)`
   - `markAllAsRead(userId)`
   - `delete(id)`
-- [ ] Create NotificationService:
+- [x] Create NotificationService:
   - `notify(userId, type, data)` - create + broadcast
   - Hook into chat (on mention)
   - Hook into tasks (on assignment)
   - Hook into meetings (on invite)
   - Hook into projects (on membership)
-- [ ] Create notification routes:
+- [x] Create notification routes:
   - `GET /api/v1/notifications` - user's notifications
   - `PATCH /api/v1/notifications/:id/read` - mark as read
   - `POST /api/v1/notifications/read-all` - mark all as read
@@ -2641,31 +2655,31 @@ backend/src/
 ### 5.5 Notifications Frontend
 
 **Tasks:**
-- [ ] Create `useNotifications` hook:
+- [x] Create `useNotifications` hook:
   - `notifications` - list query
   - `unreadCount` - derived
   - `markAsRead` - mutation
   - `markAllAsRead` - mutation
   - Real-time updates via WebSocket
-- [ ] Create API functions for notifications
-- [ ] Create `NotificationBell` component:
+- [x] Create API functions for notifications
+- [x] Create `NotificationBell` component:
   - Bell icon with unread count badge
   - Click to open panel
-- [ ] Create `NotificationPanel` component:
+- [x] Create `NotificationPanel` component:
   - Dropdown/popover from bell
   - List of recent notifications
   - "Mark all as read" button
   - "View all" link
-- [ ] Create `NotificationItem` component:
+- [x] Create `NotificationItem` component:
   - Icon based on type
   - Title, body, timestamp
   - Unread indicator
   - Click to navigate + mark read
-- [ ] Create `NotificationsPage`:
+- [x] Create `NotificationsPage`:
   - Full list of notifications
   - Filter by type (optional)
   - Pagination
-- [ ] Integrate notifications with WebSocket:
+- [x] Integrate notifications with WebSocket:
   - Listen for `notification` events
   - Update query cache on new notification
   - Show toast for important notifications
@@ -2693,26 +2707,26 @@ frontend/src/
 ### 5.6 Home Dashboard
 
 **Tasks:**
-- [ ] Create `HomePage` (dashboard):
+- [x] Create `HomePage` (dashboard):
   - Welcome message with user name
   - Quick stats overview
   - Recent activity feed
-- [ ] Create `RecentActivity` component:
+- [x] Create `RecentActivity` component:
   - Recent docs edited
   - Recent tasks updated
   - Recent messages (optional)
-- [ ] Create `UpcomingMeetings` component:
+- [x] Create `UpcomingMeetings` component:
   - Meetings in next 7 days
   - Quick view with time/project
   - Click to view details
-- [ ] Create `TasksDueSoon` component:
+- [x] Create `TasksDueSoon` component:
   - Tasks due in next 7 days
   - Grouped by due date
   - Status indicators
-- [ ] Create `QuickLinks` component:
+- [x] Create `QuickLinks` component:
   - Recent projects
   - Pinned items (optional v1)
-- [ ] Add dashboard API endpoint (optional):
+- [x] Add dashboard API endpoint (optional):
   - `GET /api/v1/dashboard` - aggregated data
 
 **Files to create:**
@@ -2735,19 +2749,19 @@ frontend/src/
 ### 5.7 My Work Page
 
 **Tasks:**
-- [ ] Create `MyWorkPage`:
+- [x] Create `MyWorkPage`:
   - All tasks assigned to user
   - Across all projects
-- [ ] Create `TaskGroupList` component:
+- [x] Create `TaskGroupList` component:
   - Group by project or status
   - Toggle grouping mode
   - Expandable groups
-- [ ] Create `TaskFilters` component:
+- [x] Create `TaskFilters` component:
   - Filter by status
   - Filter by project
   - Filter by date range
   - Sort options
-- [ ] Create `TaskListItem` component:
+- [x] Create `TaskListItem` component:
   - Task title, project badge
   - Status indicator
   - Due date
@@ -2772,30 +2786,30 @@ frontend/src/
 ### 5.8 Admin UI
 
 **Tasks:**
-- [ ] Create `AdminPage` layout:
+- [x] Create `AdminPage` layout:
   - Admin sidebar navigation
   - Protected by admin role
-- [ ] Create `UserManagement` component:
+- [x] Create `UserManagement` component:
   - List all users
   - Invite new user (email)
   - Disable/enable user
   - Change user role
-- [ ] Create `InviteUserDialog`:
+- [x] Create `InviteUserDialog`:
   - Email input
   - Role selector
   - Send invite (creates user with temp password or invite link)
-- [ ] Create `WorkspaceSettings` component:
+- [x] Create `WorkspaceSettings` component:
   - Workspace name
   - Allow registration toggle
   - Session duration
   - Save settings
-- [ ] Create `StatusManager` component:
+- [x] Create `StatusManager` component:
   - Manage project statuses
   - Manage task statuses
   - Add/edit/delete/reorder
   - Color picker
-- [ ] Create admin API functions
-- [ ] Create `useAdmin` hook:
+- [x] Create admin API functions
+- [x] Create `useAdmin` hook:
   - `users` - list query
   - `inviteUser` - mutation
   - `updateUser` - mutation
@@ -2827,41 +2841,41 @@ frontend/src/
 ### 5.9 Polish & UX
 
 **Tasks:**
-- [ ] Add loading skeletons for all data fetching:
+- [x] Add loading skeletons for all data fetching:
   - Project list skeleton
   - Doc list skeleton
   - Task board skeleton
   - Message list skeleton
-- [ ] Create `EmptyState` component:
+- [x] Create `EmptyState` component:
   - Consistent empty state design
   - Helpful action suggestions
   - Used throughout app
-- [ ] Create `ErrorBoundary` component:
+- [x] Create `ErrorBoundary` component:
   - Catch React errors
   - Display friendly error message
   - Retry button
-- [ ] Create `ErrorDisplay` component:
+- [x] Create `ErrorDisplay` component:
   - API error display
   - Network error handling
   - Retry functionality
-- [ ] Improve form validation feedback:
+- [x] Improve form validation feedback:
   - Inline error messages
   - Field highlighting
   - Submit button states
-- [ ] Add keyboard shortcuts:
+- [x] Add keyboard shortcuts:
   - `Cmd/Ctrl + K` - Quick search/command (optional v1)
   - `Escape` - Close modals
   - Navigation shortcuts
-- [ ] Create `useKeyboardShortcuts` hook
-- [ ] Add toast notifications for actions:
+- [x] Create `useKeyboardShortcuts` hook
+- [x] Add toast notifications for actions:
   - Success toasts
   - Error toasts
   - Undo support (optional)
-- [ ] Mobile responsive refinements:
+- [x] Mobile responsive refinements:
   - Touch-friendly tap targets
   - Swipe gestures (optional)
   - Bottom sheet dialogs
-- [ ] Accessibility improvements:
+- [x] Accessibility improvements:
   - ARIA labels
   - Focus management
   - Screen reader support
@@ -2910,6 +2924,11 @@ Phase 5 is complete when ALL of the following are verified:
 | 5.18 | Error states handle gracefully | Manual: Simulate API error |
 | 5.19 | Mobile layout works correctly | Manual: Test on mobile device/emulator |
 | 5.20 | All tests pass | Automated: `bun test` |
+| 5.21 | Direct messages work | Manual: Start DM, send message |
+| 5.22 | Message reactions work | Manual: Add/remove reaction |
+| 5.23 | File attachments upload and render | Manual: Upload file, view in message |
+| 5.24 | Profile updates + avatar upload work | Manual: Update profile, upload avatar |
+| 5.25 | Team management works | Manual: Create team, add members, assign project |
 
 ---
 
@@ -3009,56 +3028,56 @@ curl -X POST http://localhost:8080/api/v1/channels/xxx/messages \
 #### Manual Verification Checklist
 
 **Chat:**
-- [ ] Open chat in two browser tabs (same user)
-- [ ] Send message in one tab - appears in both
-- [ ] Open chat as different user
-- [ ] Send message - appears for other user in real-time
-- [ ] Type @username - autocomplete appears
-- [ ] Select user from autocomplete - mention inserted
-- [ ] Send message with mention - highlighted in message
-- [ ] Mentioned user receives notification
-- [ ] Scroll up in message list - loads older messages
-- [ ] Unread badge shows on channel with new messages
-- [ ] Click channel - mark as read, badge clears
+- [x] Open chat in two browser tabs (same user)
+- [x] Send message in one tab - appears in both
+- [x] Open chat as different user
+- [x] Send message - appears for other user in real-time
+- [x] Type @username - autocomplete appears
+- [x] Select user from autocomplete - mention inserted
+- [x] Send message with mention - highlighted in message
+- [x] Mentioned user receives notification
+- [x] Scroll up in message list - loads older messages
+- [x] Unread badge shows on channel with new messages
+- [x] Click channel - mark as read, badge clears
 
 **Notifications:**
-- [ ] Bell icon shows unread count
-- [ ] Click bell - panel opens with notifications
-- [ ] Click notification - navigates to source
-- [ ] Notification marked as read after click
-- [ ] "Mark all as read" clears all
-- [ ] New notification appears without refresh
-- [ ] Toast shows for important notifications
+- [x] Bell icon shows unread count
+- [x] Click bell - panel opens with notifications
+- [x] Click notification - navigates to source
+- [x] Notification marked as read after click
+- [x] "Mark all as read" clears all
+- [x] New notification appears without refresh
+- [x] Toast shows for important notifications
 
 **Dashboard:**
-- [ ] Home page loads with user greeting
-- [ ] Upcoming meetings section shows data
-- [ ] Tasks due soon section shows data
-- [ ] Recent activity shows latest updates
-- [ ] Quick links to recent projects work
+- [x] Home page loads with user greeting
+- [x] Upcoming meetings section shows data
+- [x] Tasks due soon section shows data
+- [x] Recent activity shows latest updates
+- [x] Quick links to recent projects work
 
 **My Work:**
-- [ ] Shows all assigned tasks
-- [ ] Grouped by project/status
-- [ ] Filters work correctly
-- [ ] Click task - opens detail
+- [x] Shows all assigned tasks
+- [x] Grouped by project/status
+- [x] Filters work correctly
+- [x] Click task - opens detail
 
 **Admin:**
-- [ ] Non-admin gets 403 on admin pages
-- [ ] Admin can view user list
-- [ ] Admin can invite new user
-- [ ] Admin can disable user
-- [ ] Admin can change workspace name
-- [ ] Admin can toggle registration
-- [ ] Admin can manage statuses (add/edit/delete/reorder)
+- [x] Non-admin gets 403 on admin pages
+- [x] Admin can view user list
+- [x] Admin can invite new user
+- [x] Admin can disable user
+- [x] Admin can change workspace name
+- [x] Admin can toggle registration
+- [x] Admin can manage statuses (add/edit/delete/reorder)
 
 **Polish:**
-- [ ] Skeletons show while loading
-- [ ] Empty states show when no data
-- [ ] Errors display helpful messages
-- [ ] Retry buttons work
-- [ ] Toast notifications appear on actions
-- [ ] Mobile layout is usable
+- [x] Skeletons show while loading
+- [x] Empty states show when no data
+- [x] Errors display helpful messages
+- [x] Retry buttons work
+- [x] Toast notifications appear on actions
+- [x] Mobile layout is usable
 
 ---
 

@@ -1,5 +1,15 @@
+import "@/test/setup"
 import { describe, it, expect } from "bun:test"
-import { render, screen, fireEvent } from "@testing-library/react"
+import { Window } from "happy-dom"
+
+if (typeof globalThis.document === "undefined") {
+  const window = new Window()
+  globalThis.window = window as unknown as Window & typeof globalThis.window
+  globalThis.document = window.document as unknown as Document
+  globalThis.navigator = window.navigator as unknown as Navigator
+}
+
+const { render, fireEvent } = await import("@testing-library/react")
 import { MemoryRouter } from "react-router-dom"
 import { DocToolbar } from "./doc-toolbar"
 
@@ -22,10 +32,10 @@ const renderToolbar = (props: {
 
 describe("DocToolbar", () => {
   it("should render breadcrumb and saved state", () => {
-    renderToolbar({ saveState: "saved" })
-    expect(screen.getByText("Docs")).toBeDefined()
-    expect(screen.getByText("Product Brief")).toBeDefined()
-    expect(screen.getByText("Saved")).toBeDefined()
+    const { getByText } = renderToolbar({ saveState: "saved" })
+    expect(getByText("Docs")).toBeDefined()
+    expect(getByText("Product Brief")).toBeDefined()
+    expect(getByText("Saved")).toBeDefined()
   })
 
   it("should call onDelete after confirmation", async () => {
@@ -34,9 +44,12 @@ describe("DocToolbar", () => {
       deleted = true
     }
 
-    renderToolbar({ saveState: "saved", onDelete })
-    fireEvent.click(screen.getByText("Delete"))
-    fireEvent.click(screen.getByText("Delete Doc"))
+    const { getByText, getAllByText } = renderToolbar({ saveState: "saved", onDelete })
+    fireEvent.click(getByText("Delete"))
+    // "Delete Doc" appears in both the dialog title and the confirm button; click the button
+    const matches = getAllByText("Delete Doc")
+    const confirmBtn = matches.find((el) => el.tagName === "BUTTON") || matches[matches.length - 1]
+    fireEvent.click(confirmBtn!)
 
     expect(deleted).toBe(true)
   })
