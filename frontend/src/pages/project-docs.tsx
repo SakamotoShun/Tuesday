@@ -2,7 +2,9 @@ import { FileText } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DocList } from "@/components/docs/doc-list"
+import { DocSortControl } from "@/components/docs/doc-sort-control"
 import { NewDocDialog } from "@/components/docs/new-doc-dialog"
+import { useDocSort } from "@/hooks/use-doc-sort"
 import { useDocs } from "@/hooks/use-docs"
 import { ApiErrorResponse } from "@/api/client"
 
@@ -12,6 +14,7 @@ interface ProjectDocsPageProps {
 
 export function ProjectDocsPage({ projectId }: ProjectDocsPageProps) {
   const { docs, isLoading, error, createDoc, updateDoc, deleteDoc } = useDocs(projectId)
+  const { sort, setSort } = useDocSort(`workhub:doc-tree-sort:${projectId}`)
 
   if (isLoading) {
     return (
@@ -49,11 +52,14 @@ export function ProjectDocsPage({ projectId }: ProjectDocsPageProps) {
           <FileText className="h-4 w-4" />
           <span>{docs.length} {docLabel}</span>
         </div>
-        <NewDocDialog
-          parentOptions={parentOptions}
-          onCreate={(data) => createDoc.mutateAsync(data)}
-          isSubmitting={createDoc.isPending}
-        />
+        <div className="flex items-center gap-2">
+          <DocSortControl value={sort} onChange={setSort} />
+          <NewDocDialog
+            parentOptions={parentOptions}
+            onCreate={(data) => createDoc.mutateAsync(data)}
+            isSubmitting={createDoc.isPending}
+          />
+        </div>
       </div>
 
       <Card className="p-4">
@@ -66,6 +72,8 @@ export function ProjectDocsPage({ projectId }: ProjectDocsPageProps) {
           <DocList
             docs={docs}
             projectId={projectId}
+            sortField={sort.field}
+            sortDirection={sort.direction}
             onRename={(docId, title) => updateDoc.mutateAsync({ docId, data: { title } })}
             onDelete={(docId) => deleteDoc.mutateAsync(docId)}
           />

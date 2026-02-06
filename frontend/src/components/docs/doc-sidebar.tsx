@@ -3,8 +3,10 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DocList } from "@/components/docs/doc-list"
+import { DocSortControl } from "@/components/docs/doc-sort-control"
 import { NewDocDialog } from "@/components/docs/new-doc-dialog"
 import { useDocs } from "@/hooks/use-docs"
+import { useDocSort } from "@/hooks/use-doc-sort"
 import { ApiErrorResponse } from "@/api/client"
 
 interface DocSidebarProps {
@@ -14,6 +16,7 @@ interface DocSidebarProps {
 
 export function DocSidebar({ projectId, activeDocId }: DocSidebarProps) {
   const { docs, isLoading, error, createDoc, updateDoc, deleteDoc } = useDocs(projectId)
+  const { sort, setSort } = useDocSort(`workhub:doc-tree-sort:${projectId}`)
 
   const parentOptions = docs.filter((doc) => !doc.parentId)
 
@@ -24,16 +27,19 @@ export function DocSidebar({ projectId, activeDocId }: DocSidebarProps) {
           <FileText className="h-4 w-4 text-muted-foreground" />
           Docs
         </div>
-        <NewDocDialog
-          parentOptions={parentOptions}
-          onCreate={(data) => createDoc.mutateAsync(data)}
-          isSubmitting={createDoc.isPending}
-          trigger={(
-            <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Create doc">
-              <Plus className="h-4 w-4" />
-            </Button>
-          )}
-        />
+        <div className="flex items-center gap-1">
+          <DocSortControl value={sort} onChange={setSort} />
+          <NewDocDialog
+            parentOptions={parentOptions}
+            onCreate={(data) => createDoc.mutateAsync(data)}
+            isSubmitting={createDoc.isPending}
+            trigger={(
+              <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Create doc">
+                <Plus className="h-4 w-4" />
+              </Button>
+            )}
+          />
+        </div>
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto px-2 py-2">
@@ -53,6 +59,8 @@ export function DocSidebar({ projectId, activeDocId }: DocSidebarProps) {
           <DocList
             docs={docs}
             projectId={projectId}
+            sortField={sort.field}
+            sortDirection={sort.direction}
             activeDocId={activeDocId}
             onRename={(docId, title) => updateDoc.mutateAsync({ docId, data: { title } })}
             onDelete={(docId) => deleteDoc.mutateAsync(docId)}

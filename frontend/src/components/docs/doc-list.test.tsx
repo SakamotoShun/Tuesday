@@ -58,6 +58,8 @@ describe("DocList", () => {
       <DocList
         docs={docs}
         projectId="project-1"
+        sortField="updatedAt"
+        sortDirection="desc"
         onRename={async () => {}}
         onDelete={async () => {}}
       />
