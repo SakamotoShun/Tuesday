@@ -64,9 +64,11 @@ export function SetupPage() {
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <Card className="w-full max-w-[480px] p-12 text-center rounded-[20px] shadow-lg border-border">
         {/* Logo */}
-        <div className="w-16 h-16 bg-primary rounded-2xl mx-auto mb-6 flex items-center justify-center text-primary-foreground text-2xl font-bold">
-          T
-        </div>
+        <img 
+          src="/Tuesday.png" 
+          alt="Tuesday" 
+          className="w-16 h-16 rounded-2xl mx-auto mb-6 object-cover"
+        />
 
         {/* Title */}
         <CardHeader className="p-0 mb-6">
