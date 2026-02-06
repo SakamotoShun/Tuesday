@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { ArrowLeft, FileText, Pencil, Table, X } from "lucide-react"
 import type { Block } from "@blocknote/core"
@@ -28,8 +28,42 @@ export function DocPage() {
   const [titleError, setTitleError] = useState<string | null>(null)
   const [saveState, setSaveState] = useState<"saved" | "saving" | "error">("saved")
   const [isChatOpen, setIsChatOpen] = useState(false)
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
   const chatPanelWidth = useUIStore((state) => state.chatPanelWidth)
   const setChatPanelWidth = useUIStore((state) => state.setChatPanelWidth)
+  const docSidebarWidth = useUIStore((state) => state.docSidebarWidth)
+  const setDocSidebarWidth = useUIStore((state) => state.setDocSidebarWidth)
+
+  const handleSidebarResizeStart = useCallback((event: React.MouseEvent) => {
+    event.preventDefault()
+    setIsResizingSidebar(true)
+  }, [])
+
+  useEffect(() => {
+    if (!isResizingSidebar) return
+
+    const handleMouseMove = (event: MouseEvent) => {
+      if (!containerRef.current) return
+
+      const containerRect = containerRef.current.getBoundingClientRect()
+      const newWidth = event.clientX - containerRect.left
+      const clampedWidth = Math.min(480, Math.max(180, newWidth))
+      setDocSidebarWidth(clampedWidth)
+    }
+
+    const handleMouseUp = () => {
+      setIsResizingSidebar(false)
+    }
+
+    document.addEventListener("mousemove", handleMouseMove)
+    document.addEventListener("mouseup", handleMouseUp)
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove)
+      document.removeEventListener("mouseup", handleMouseUp)
+    }
+  }, [isResizingSidebar, setDocSidebarWidth])
 
   useEffect(() => {
     if (doc) {
@@ -231,10 +265,22 @@ export function DocPage() {
 
   return (
     <div
-      className="flex min-h-0 border border-border rounded-lg overflow-hidden bg-background"
+      ref={containerRef}
+      className={`flex min-h-0 border border-border rounded-lg overflow-hidden bg-background ${
+        isResizingSidebar ? "select-none" : ""
+      }`}
       style={{ height: "calc(100vh - 72px - 4rem)" }}
     >
-      <DocSidebar projectId={projectId} activeDocId={doc.id} />
+      <DocSidebar projectId={projectId} activeDocId={doc.id} width={docSidebarWidth} />
+      <div
+        className={`w-1 cursor-col-resize bg-border hover:bg-primary/50 transition-colors ${
+          isResizingSidebar ? "bg-primary" : ""
+        }`}
+        onMouseDown={handleSidebarResizeStart}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize docs sidebar"
+      />
       <div className="flex-1 min-w-0">
         <ResizableSplit
           sidePanel={chatPanel}

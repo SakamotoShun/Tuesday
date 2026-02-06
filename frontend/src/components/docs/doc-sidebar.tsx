@@ -12,16 +12,20 @@ import { ApiErrorResponse } from "@/api/client"
 interface DocSidebarProps {
   projectId: string
   activeDocId?: string
+  width?: number
 }
 
-export function DocSidebar({ projectId, activeDocId }: DocSidebarProps) {
+export function DocSidebar({ projectId, activeDocId, width = 260 }: DocSidebarProps) {
   const { docs, isLoading, error, createDoc, updateDoc, deleteDoc } = useDocs(projectId)
   const { sort, setSort } = useDocSort(`workhub:doc-tree-sort:${projectId}`)
 
   const parentOptions = docs.filter((doc) => !doc.parentId)
 
   return (
-    <aside className="w-[260px] min-w-[260px] border-r border-border bg-background flex flex-col min-h-0">
+    <aside
+      className="border-r border-border bg-background flex flex-col min-h-0"
+      style={{ width, minWidth: width }}
+    >
       <div className="flex items-center justify-between px-3 py-2">
         <div className="flex items-center gap-2 text-sm font-medium">
           <FileText className="h-4 w-4 text-muted-foreground" />

@@ -10,6 +10,8 @@ interface UIState {
   setTheme: (theme: Theme) => void
   chatPanelWidth: number
   setChatPanelWidth: (width: number) => void
+  docSidebarWidth: number
+  setDocSidebarWidth: (width: number) => void
 }
 
 export const useUIStore = create<UIState>()(
@@ -22,6 +24,8 @@ export const useUIStore = create<UIState>()(
       setTheme: (theme) => set({ theme }),
       chatPanelWidth: 420,
       setChatPanelWidth: (width) => set({ chatPanelWidth: width }),
+      docSidebarWidth: 260,
+      setDocSidebarWidth: (width) => set({ docSidebarWidth: width }),
     }),
     {
       name: "ui-storage",
