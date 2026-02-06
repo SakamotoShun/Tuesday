@@ -10,6 +10,7 @@ Run your team's work hub without per-seat SaaS pricing.
 [![Docker Image Size](https://img.shields.io/docker/image-size/sohshunhong/tuesday/latest?style=flat-square&logo=docker&label=Image%20Size)](https://hub.docker.com/r/sohshunhong/tuesday)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.1.0-green?style=flat-square)](CHANGELOG.md)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20Tuesday-ff5e5b?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/sakamotoshun)
 
 <br />
 
@@ -436,7 +437,7 @@ docker compose up -d
 
 <div align="center">
 
-**[Documentation](docs/deployment.md)** &middot; **[Docker Hub](https://hub.docker.com/r/sohshunhong/tuesday)** &middot; **[Changelog](CHANGELOG.md)**
+**[Documentation](docs/deployment.md)** &middot; **[Docker Hub](https://hub.docker.com/r/sohshunhong/tuesday)** &middot; **[Changelog](CHANGELOG.md)** &middot; **[Support on Ko-fi](https://ko-fi.com/sakamotoshun)**
 
 MIT License &copy; 2026 UltreonAI
 
