@@ -30,6 +30,48 @@
 
 Database migrations run automatically on startup. The application will not start until all migrations have been applied.
 
+## Docker Run Upgrade
+
+If you deployed with `docker run`, follow the same upgrade flow but replace the `docker compose` steps with these commands:
+
+1. **Back up your data** before upgrading:
+
+   ```bash
+   ./scripts/backup.sh
+   ```
+
+2. **Pull the latest image** (or a specific version tag):
+
+   ```bash
+   docker pull sohshunhong/tuesday:latest
+   ```
+
+3. **Stop and remove the old container**:
+
+   ```bash
+   docker stop tuesday
+   docker rm tuesday
+   ```
+
+4. **Run the new container** with the same ports, env vars, and volume:
+
+   ```bash
+   docker run -d \
+     --name tuesday \
+     -p 8080:8080 \
+     -v tuesday_data:/app/data \
+     --restart unless-stopped \
+     sohshunhong/tuesday:latest
+   ```
+
+5. **Verify** the container is healthy:
+
+   ```bash
+   docker logs --tail 20 tuesday
+   ```
+
+Database migrations run automatically on startup. The application will not start until all migrations have been applied.
+
 ## Rollback
 
 If something goes wrong after an upgrade:
