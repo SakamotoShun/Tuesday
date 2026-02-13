@@ -192,6 +192,7 @@ export class ProjectService {
             parentId: null, // Will be updated in second pass
             title: doc.title,
             content: doc.content,
+            searchText: doc.searchText,
             properties: doc.properties,
             isDatabase: doc.isDatabase,
             schema: doc.schema,

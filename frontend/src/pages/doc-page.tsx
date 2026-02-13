@@ -14,26 +14,34 @@ import { DocSidebar } from "@/components/docs/doc-sidebar"
 import { ResizableSplit } from "@/components/layout/resizable-split"
 import { ChatView } from "@/components/chat/chat-view"
 import { useDocWithChildren, useDocs } from "@/hooks/use-docs"
+import { useDebounce } from "@/hooks/use-debounce"
 import { useUIStore } from "@/store/ui-store"
 import type { PropertyValue } from "@/api/types"
 import { ApiErrorResponse } from "@/api/client"
 
 export function DocPage() {
-  const { id: projectId, docId } = useParams<{ id: string; docId: string }>()
+  const { id: routeProjectId, docId } = useParams<{ id?: string; docId: string }>()
+  const projectId = routeProjectId ?? null
   const navigate = useNavigate()
   const { data: doc, isLoading, error } = useDocWithChildren(docId || "")
-  const { updateDoc, deleteDoc } = useDocs(projectId || "")
+  const { updateDoc, deleteDoc } = useDocs(projectId)
   const [titleDraft, setTitleDraft] = useState("")
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [titleError, setTitleError] = useState<string | null>(null)
   const [saveState, setSaveState] = useState<"saved" | "saving" | "error">("saved")
   const [isChatOpen, setIsChatOpen] = useState(false)
   const [isResizingSidebar, setIsResizingSidebar] = useState(false)
+  const [pendingContent, setPendingContent] = useState<Block[] | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const pendingContentRef = useRef<Block[] | null>(null)
+  const lastSavedContentRef = useRef("[]")
+  const isPersistingContentRef = useRef(false)
+  const queuedContentRef = useRef<Block[] | null>(null)
   const chatPanelWidth = useUIStore((state) => state.chatPanelWidth)
   const setChatPanelWidth = useUIStore((state) => state.setChatPanelWidth)
   const docSidebarWidth = useUIStore((state) => state.docSidebarWidth)
   const setDocSidebarWidth = useUIStore((state) => state.setDocSidebarWidth)
+  const debouncedContent = useDebounce(pendingContent, 900)
 
   const handleSidebarResizeStart = useCallback((event: React.MouseEvent) => {
     event.preventDefault()
@@ -71,8 +79,64 @@ export function DocPage() {
       setSaveState("saved")
       setTitleError(null)
       setIsEditingTitle(false)
+      setPendingContent(null)
+      pendingContentRef.current = null
+      queuedContentRef.current = null
+      lastSavedContentRef.current = JSON.stringify(doc.content ?? [])
     }
   }, [doc?.id])
+
+  const persistContent = useCallback(async (nextContent: Block[]) => {
+    if (!doc) return
+
+    const serialized = JSON.stringify(nextContent)
+    if (serialized === lastSavedContentRef.current) {
+      return
+    }
+
+    if (isPersistingContentRef.current) {
+      queuedContentRef.current = nextContent
+      return
+    }
+
+    isPersistingContentRef.current = true
+    setSaveState("saving")
+
+    try {
+      await updateDoc.mutateAsync({
+        docId: doc.id,
+        data: { content: nextContent },
+      })
+      lastSavedContentRef.current = serialized
+      setSaveState("saved")
+    } catch {
+      setSaveState("error")
+    } finally {
+      isPersistingContentRef.current = false
+
+      const queuedContent = queuedContentRef.current
+      queuedContentRef.current = null
+
+      if (queuedContent) {
+        void persistContent(queuedContent)
+      }
+    }
+  }, [doc, updateDoc])
+
+  useEffect(() => {
+    if (!debouncedContent) return
+    void persistContent(debouncedContent)
+  }, [debouncedContent, persistContent])
+
+  const handleContentChange = useCallback((nextContent: Block[]) => {
+    pendingContentRef.current = nextContent
+    setPendingContent(nextContent)
+  }, [])
+
+  const handleContentBlur = useCallback(() => {
+    if (!pendingContentRef.current) return
+    void persistContent(pendingContentRef.current)
+  }, [persistContent])
 
   const handleTitleSave = async () => {
     if (!doc) return
@@ -105,9 +169,9 @@ export function DocPage() {
   }
 
   const handleDelete = async () => {
-    if (!doc || !projectId) return
+    if (!doc) return
     await deleteDoc.mutateAsync(doc.id)
-    navigate(`/projects/${projectId}`)
+    navigate(projectId ? `/projects/${projectId}` : "/")
   }
 
   if (isLoading) {
@@ -129,7 +193,7 @@ export function DocPage() {
     )
   }
 
-  if (!doc || !projectId) {
+  if (!doc) {
     return (
       <div className="space-y-4">
         <h1 className="text-2xl font-bold">Doc Not Found</h1>
@@ -172,19 +236,23 @@ export function DocPage() {
         </Button>
       </div>
       <div className="flex-1 min-h-0">
-        <ChatView projectId={projectId} variant="panel" />
+        <ChatView projectId={projectId || ""} variant="panel" />
       </div>
     </div>
   )
 
+  const breadcrumbHref = projectId ? `/projects/${projectId}` : "/"
+  const breadcrumbLabel = projectId ? "Docs" : "Personal Docs"
+
   const docContent = (
     <div className="space-y-4 p-1">
       <DocToolbar
-        projectId={projectId}
+        breadcrumbHref={breadcrumbHref}
+        breadcrumbLabel={breadcrumbLabel}
         title={doc.title}
         saveState={saveState}
         onDelete={handleDelete}
-        onOpenChat={() => setIsChatOpen(true)}
+        onOpenChat={projectId ? () => setIsChatOpen(true) : undefined}
       />
 
       <div className="space-y-2">
@@ -248,7 +316,7 @@ export function DocPage() {
               schema={parentDatabase.schema}
               onUpdate={handlePropertiesUpdate}
               onOpenDatabase={() =>
-                navigate(`/projects/${projectId}/docs/${parentDatabase.id}`)
+                navigate(getDocPath(projectId, parentDatabase.id))
               }
             />
           )}
@@ -256,12 +324,22 @@ export function DocPage() {
             key={doc.id}
             docId={doc.id}
             initialContent={doc.content ?? []}
+            onChange={handleContentChange}
+            onBlur={handleContentBlur}
             onSyncStateChange={handleSyncStateChange}
           />
         </div>
       )}
     </div>
   )
+
+  if (!projectId) {
+    return (
+      <div className="rounded-lg border border-border bg-background p-4">
+        {docContent}
+      </div>
+    )
+  }
 
   return (
     <div
@@ -295,4 +373,12 @@ export function DocPage() {
       </div>
     </div>
   )
+}
+
+function getDocPath(projectId: string | null, docId: string) {
+  if (projectId) {
+    return `/projects/${projectId}/docs/${docId}`
+  }
+
+  return `/docs/personal/${docId}`
 }

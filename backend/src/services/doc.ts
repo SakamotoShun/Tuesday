@@ -2,6 +2,7 @@ import { docRepository } from '../repositories';
 import { projectService } from './project';
 import { type Doc, type NewDoc } from '../db/schema';
 import type { User } from '../types';
+import { extractSearchTextFromDocContent } from '../utils/doc-search';
 
 export interface CreateDocInput {
   title: string;
@@ -123,6 +124,7 @@ export class DocService {
     const doc = await docRepository.create({
       title: input.title.trim(),
       content: input.content ?? [],
+      searchText: extractSearchTextFromDocContent(input.content ?? []),
       projectId: input.projectId || null,
       parentId: input.parentId || null,
       isDatabase: input.isDatabase || false,
@@ -184,6 +186,7 @@ export class DocService {
 
     if (input.content !== undefined) {
       updateData.content = input.content;
+      updateData.searchText = extractSearchTextFromDocContent(input.content);
     }
 
     if (input.parentId !== undefined) {

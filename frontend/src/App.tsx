@@ -86,6 +86,7 @@ function AppRoutes() {
         >
           <Route index element={<HomePage />} />
           <Route path="projects" element={<ProjectsPage />} />
+          <Route path="docs/personal/:docId" element={<DocPage />} />
           <Route path="projects/:id/docs/:docId" element={<DocPage />} />
           <Route path="projects/:id/*" element={<ProjectDetailPage />} />
           <Route path="my-work" element={<MyWorkPage />} />

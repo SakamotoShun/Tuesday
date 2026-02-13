@@ -15,14 +15,15 @@ import { ApiErrorResponse } from "@/api/client"
 type SaveState = "saved" | "saving" | "error"
 
 interface DocToolbarProps {
-  projectId: string
+  breadcrumbHref: string
+  breadcrumbLabel: string
   title: string
   saveState: SaveState
   onDelete: () => Promise<void>
   onOpenChat?: () => void
 }
 
-export function DocToolbar({ projectId, title, saveState, onDelete, onOpenChat }: DocToolbarProps) {
+export function DocToolbar({ breadcrumbHref, breadcrumbLabel, title, saveState, onDelete, onOpenChat }: DocToolbarProps) {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -50,8 +51,8 @@ export function DocToolbar({ projectId, title, saveState, onDelete, onOpenChat }
   return (
     <div className="flex items-center justify-between gap-4">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Link to={`/projects/${projectId}`} className="hover:text-foreground">
-          Docs
+        <Link to={breadcrumbHref} className="hover:text-foreground">
+          {breadcrumbLabel}
         </Link>
         <span>/</span>
         <span className="text-foreground font-medium truncate max-w-[260px]">{title}</span>

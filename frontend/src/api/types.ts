@@ -120,6 +120,38 @@ export interface ApiError {
   details?: Array<{ field: string; message: string }>
 }
 
+export interface SearchProjectResult {
+  id: string
+  name: string
+  client: string | null
+  updatedAt: string
+}
+
+export interface SearchDocResult {
+  id: string
+  title: string
+  projectId: string | null
+  projectName: string | null
+  isPersonal: boolean
+  snippet: string | null
+  updatedAt: string
+}
+
+export interface SearchTaskResult {
+  id: string
+  title: string
+  projectId: string
+  projectName: string
+  snippet: string | null
+  updatedAt: string
+}
+
+export interface GlobalSearchResults {
+  projects: SearchProjectResult[]
+  docs: SearchDocResult[]
+  tasks: SearchTaskResult[]
+}
+
 // Create project input
 export interface CreateProjectInput {
   name: string

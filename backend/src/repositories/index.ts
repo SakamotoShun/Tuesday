@@ -25,3 +25,4 @@ export { fileRepository, FileRepository } from './file';
 export { reactionRepository, ReactionRepository } from './reaction';
 export { notificationRepository, NotificationRepository } from './notification';
 export { timeEntryRepository, TimeEntryRepository } from './timeEntry';
+export { searchRepository, SearchRepository } from './search';

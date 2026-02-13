@@ -2,21 +2,23 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { docsApi } from "@/api/docs"
 import type { CreateDocInput, DocWithChildren, UpdateDocInput } from "@/api/types"
 
-export function useDocs(projectId: string) {
+export function useDocs(projectId: string | null) {
   const queryClient = useQueryClient()
+  const docsQueryKey = projectId
+    ? ["projects", projectId, "docs"]
+    : ["docs", "personal"]
 
   const docs = useQuery({
-    queryKey: ["projects", projectId, "docs"],
-    queryFn: () => docsApi.list(projectId),
-    enabled: !!projectId,
+    queryKey: docsQueryKey,
+    queryFn: () => (projectId ? docsApi.list(projectId) : docsApi.listPersonal()),
+    enabled: projectId === null || !!projectId,
   })
 
   const createDoc = useMutation({
-    mutationFn: (data: CreateDocInput) => docsApi.create(projectId, data),
+    mutationFn: (data: CreateDocInput) =>
+      projectId ? docsApi.create(projectId, data) : docsApi.createPersonal(data),
     onSuccess: (doc) => {
-      queryClient.invalidateQueries({
-        queryKey: ["projects", projectId, "docs"],
-      })
+      queryClient.invalidateQueries({ queryKey: docsQueryKey })
       queryClient.setQueryData(["docs", doc.id], doc)
       if (doc.parentId) {
         queryClient.setQueryData(
@@ -34,9 +36,7 @@ export function useDocs(projectId: string) {
     mutationFn: ({ docId, data }: { docId: string; data: UpdateDocInput }) =>
       docsApi.update(docId, data),
     onSuccess: (doc) => {
-      queryClient.invalidateQueries({
-        queryKey: ["projects", projectId, "docs"],
-      })
+      queryClient.invalidateQueries({ queryKey: docsQueryKey })
       queryClient.setQueryData(["docs", doc.id], doc)
       queryClient.setQueryData(
         ["docs", doc.id, "children"],
@@ -63,9 +63,7 @@ export function useDocs(projectId: string) {
   const deleteDoc = useMutation({
     mutationFn: (docId: string) => docsApi.delete(docId),
     onSuccess: (_, docId) => {
-      queryClient.invalidateQueries({
-        queryKey: ["projects", projectId, "docs"],
-      })
+      queryClient.invalidateQueries({ queryKey: docsQueryKey })
       queryClient.removeQueries({ queryKey: ["docs", docId] })
     },
   })

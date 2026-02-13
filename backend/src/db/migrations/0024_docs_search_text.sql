@@ -1,0 +1,2 @@
+ALTER TABLE "docs"
+ADD COLUMN IF NOT EXISTS "search_text" text NOT NULL DEFAULT '';

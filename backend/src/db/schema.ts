@@ -280,6 +280,7 @@ export const docs = pgTable('docs', {
   parentId: uuid('parent_id'),
   title: varchar('title', { length: 255 }).notNull(),
   content: jsonb('content').notNull().default([]),
+  searchText: text('search_text').notNull().default(''),
   properties: jsonb('properties').default({}),
   isDatabase: boolean('is_database').notNull().default(false),
   schema: jsonb('schema'),

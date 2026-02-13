@@ -22,7 +22,14 @@ import { NewRowButton } from "@/components/docs/new-row-button"
 
 interface DatabaseViewProps {
   doc: DocWithChildren
-  projectId: string
+  projectId: string | null
+}
+
+function getDocPath(projectId: string | null, docId: string) {
+  if (projectId) {
+    return `/projects/${projectId}/docs/${docId}`
+  }
+  return `/docs/personal/${docId}`
 }
 
 const buildSchema = (schema: DatabaseSchema | null): DatabaseSchema => ({
@@ -128,7 +135,7 @@ export function DatabaseView({ doc, projectId }: DatabaseViewProps) {
   const handleCreateRowAsPage = useCallback(async () => {
     const created = await handleCreateRow()
     if (created) {
-      navigate(`/projects/${projectId}/docs/${created.id}`)
+      navigate(getDocPath(projectId, created.id))
     }
   }, [handleCreateRow, navigate, projectId])
 
@@ -150,7 +157,7 @@ export function DatabaseView({ doc, projectId }: DatabaseViewProps) {
             <button
               type="button"
               className="text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => navigate(`/projects/${projectId}/docs/${row.original.id}`)}
+              onClick={() => navigate(getDocPath(projectId, row.original.id))}
             >
               Open
             </button>

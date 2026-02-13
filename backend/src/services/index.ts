@@ -8,3 +8,4 @@ export { chatService, ChatService } from './chat';
 export { notificationService, NotificationService } from './notification';
 export { teamService, TeamService } from './team';
 export { timeEntryService, TimeEntryService } from './timeEntry';
+export { searchService, SearchService } from './search';

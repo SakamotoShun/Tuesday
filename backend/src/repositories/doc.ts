@@ -37,6 +37,7 @@ export class DocRepository {
             parentId: true,
             title: true,
             content: true,
+            searchText: true,
             properties: true,
             isDatabase: true,
             schema: true,
