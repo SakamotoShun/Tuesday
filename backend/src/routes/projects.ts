@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { projectService, taskService } from '../services';
+import { projectService, taskService, timeEntryService } from '../services';
 import { auth, requireProjectMember, requireProjectOwner } from '../middleware';
 import { success, errors } from '../utils/response';
 import { 
@@ -285,6 +285,93 @@ projects.post('/:id/tasks', requireProjectMember, async (c) => {
     }
     console.error('Error creating task:', error);
     return errors.internal(c, 'Failed to create task');
+  }
+});
+
+// GET /api/v1/projects/:id/time-entries - Get project weekly timesheet (owner/admin only)
+projects.get('/:id/time-entries', requireProjectOwner, async (c) => {
+  try {
+    const user = c.get('user');
+    const projectId = c.req.param('id');
+    const week = c.req.query('week');
+
+    if (!week) {
+      return errors.badRequest(c, 'Week parameter is required (YYYY-MM-DD)');
+    }
+
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(week)) {
+      return errors.badRequest(c, 'Invalid week format. Use YYYY-MM-DD');
+    }
+
+    const timesheet = await timeEntryService.getProjectWeeklyTimesheet(projectId, week, user);
+    return success(c, timesheet);
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.forbidden(c, error.message);
+    }
+    console.error('Error fetching project timesheet:', error);
+    return errors.internal(c, 'Failed to fetch project timesheet');
+  }
+});
+
+// GET /api/v1/projects/:id/time-entries/overview - Get project monthly overview
+projects.get('/:id/time-entries/overview', requireProjectOwner, async (c) => {
+  try {
+    const user = c.get('user');
+    const projectId = c.req.param('id');
+    const month = c.req.query('month');
+
+    if (!month) {
+      return errors.badRequest(c, 'Month parameter is required (YYYY-MM)');
+    }
+
+    const monthRegex = /^\d{4}-\d{2}$/;
+    if (!monthRegex.test(month)) {
+      return errors.badRequest(c, 'Invalid month format. Use YYYY-MM');
+    }
+
+    const [year, monthNum] = month.split('-').map(Number);
+    const overview = await timeEntryService.getProjectMonthlyOverview(projectId, year, monthNum, user);
+    return success(c, overview);
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.forbidden(c, error.message);
+    }
+    console.error('Error fetching project monthly overview:', error);
+    return errors.internal(c, 'Failed to fetch project monthly overview');
+  }
+});
+
+// GET /api/v1/projects/:id/time-entries/export - Export project time entries as CSV
+projects.get('/:id/time-entries/export', requireProjectOwner, async (c) => {
+  try {
+    const user = c.get('user');
+    const projectId = c.req.param('id');
+    const start = c.req.query('start');
+    const end = c.req.query('end');
+
+    if (!start || !end) {
+      return errors.badRequest(c, 'Start and end parameters are required (YYYY-MM-DD)');
+    }
+
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(start) || !dateRegex.test(end)) {
+      return errors.badRequest(c, 'Invalid date format. Use YYYY-MM-DD');
+    }
+
+    const csv = await timeEntryService.exportProjectCsv(projectId, start, end, user);
+
+    return c.text(csv, 200, {
+      'Content-Type': 'text/csv',
+      'Content-Disposition': `attachment; filename="project-${projectId}-timesheet-${start}-to-${end}.csv"`,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.forbidden(c, error.message);
+    }
+    console.error('Error exporting project timesheet:', error);
+    return errors.internal(c, 'Failed to export project timesheet');
   }
 });
 

@@ -378,3 +378,13 @@ export const updateWhiteboardSchema = z.object({
 });
 
 export type UpdateWhiteboardInput = z.infer<typeof updateWhiteboardSchema>;
+
+// Time entry validation schemas
+export const upsertTimeEntrySchema = z.object({
+  projectId: uuidSchema,
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format. Use YYYY-MM-DD'),
+  hours: z.number().min(0, 'Hours must be at least 0').max(24, 'Hours cannot exceed 24'),
+  note: z.string().max(500, 'Note must be less than 500 characters').optional(),
+});
+
+export type UpsertTimeEntryInput = z.infer<typeof upsertTimeEntrySchema>;

@@ -7,3 +7,4 @@ export { whiteboardService, WhiteboardService } from './whiteboard';
 export { chatService, ChatService } from './chat';
 export { notificationService, NotificationService } from './notification';
 export { teamService, TeamService } from './team';
+export { timeEntryService, TimeEntryService } from './timeEntry';

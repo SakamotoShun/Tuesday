@@ -53,7 +53,7 @@ export class UserRepository {
     });
   }
 
-  async findAllDetailed(): Promise<Array<{ id: string; name: string; email: string; avatarUrl: string | null; role: string; isDisabled: boolean; createdAt: Date; updatedAt: Date }>> {
+  async findAllDetailed(): Promise<Array<{ id: string; name: string; email: string; avatarUrl: string | null; role: string; employmentType: string; hourlyRate: string | null; isDisabled: boolean; createdAt: Date; updatedAt: Date }>> {
     return db.query.users.findMany({
       columns: {
         id: true,
@@ -61,6 +61,8 @@ export class UserRepository {
         email: true,
         avatarUrl: true,
         role: true,
+        employmentType: true,
+        hourlyRate: true,
         isDisabled: true,
         createdAt: true,
         updatedAt: true,

@@ -15,7 +15,22 @@ import type {
   ProjectStatus,
   ProjectTemplate,
   TaskStatus,
+  TimeEntry,
+  WeeklyTimesheet,
+  WorkspaceMonthlyOverview,
+  PayrollSummaryItem,
+  PayrollSummaryMeta,
+  PayrollBreakdownUser,
 } from "./types"
+
+type BackendTimeEntry = Omit<TimeEntry, "hours"> & { hours: string }
+
+const normalizeTimeEntry = (entry: BackendTimeEntry): TimeEntry => {
+  return {
+    ...entry,
+    hours: parseFloat(entry.hours) || 0,
+  }
+}
 
 export async function getSettings(): Promise<AdminSettings> {
   return api.get<AdminSettings>("/admin/settings")
@@ -137,4 +152,89 @@ export async function addBotToChannel(botId: string, channelId: string): Promise
 
 export async function removeBotFromChannel(botId: string, channelId: string): Promise<{ removed: boolean }> {
   return api.delete<{ removed: boolean }>(`/admin/bots/${botId}/channels/${channelId}`)
+}
+
+export async function getWorkspaceWeeklyTimesheet(week: string): Promise<WeeklyTimesheet> {
+  const data = await api.get<{ entries: BackendTimeEntry[]; weekStart: string; weekEnd: string }>(
+    `/admin/timesheet?week=${week}`
+  )
+  return {
+    ...data,
+    entries: data.entries.map(normalizeTimeEntry),
+  }
+}
+
+export async function getWorkspaceMonthlyOverview(month: string): Promise<WorkspaceMonthlyOverview> {
+  return api.get<WorkspaceMonthlyOverview>(`/admin/timesheet/overview?month=${month}`)
+}
+
+export async function exportWorkspaceTimesheetCsv(start: string, end: string): Promise<void> {
+  const response = await fetch(
+    `${import.meta.env.VITE_API_URL || ""}/api/v1/admin/timesheet/export?start=${start}&end=${end}`,
+    { credentials: "include" }
+  )
+  if (!response.ok) throw new Error("Failed to export workspace timesheet")
+  const blob = await response.blob()
+  const url = window.URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = `workspace-timesheet-${start}-to-${end}.csv`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  window.URL.revokeObjectURL(url)
+}
+
+export interface PayrollQuery {
+  start: string
+  end: string
+  employeeId?: string
+  projectId?: string
+  teamId?: string
+  employmentType?: "hourly" | "full_time"
+  search?: string
+  page?: number
+  pageSize?: number
+}
+
+const toQueryString = (query: PayrollQuery): string => {
+  const params = new URLSearchParams()
+  params.set("start", query.start)
+  params.set("end", query.end)
+  if (query.employeeId) params.set("employeeId", query.employeeId)
+  if (query.projectId) params.set("projectId", query.projectId)
+  if (query.teamId) params.set("teamId", query.teamId)
+  if (query.employmentType) params.set("employmentType", query.employmentType)
+  if (query.search) params.set("search", query.search)
+  if (query.page) params.set("page", String(query.page))
+  if (query.pageSize) params.set("pageSize", String(query.pageSize))
+  return params.toString()
+}
+
+export async function getPayrollSummary(query: PayrollQuery): Promise<{ items: PayrollSummaryItem[] } & PayrollSummaryMeta> {
+  const q = toQueryString(query)
+  return api.get<{ items: PayrollSummaryItem[] } & PayrollSummaryMeta>(`/admin/payroll/summary?${q}`)
+}
+
+export async function getPayrollBreakdown(query: PayrollQuery): Promise<PayrollBreakdownUser[]> {
+  const q = toQueryString(query)
+  return api.get<PayrollBreakdownUser[]>(`/admin/payroll/breakdown?${q}`)
+}
+
+export async function exportPayrollCsv(query: Omit<PayrollQuery, "page" | "pageSize">): Promise<void> {
+  const q = toQueryString(query)
+  const response = await fetch(
+    `${import.meta.env.VITE_API_URL || ""}/api/v1/admin/payroll/export?${q}`,
+    { credentials: "include" }
+  )
+  if (!response.ok) throw new Error("Failed to export payroll report")
+  const blob = await response.blob()
+  const url = window.URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = `payroll-${query.start}-to-${query.end}.csv`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  window.URL.revokeObjectURL(url)
 }

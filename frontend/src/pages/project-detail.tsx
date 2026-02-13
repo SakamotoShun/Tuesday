@@ -25,10 +25,11 @@ import { ProjectDocsPage } from "@/pages/project-docs"
 import { ProjectSchedulePage } from "@/pages/project-schedule"
 import { ProjectWhiteboardsPage } from "@/pages/project-whiteboards"
 import { ChatView } from "@/components/chat/chat-view"
+import { ProjectTimeReport } from "@/components/timesheet"
 import type { Task, UpdateProjectInput, UpdateTaskInput, User } from "@/api/types"
 import { useAuth } from "@/hooks/use-auth"
 
-const PROJECT_TABS = new Set(["docs", "tasks", "schedule", "whiteboards", "chat"])
+const PROJECT_TABS = new Set(["docs", "tasks", "schedule", "whiteboards", "chat", "time"])
 
 export function ProjectDetailPage() {
   const { id, "*": tabPath } = useParams<{ id: string; "*"?: string }>()
@@ -244,6 +245,7 @@ export function ProjectDetailPage() {
           <TabsTrigger value="schedule">Schedule</TabsTrigger>
           <TabsTrigger value="whiteboards">Whiteboards</TabsTrigger>
           <TabsTrigger value="chat">Chat</TabsTrigger>
+          {canManageMembers && <TabsTrigger value="time">Time</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="docs" className="mt-6">
@@ -279,6 +281,14 @@ export function ProjectDetailPage() {
             <ChatView projectId={project.id} title="Project Chat" />
           </div>
         </TabsContent>
+
+        {canManageMembers && (
+          <TabsContent value="time" className="mt-6">
+            <div className="border rounded-lg p-4">
+              <ProjectTimeReport projectId={project.id} />
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* Edit Project Dialog */}

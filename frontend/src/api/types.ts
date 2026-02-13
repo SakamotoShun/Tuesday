@@ -7,6 +7,8 @@ export interface User {
   name: string
   avatarUrl: string | null
   role: "admin" | "member"
+  employmentType: "hourly" | "full_time"
+  hourlyRate: number | null
   isDisabled: boolean
   createdAt: string
   updatedAt: string
@@ -318,12 +320,58 @@ export interface AdminCreateUserInput {
   email: string
   name: string
   role?: "admin" | "member"
+  employmentType?: "hourly" | "full_time"
+  hourlyRate?: number
   password?: string
 }
 
 export interface AdminUpdateUserInput {
   role?: "admin" | "member"
+  employmentType?: "hourly" | "full_time"
+  hourlyRate?: number | null
   isDisabled?: boolean
+}
+
+export interface PayrollSummaryItem {
+  userId: string
+  userName: string
+  userEmail: string
+  employmentType: "hourly" | "full_time"
+  hourlyRate: number | null
+  totalHours: number
+  totalCost: number | null
+  projectCount: number
+}
+
+export interface PayrollSummaryMeta {
+  total: number
+  page: number
+  pageSize: number
+  totals: {
+    totalHours: number
+    totalCost: number
+    billableEmployees: number
+  }
+}
+
+export interface PayrollBreakdownUser {
+  userId: string
+  userName: string
+  userEmail: string
+  employmentType: "hourly" | "full_time"
+  hourlyRate: number | null
+  projects: Array<{
+    projectId: string
+    projectName: string
+    hours: number
+    cost: number | null
+    weeks: Array<{
+      weekStart: string
+      weekEnd: string
+      hours: number
+      cost: number | null
+    }>
+  }>
 }
 
 export interface AdminCreateUserResponse extends User {
@@ -501,4 +549,79 @@ export interface CreateWhiteboardInput {
 export interface UpdateWhiteboardInput {
   name?: string
   data?: Record<string, unknown> | null
+}
+
+// Time entry types
+export interface TimeEntry {
+  id: string
+  projectId: string
+  userId: string
+  date: string
+  hours: number
+  note: string | null
+  createdAt: string
+  updatedAt: string
+  project?: Pick<Project, "id" | "name">
+  user?: Pick<User, "id" | "name" | "email" | "avatarUrl">
+}
+
+export interface UpsertTimeEntryInput {
+  projectId: string
+  date: string
+  hours: number
+  note?: string
+}
+
+export interface WeeklyTimesheet {
+  entries: TimeEntry[]
+  weekStart: string
+  weekEnd: string
+}
+
+export interface MonthlyOverviewWeek {
+  weekNumber: number
+  weekStart: string
+  weekEnd: string
+  projectTotals: Array<{ projectId: string; projectName: string; hours: number }>
+  totalHours: number
+}
+
+export interface MonthlyOverview {
+  year: number
+  month: number
+  weeks: MonthlyOverviewWeek[]
+  projectTotals: Array<{ projectId: string; projectName: string; hours: number }>
+  grandTotal: number
+}
+
+export interface ProjectMonthlyOverviewWeek {
+  weekNumber: number
+  weekStart: string
+  weekEnd: string
+  userTotals: Array<{ userId: string; userName: string; hours: number }>
+  totalHours: number
+}
+
+export interface ProjectMonthlyOverview {
+  year: number
+  month: number
+  weeks: ProjectMonthlyOverviewWeek[]
+  userTotals: Array<{ userId: string; userName: string; hours: number }>
+  grandTotal: number
+}
+
+export interface WorkspaceMonthlyOverviewWeek {
+  weekNumber: number
+  weekStart: string
+  weekEnd: string
+  userTotals: Array<{ userId: string; userName: string; hours: number }>
+  totalHours: number
+}
+
+export interface WorkspaceMonthlyOverview {
+  year: number
+  month: number
+  weeks: WorkspaceMonthlyOverviewWeek[]
+  userTotals: Array<{ userId: string; userName: string; hours: number }>
+  grandTotal: number
 }

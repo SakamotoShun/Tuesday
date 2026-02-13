@@ -230,3 +230,49 @@ export function useAdminBotChannels(botId?: string, enabled = true) {
     enabled: Boolean(botId) && enabled,
   })
 }
+
+export function useAdminTimesheet(week: string) {
+  return useQuery({
+    queryKey: ["admin", "timesheet", week],
+    queryFn: () => adminApi.getWorkspaceWeeklyTimesheet(week),
+    enabled: !!week,
+  })
+}
+
+export function useAdminMonthlyTimesheet(month: string) {
+  return useQuery({
+    queryKey: ["admin", "timesheet", "overview", month],
+    queryFn: () => adminApi.getWorkspaceMonthlyOverview(month),
+    enabled: !!month,
+  })
+}
+
+export function useExportAdminTimesheet() {
+  return useMutation({
+    mutationFn: ({ start, end }: { start: string; end: string }) =>
+      adminApi.exportWorkspaceTimesheetCsv(start, end),
+  })
+}
+
+export function useAdminPayrollSummary(query: adminApi.PayrollQuery) {
+  return useQuery({
+    queryKey: ["admin", "payroll", "summary", query],
+    queryFn: () => adminApi.getPayrollSummary(query),
+    enabled: !!query.start && !!query.end,
+  })
+}
+
+export function useAdminPayrollBreakdown(query: adminApi.PayrollQuery) {
+  return useQuery({
+    queryKey: ["admin", "payroll", "breakdown", query],
+    queryFn: () => adminApi.getPayrollBreakdown(query),
+    enabled: !!query.start && !!query.end,
+  })
+}
+
+export function useExportAdminPayroll() {
+  return useMutation({
+    mutationFn: (query: Omit<adminApi.PayrollQuery, "page" | "pageSize">) =>
+      adminApi.exportPayrollCsv(query),
+  })
+}

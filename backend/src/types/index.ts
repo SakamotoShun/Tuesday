@@ -24,6 +24,8 @@ export const UserSchema = z.object({
   name: z.string(),
   avatarUrl: z.string().nullable().optional(),
   role: UserRoleEnum,
+  employmentType: z.enum(['hourly', 'full_time']).optional(),
+  hourlyRate: z.string().nullable().optional(),
   isDisabled: z.boolean(),
   createdAt: z.date(),
   updatedAt: z.date(),

@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, boolean, timestamp, jsonb, integer, date, primaryKey, bigserial, bigint, customType } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, boolean, timestamp, jsonb, integer, date, primaryKey, bigserial, bigint, customType, numeric, uniqueIndex } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // User roles
@@ -8,6 +8,14 @@ export const UserRole = {
 } as const;
 
 export type UserRole = typeof UserRole[keyof typeof UserRole];
+
+// Employment types
+export const EmploymentType = {
+  HOURLY: 'hourly',
+  FULL_TIME: 'full_time',
+} as const;
+
+export type EmploymentType = typeof EmploymentType[keyof typeof EmploymentType];
 
 // Project member roles
 export const ProjectMemberRole = {
@@ -73,6 +81,8 @@ export const users = pgTable('users', {
   name: varchar('name', { length: 255 }).notNull(),
   avatarUrl: text('avatar_url'),
   role: varchar('role', { length: 20 }).notNull().default(UserRole.MEMBER),
+  employmentType: varchar('employment_type', { length: 20 }).notNull().default(EmploymentType.FULL_TIME),
+  hourlyRate: numeric('hourly_rate', { precision: 10, scale: 2 }),
   isDisabled: boolean('is_disabled').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -684,6 +694,31 @@ export const notificationsRelations = relations(notifications, ({ one }) => ({
   }),
 }));
 
+// Time entries table
+export const timeEntries = pgTable('time_entries', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  date: date('date').notNull(),
+  hours: numeric('hours', { precision: 5, scale: 2 }).notNull(),
+  note: varchar('note', { length: 500 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  projectUserDateIdx: uniqueIndex('time_entries_project_user_date_idx').on(table.projectId, table.userId, table.date),
+}));
+
+export const timeEntriesRelations = relations(timeEntries, ({ one }) => ({
+  project: one(projects, {
+    fields: [timeEntries.projectId],
+    references: [projects.id],
+  }),
+  user: one(users, {
+    fields: [timeEntries.userId],
+    references: [users.id],
+  }),
+}));
+
 // Type exports
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -735,3 +770,5 @@ export type Whiteboard = typeof whiteboards.$inferSelect;
 export type NewWhiteboard = typeof whiteboards.$inferInsert;
 export type Notification = typeof notifications.$inferSelect;
 export type NewNotification = typeof notifications.$inferInsert;
+export type TimeEntry = typeof timeEntries.$inferSelect;
+export type NewTimeEntry = typeof timeEntries.$inferInsert;

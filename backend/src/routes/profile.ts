@@ -17,6 +17,8 @@ const toPublicUser = (user: DbUser) => ({
   name: user.name,
   avatarUrl: user.avatarUrl,
   role: user.role as 'admin' | 'member',
+  employmentType: user.employmentType,
+  hourlyRate: user.hourlyRate !== null ? Number(user.hourlyRate) : null,
   isDisabled: user.isDisabled,
   createdAt: user.createdAt,
   updatedAt: user.updatedAt,

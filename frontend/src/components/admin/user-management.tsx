@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { Trash2 } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
+import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -58,6 +59,35 @@ export function UserManagement() {
                     <SelectItem value="admin">Admin</SelectItem>
                   </SelectContent>
                 </Select>
+                <Select
+                  value={user.employmentType}
+                  onValueChange={(value) =>
+                    updateUser.mutate({ userId: user.id, data: { employmentType: value as "hourly" | "full_time" } })
+                  }
+                >
+                  <SelectTrigger className="w-36">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="full_time">Full Time</SelectItem>
+                    <SelectItem value="hourly">Hourly</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="w-28"
+                  defaultValue={user.hourlyRate ?? ""}
+                  placeholder="Rate"
+                  onBlur={(event) => {
+                    const value = event.target.value.trim()
+                    updateUser.mutate({
+                      userId: user.id,
+                      data: { hourlyRate: value === "" ? null : Number(value) },
+                    })
+                  }}
+                />
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">Disabled</span>
                   <Switch

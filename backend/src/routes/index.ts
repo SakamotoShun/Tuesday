@@ -19,6 +19,7 @@ import { profile } from './profile';
 import { ws } from './ws';
 import { teams } from './teams';
 import { webhooks } from './webhooks';
+import { timeEntries } from './time-entries';
 
 const routes = new Hono();
 
@@ -43,6 +44,7 @@ routes.route('/api/v1/notifications', notifications);
 routes.route('/api/v1/ws', ws);
 routes.route('/api/v1/teams', teams);
 routes.route('/api/v1/webhooks', webhooks);
+routes.route('/api/v1/time-entries', timeEntries);
 
 // Health check
 routes.get('/health', (c) => {

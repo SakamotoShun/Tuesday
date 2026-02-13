@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { projectStatusRepository, taskStatusRepository, settingsRepository, userRepository } from '../repositories';
 import { db } from '../db/client';
 import {
+  EmploymentType,
   ProjectMemberRole,
   ProjectMemberSource,
   UserRole,
@@ -32,6 +33,7 @@ import {
   uuidSchema,
 } from '../utils/validation';
 import { projectService } from '../services/project';
+import { timeEntryService } from '../services';
 import { z } from 'zod';
 import { hashPassword } from '../utils/password';
 
@@ -47,12 +49,28 @@ const createUserSchema = z.object({
   email: emailSchema,
   name: nameSchema,
   role: z.enum(['admin', 'member']).default('member'),
+  employmentType: z.enum([EmploymentType.HOURLY, EmploymentType.FULL_TIME]).default(EmploymentType.FULL_TIME),
+  hourlyRate: z.number().min(0).max(1000000).optional(),
   password: passwordSchema.optional(),
 });
 
 const updateUserSchema = z.object({
   role: z.enum(['admin', 'member']).optional(),
+  employmentType: z.enum([EmploymentType.HOURLY, EmploymentType.FULL_TIME]).optional(),
+  hourlyRate: z.number().min(0).max(1000000).nullable().optional(),
   isDisabled: z.boolean().optional(),
+});
+
+const payrollQuerySchema = z.object({
+  start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  employeeId: z.string().uuid().optional(),
+  projectId: z.string().uuid().optional(),
+  teamId: z.string().uuid().optional(),
+  employmentType: z.enum([EmploymentType.HOURLY, EmploymentType.FULL_TIME]).optional(),
+  search: z.string().max(100).optional(),
+  page: z.preprocess((value) => value === undefined ? 1 : Number(value), z.number().int().min(1)),
+  pageSize: z.preprocess((value) => value === undefined ? 20 : Number(value), z.number().int().min(1).max(100)),
 });
 
 const deleteUserSchema = z.object({
@@ -207,13 +225,100 @@ admin.patch('/settings', async (c) => {
 
 // ========== PROJECT STATUSES ==========
 
+// ========== GLOBAL TIMESHEET ==========
+
+// GET /api/v1/admin/timesheet - Get workspace weekly timesheet
+admin.get('/timesheet', async (c) => {
+  try {
+    const week = c.req.query('week');
+
+    if (!week) {
+      return errors.badRequest(c, 'Week parameter is required (YYYY-MM-DD)');
+    }
+
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(week)) {
+      return errors.badRequest(c, 'Invalid week format. Use YYYY-MM-DD');
+    }
+
+    const timesheet = await timeEntryService.getWorkspaceWeeklyTimesheet(week);
+    return success(c, timesheet);
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error fetching workspace timesheet:', error);
+    return errors.internal(c, 'Failed to fetch workspace timesheet');
+  }
+});
+
+// GET /api/v1/admin/timesheet/overview - Get workspace monthly overview
+admin.get('/timesheet/overview', async (c) => {
+  try {
+    const month = c.req.query('month');
+
+    if (!month) {
+      return errors.badRequest(c, 'Month parameter is required (YYYY-MM)');
+    }
+
+    const monthRegex = /^\d{4}-\d{2}$/;
+    if (!monthRegex.test(month)) {
+      return errors.badRequest(c, 'Invalid month format. Use YYYY-MM');
+    }
+
+    const [year, monthNum] = month.split('-').map(Number);
+    const overview = await timeEntryService.getWorkspaceMonthlyOverview(year, monthNum);
+    return success(c, overview);
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error fetching workspace monthly overview:', error);
+    return errors.internal(c, 'Failed to fetch workspace monthly overview');
+  }
+});
+
+// GET /api/v1/admin/timesheet/export - Export workspace time entries as CSV
+admin.get('/timesheet/export', async (c) => {
+  try {
+    const start = c.req.query('start');
+    const end = c.req.query('end');
+
+    if (!start || !end) {
+      return errors.badRequest(c, 'Start and end parameters are required (YYYY-MM-DD)');
+    }
+
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(start) || !dateRegex.test(end)) {
+      return errors.badRequest(c, 'Invalid date format. Use YYYY-MM-DD');
+    }
+
+    const csv = await timeEntryService.exportWorkspaceCsv(start, end);
+
+    return c.text(csv, 200, {
+      'Content-Type': 'text/csv',
+      'Content-Disposition': `attachment; filename="workspace-timesheet-${start}-to-${end}.csv"`,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error exporting workspace timesheet:', error);
+    return errors.internal(c, 'Failed to export workspace timesheet');
+  }
+});
+
 // ========== USERS ==========
 
 // GET /api/v1/admin/users - List users
 admin.get('/users', async (c) => {
   try {
     const users = await userRepository.findAllDetailed();
-    return success(c, users);
+    return success(c, users.map((user) => ({
+      ...user,
+      employmentType: user.employmentType,
+      hourlyRate: user.hourlyRate !== null ? Number(user.hourlyRate) : null,
+    })));
   } catch (error) {
     console.error('Error fetching users:', error);
     return errors.internal(c, 'Failed to fetch users');
@@ -241,6 +346,8 @@ admin.post('/users', async (c) => {
       email: validation.data.email,
       name: validation.data.name,
       role: validation.data.role,
+      employmentType: validation.data.employmentType,
+      hourlyRate: validation.data.hourlyRate !== undefined ? validation.data.hourlyRate.toString() : null,
       passwordHash,
     });
 
@@ -251,6 +358,8 @@ admin.post('/users', async (c) => {
         email: created.email,
         name: created.name,
         role: created.role,
+        employmentType: created.employmentType,
+        hourlyRate: created.hourlyRate !== null ? Number(created.hourlyRate) : null,
         isDisabled: created.isDisabled,
         createdAt: created.createdAt,
         updatedAt: created.updatedAt,
@@ -275,7 +384,15 @@ admin.patch('/users/:id', async (c) => {
       return errors.validation(c, formatValidationErrors(validation.errors));
     }
 
-    const updated = await userRepository.update(userId, validation.data);
+    const updatePayload: Record<string, unknown> = {
+      ...validation.data,
+    };
+
+    if (validation.data.hourlyRate !== undefined) {
+      updatePayload.hourlyRate = validation.data.hourlyRate === null ? null : validation.data.hourlyRate.toString();
+    }
+
+    const updated = await userRepository.update(userId, updatePayload);
     if (!updated) {
       return errors.notFound(c, 'User not found');
     }
@@ -285,6 +402,8 @@ admin.patch('/users/:id', async (c) => {
       email: updated.email,
       name: updated.name,
       role: updated.role,
+      employmentType: updated.employmentType,
+      hourlyRate: updated.hourlyRate !== null ? Number(updated.hourlyRate) : null,
       isDisabled: updated.isDisabled,
       createdAt: updated.createdAt,
       updatedAt: updated.updatedAt,
@@ -292,6 +411,66 @@ admin.patch('/users/:id', async (c) => {
   } catch (error) {
     console.error('Error updating user:', error);
     return errors.internal(c, 'Failed to update user');
+  }
+});
+
+// GET /api/v1/admin/payroll/summary - Payroll summary by employee
+admin.get('/payroll/summary', async (c) => {
+  try {
+    const validation = payrollQuerySchema.safeParse(c.req.query());
+    if (!validation.success) {
+      return errors.validation(c, formatValidationErrors(validation.error));
+    }
+
+    const data = await timeEntryService.getPayrollSummary(validation.data);
+    return success(c, data);
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error fetching payroll summary:', error);
+    return errors.internal(c, 'Failed to fetch payroll summary');
+  }
+});
+
+// GET /api/v1/admin/payroll/breakdown - Payroll project breakdown
+admin.get('/payroll/breakdown', async (c) => {
+  try {
+    const validation = payrollQuerySchema.safeParse(c.req.query());
+    if (!validation.success) {
+      return errors.validation(c, formatValidationErrors(validation.error));
+    }
+
+    const data = await timeEntryService.getPayrollBreakdown(validation.data);
+    return success(c, data);
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error fetching payroll breakdown:', error);
+    return errors.internal(c, 'Failed to fetch payroll breakdown');
+  }
+});
+
+// GET /api/v1/admin/payroll/export - Export payroll CSV
+admin.get('/payroll/export', async (c) => {
+  try {
+    const validation = payrollQuerySchema.omit({ page: true, pageSize: true }).safeParse(c.req.query());
+    if (!validation.success) {
+      return errors.validation(c, formatValidationErrors(validation.error));
+    }
+
+    const csv = await timeEntryService.exportPayrollCsv(validation.data);
+    return c.text(csv, 200, {
+      'Content-Type': 'text/csv',
+      'Content-Disposition': `attachment; filename="payroll-${validation.data.start}-to-${validation.data.end}.csv"`,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error exporting payroll CSV:', error);
+    return errors.internal(c, 'Failed to export payroll CSV');
   }
 });
 

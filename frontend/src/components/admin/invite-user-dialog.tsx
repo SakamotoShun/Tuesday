@@ -26,6 +26,8 @@ export function InviteUserDialog() {
   const [email, setEmail] = useState("")
   const [name, setName] = useState("")
   const [role, setRole] = useState<"admin" | "member">("member")
+  const [employmentType, setEmploymentType] = useState<"hourly" | "full_time">("full_time")
+  const [hourlyRate, setHourlyRate] = useState("")
   const [password, setPassword] = useState("")
   const [tempPassword, setTempPassword] = useState<string | null>(null)
 
@@ -36,6 +38,8 @@ export function InviteUserDialog() {
       email,
       name,
       role,
+      employmentType,
+      hourlyRate: hourlyRate.trim() ? Number(hourlyRate) : undefined,
       password: password || undefined,
     })
     if (response.temporaryPassword) {
@@ -45,6 +49,9 @@ export function InviteUserDialog() {
     setOpen(false)
     setEmail("")
     setName("")
+    setRole("member")
+    setEmploymentType("full_time")
+    setHourlyRate("")
     setPassword("")
     setTempPassword(null)
   }
@@ -97,6 +104,33 @@ export function InviteUserDialog() {
                 <SelectItem value="admin">Admin</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="invite-employment-type">Employment Type</Label>
+            <Select
+              value={employmentType}
+              onValueChange={(value) => setEmploymentType(value as "hourly" | "full_time")}
+            >
+              <SelectTrigger id="invite-employment-type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="full_time">Full Time</SelectItem>
+                <SelectItem value="hourly">Hourly</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="invite-hourly-rate">Hourly Rate (optional)</Label>
+            <Input
+              id="invite-hourly-rate"
+              type="number"
+              min="0"
+              step="0.01"
+              value={hourlyRate}
+              onChange={(event) => setHourlyRate(event.target.value)}
+              placeholder="e.g. 75"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="invite-password">Temporary password (optional)</Label>

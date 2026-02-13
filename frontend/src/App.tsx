@@ -13,6 +13,7 @@ import { ProjectsPage } from "@/pages/projects"
 import { ProjectDetailPage } from "@/pages/project-detail"
 import { NotFoundPage } from "@/pages/not-found"
 import { AdminPage } from "@/pages/admin"
+import { AdminPayrollPage } from "@/pages/admin-payroll"
 import { MyWorkPage } from "@/pages/my-work"
 import { NotificationsPage } from "@/pages/notifications"
 import { ProfilePage } from "@/pages/profile"
@@ -94,6 +95,7 @@ function AppRoutes() {
           <Route path="notifications" element={<NotificationsPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="admin" element={<AdminPage />} />
+          <Route path="admin/payroll" element={<AdminPayrollPage />} />
         </Route>
 
         {/* 404 */}

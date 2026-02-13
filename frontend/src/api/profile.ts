@@ -3,6 +3,15 @@ import type { ApiError, ApiResponse, User } from "./types"
 
 const API_BASE = "/api/v1"
 
+type BackendUser = Omit<User, "hourlyRate"> & { hourlyRate: string | number | null }
+
+function normalizeUser(user: BackendUser): User {
+  return {
+    ...user,
+    hourlyRate: user.hourlyRate === null ? null : Number(user.hourlyRate),
+  }
+}
+
 export interface UpdateProfileInput {
   name?: string
 }
@@ -13,13 +22,13 @@ export interface ChangePasswordInput {
 }
 
 export async function getProfile(): Promise<User> {
-  const response = await api.get<{ user: User }>("/profile")
-  return response.user
+  const response = await api.get<{ user: BackendUser }>("/profile")
+  return normalizeUser(response.user)
 }
 
 export async function updateProfile(data: UpdateProfileInput): Promise<User> {
-  const response = await api.patch<{ user: User }>("/profile", data)
-  return response.user
+  const response = await api.patch<{ user: BackendUser }>("/profile", data)
+  return normalizeUser(response.user)
 }
 
 export async function uploadAvatar(file: File): Promise<User> {
@@ -32,7 +41,7 @@ export async function uploadAvatar(file: File): Promise<User> {
     credentials: "include",
   })
 
-  const data = (await response.json()) as ApiResponse<{ user: User }> | { error: ApiError }
+  const data = (await response.json()) as ApiResponse<{ user: BackendUser }> | { error: ApiError }
 
   if (!response.ok) {
     if ("error" in data) {
@@ -42,15 +51,15 @@ export async function uploadAvatar(file: File): Promise<User> {
   }
 
   if ("data" in data) {
-    return data.data.user
+    return normalizeUser(data.data.user)
   }
 
   throw new Error("Invalid API response format")
 }
 
 export async function removeAvatar(): Promise<User> {
-  const response = await api.delete<{ user: User }>("/profile/avatar")
-  return response.user
+  const response = await api.delete<{ user: BackendUser }>("/profile/avatar")
+  return normalizeUser(response.user)
 }
 
 export async function changePassword(data: ChangePasswordInput): Promise<{ changed: true }> {
