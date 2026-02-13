@@ -15,6 +15,7 @@ This is the backend for Tuesday - a self-hosted project management tool built wi
 - **Notifications** - Real-time notification delivery
 - **Files** - Upload lifecycle (pending/attached/avatar)
 - **Teams** - Team membership and project assignment
+- **Global Search** - Permission-aware search across projects, tasks, and docs (including personal docs)
 
 ## Quick Start
 
@@ -102,6 +103,9 @@ Base path: `/api/v1`
 - `DELETE /docs/:id`
 - `GET /docs/personal`
 - `POST /docs/personal`
+
+### Search
+- `GET /search?q=<query>&limit=<n>`
 
 ### Tasks
 - `GET /projects/:id/tasks`
@@ -257,6 +261,9 @@ bun run dev
 
 # Run migrations
 bun run db:migrate
+
+# Backfill docs search index (recommended after upgrading older instances)
+bun run search:backfill-docs
 
 # Generate new migrations
 bun run db:generate

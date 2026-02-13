@@ -20,6 +20,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - AI bots with OpenAI integration and configurable system prompts
 - Webhook bots for external service integration with rich message rendering
 - Project templates with full content cloning (docs, tasks, channels, whiteboards)
+- Global search endpoint for projects, docs, and tasks with permission-aware access control
+- Top-bar live search UI with grouped results and content snippets
+- Personal docs route support (`/docs/personal/:docId`) for direct navigation from search results
+- Doc search indexing (`docs.search_text`) with backfill tooling from collaborative Yjs history
 
 ## [0.1.0] - 2026-02-06
 

@@ -30,6 +30,16 @@
 
 Database migrations run automatically on startup. The application will not start until all migrations have been applied.
 
+## Post-Upgrade Maintenance
+
+If you are upgrading from a version before global doc-content search was introduced, run the search index backfill once after upgrade:
+
+```bash
+docker exec -it tuesday sh -lc 'cd /app/backend && bun run search:backfill-docs'
+```
+
+This rebuilds `docs.search_text` from both stored doc JSON and collaborative Yjs history, so existing documents are searchable by body text.
+
 ## Docker Run Upgrade
 
 If you deployed with `docker run`, follow the same upgrade flow but replace the `docker compose` steps with these commands:

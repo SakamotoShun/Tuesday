@@ -58,6 +58,7 @@ Single Docker container. Embedded PostgreSQL. No external dependencies.
 - **Authentication** - Secure session-based auth with bcrypt
 - **Projects** - Organize work with members, roles, and custom statuses
 - **Docs** - BlockNote editor with database views and real-time collaboration
+- **Global Search** - Search projects, tasks, and doc content (including personal docs) with permission-aware results
 - **Tasks** - Kanban boards with drag-and-drop, filters, and My Work view
 - **Meetings** - Project and personal calendars
 - **Whiteboards** - Excalidraw editor with real-time collaboration
@@ -196,6 +197,7 @@ bun test                    # Run tests
 bun test --coverage         # Tests with coverage
 bun run typecheck           # Type check
 bun run db:migrate          # Run migrations
+bun run search:backfill-docs # Backfill doc search index from collaborative history
 bun run db:studio           # Open Drizzle Studio
 
 # Frontend
@@ -265,9 +267,14 @@ Base path: `/api/v1`
 **Docs**
 - `GET /projects/:id/docs` - List project docs
 - `POST /projects/:id/docs` - Create project doc
+- `GET /docs/personal` - List personal docs
+- `POST /docs/personal` - Create personal doc
 - `GET /docs/:id` - Get doc
 - `PATCH /docs/:id` - Update doc
 - `DELETE /docs/:id` - Delete doc
+
+**Search**
+- `GET /search?q=<query>&limit=<n>` - Global search across projects, docs (title + body), and tasks (title + description)
 
 **Meetings**
 - `GET /projects/:id/meetings` - List meetings
