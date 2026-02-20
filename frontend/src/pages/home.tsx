@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { ChatView } from "@/components/chat/chat-view"
 import { ProjectListCompact } from "@/components/dashboard/project-list-compact"
+import { NoticeBoardCard } from "@/components/notice-board/notice-board-card"
 import { useAuth } from "@/hooks/use-auth"
 import { useMyMeetings } from "@/hooks/use-meetings"
 import { useProjects } from "@/hooks/use-projects"
@@ -143,7 +144,7 @@ export function HomePage() {
         </Button>
       </header>
 
-      <section className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-hidden xl:grid-cols-[1.1fr_1fr] xl:grid-rows-[minmax(0,1fr)_minmax(0,1fr)]">
+      <section className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-hidden xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] xl:grid-rows-[minmax(0,1fr)_minmax(0,1fr)]">
         <section className="min-h-0 flex flex-col gap-2 xl:col-start-1 xl:row-start-1">
           <h2 className="text-lg font-semibold">Focus Today</h2>
           <Card className="min-h-0 flex-1">
@@ -187,7 +188,9 @@ export function HomePage() {
           </Card>
         </section>
 
-        <section className="min-h-0 flex flex-col gap-2 xl:col-start-2 xl:row-span-2">
+        <NoticeBoardCard />
+
+        <section className="min-h-0 flex flex-col gap-2 xl:col-start-3 xl:row-span-2">
           <div>
             <h2 className="text-lg font-semibold">Chat</h2>
           </div>
@@ -196,7 +199,7 @@ export function HomePage() {
           </div>
         </section>
 
-        <section className="min-h-0 flex flex-col gap-2 xl:col-start-1 xl:row-start-2">
+        <section className="min-h-0 flex flex-col gap-2 xl:col-start-1 xl:col-span-2 xl:row-start-2">
           <h2 className="text-lg font-semibold">My Projects</h2>
           <Card className="min-h-0 flex-1">
             <CardContent className="h-full min-h-0 overflow-y-auto pt-6">

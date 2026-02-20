@@ -281,6 +281,28 @@ export const updateTaskAssigneesSchema = z.object({
 
 export type UpdateTaskAssigneesInput = z.infer<typeof updateTaskAssigneesSchema>;
 
+// Notice board validation schemas
+export const noticeBoardItemTypeSchema = z.enum(['announcement', 'todo']);
+
+export const createNoticeBoardItemSchema = z.object({
+  type: noticeBoardItemTypeSchema,
+  title: z.string().min(1, 'Title is required').max(500),
+  description: z.string().max(5000).optional().nullable(),
+  assigneeId: uuidSchema.optional().nullable(),
+});
+
+export type CreateNoticeBoardItemInput = z.infer<typeof createNoticeBoardItemSchema>;
+
+export const updateNoticeBoardItemSchema = z.object({
+  type: noticeBoardItemTypeSchema.optional(),
+  title: z.string().min(1, 'Title cannot be empty').max(500).optional(),
+  description: z.string().max(5000).optional().nullable(),
+  assigneeId: uuidSchema.optional().nullable(),
+  sortOrder: z.number().int().min(0).optional(),
+});
+
+export type UpdateNoticeBoardItemInput = z.infer<typeof updateNoticeBoardItemSchema>;
+
 // Meeting validation schemas
 export const createMeetingSchema = z.object({
   title: z.string().min(1, 'Meeting title is required').max(255),

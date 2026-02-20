@@ -23,6 +23,7 @@ import { timeEntries } from './time-entries';
 import { search } from './search';
 import { dashboard } from './dashboard';
 import { favorites } from './favorites';
+import { noticeBoard } from './notice-board';
 
 const routes = new Hono();
 
@@ -51,6 +52,7 @@ routes.route('/api/v1/time-entries', timeEntries);
 routes.route('/api/v1/search', search);
 routes.route('/api/v1/dashboard', dashboard);
 routes.route('/api/v1/favorites', favorites);
+routes.route('/api/v1/notice-board', noticeBoard);
 
 // Health check
 routes.get('/health', (c) => {

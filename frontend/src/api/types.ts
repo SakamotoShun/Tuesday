@@ -229,6 +229,42 @@ export interface UpdateTaskAssigneesInput {
   assigneeIds: string[]
 }
 
+// Notice board types
+export type NoticeBoardItemType = "announcement" | "todo"
+
+export interface NoticeBoardItem {
+  id: string
+  type: NoticeBoardItemType
+  title: string
+  description: string | null
+  createdBy: string
+  assigneeId: string | null
+  isCompleted: boolean
+  completedBy: string | null
+  completedAt: string | null
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+  createdByUser?: User | null
+  assignee?: User | null
+  completedByUser?: User | null
+}
+
+export interface CreateNoticeBoardItemInput {
+  type: NoticeBoardItemType
+  title: string
+  description?: string | null
+  assigneeId?: string | null
+}
+
+export interface UpdateNoticeBoardItemInput {
+  type?: NoticeBoardItemType
+  title?: string
+  description?: string | null
+  assigneeId?: string | null
+  sortOrder?: number
+}
+
 // Meeting types
 export interface MeetingAttendee {
   meetingId: string

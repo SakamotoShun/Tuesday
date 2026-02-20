@@ -87,6 +87,14 @@ export const FavoriteEntityType = {
 
 export type FavoriteEntityType = typeof FavoriteEntityType[keyof typeof FavoriteEntityType];
 
+// Notice board item types
+export const NoticeBoardItemType = {
+  ANNOUNCEMENT: 'announcement',
+  TODO: 'todo',
+} as const;
+
+export type NoticeBoardItemType = typeof NoticeBoardItemType[keyof typeof NoticeBoardItemType];
+
 const bytea = customType<{ data: Buffer }>({
   dataType() {
     return 'bytea';
@@ -366,6 +374,25 @@ export const favorites = pgTable('favorites', {
   uniqueUserEntity: uniqueIndex('favorites_user_entity_unique').on(table.userId, table.entityType, table.entityId),
 }));
 
+// Notice board items table
+export const noticeBoardItems = pgTable('notice_board_items', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  type: varchar('type', { length: 20 }).notNull(),
+  title: varchar('title', { length: 500 }).notNull(),
+  description: text('description'),
+  createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  assigneeId: uuid('assignee_id').references(() => users.id, { onDelete: 'set null' }),
+  isCompleted: boolean('is_completed').notNull().default(false),
+  completedBy: uuid('completed_by').references(() => users.id, { onDelete: 'set null' }),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  sortCreatedIdx: index('notice_board_items_sort_created_idx').on(table.sortOrder, table.createdAt),
+  typeIdx: index('notice_board_items_type_idx').on(table.type),
+  assigneeIdx: index('notice_board_items_assignee_id_idx').on(table.assigneeId),
+}));
 
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
@@ -375,6 +402,9 @@ export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(sessions),
   activityLogs: many(activityLogs),
   favorites: many(favorites),
+  createdNoticeBoardItems: many(noticeBoardItems, { relationName: 'createdNoticeBoardItems' }),
+  assignedNoticeBoardItems: many(noticeBoardItems, { relationName: 'assignedNoticeBoardItems' }),
+  completedNoticeBoardItems: many(noticeBoardItems, { relationName: 'completedNoticeBoardItems' }),
 }));
 
 export const projectsRelations = relations(projects, ({ one, many }) => ({
@@ -775,6 +805,24 @@ export const favoritesRelations = relations(favorites, ({ one }) => ({
   }),
 }));
 
+export const noticeBoardItemsRelations = relations(noticeBoardItems, ({ one }) => ({
+  createdByUser: one(users, {
+    fields: [noticeBoardItems.createdBy],
+    references: [users.id],
+    relationName: 'createdNoticeBoardItems',
+  }),
+  assignee: one(users, {
+    fields: [noticeBoardItems.assigneeId],
+    references: [users.id],
+    relationName: 'assignedNoticeBoardItems',
+  }),
+  completedByUser: one(users, {
+    fields: [noticeBoardItems.completedBy],
+    references: [users.id],
+    relationName: 'completedNoticeBoardItems',
+  }),
+}));
+
 // Time entries table
 export const timeEntries = pgTable('time_entries', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -853,5 +901,7 @@ export type ActivityLog = typeof activityLogs.$inferSelect;
 export type NewActivityLog = typeof activityLogs.$inferInsert;
 export type Favorite = typeof favorites.$inferSelect;
 export type NewFavorite = typeof favorites.$inferInsert;
+export type NoticeBoardItem = typeof noticeBoardItems.$inferSelect;
+export type NewNoticeBoardItem = typeof noticeBoardItems.$inferInsert;
 export type TimeEntry = typeof timeEntries.$inferSelect;
 export type NewTimeEntry = typeof timeEntries.$inferInsert;

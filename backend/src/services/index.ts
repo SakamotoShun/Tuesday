@@ -12,3 +12,4 @@ export { dashboardService, DashboardService } from './dashboard';
 export { teamService, TeamService } from './team';
 export { timeEntryService, TimeEntryService } from './timeEntry';
 export { searchService, SearchService } from './search';
+export { noticeBoardService, NoticeBoardService } from './noticeBoard';

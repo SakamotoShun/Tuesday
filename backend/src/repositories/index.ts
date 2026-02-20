@@ -26,5 +26,6 @@ export { reactionRepository, ReactionRepository } from './reaction';
 export { notificationRepository, NotificationRepository } from './notification';
 export { activityRepository, ActivityRepository } from './activity';
 export { favoriteRepository, FavoriteRepository } from './favorite';
+export { noticeBoardRepository, NoticeBoardRepository, type NoticeBoardItemWithUsers } from './noticeBoard';
 export { timeEntryRepository, TimeEntryRepository } from './timeEntry';
 export { searchRepository, SearchRepository } from './search';
