@@ -1,5 +1,6 @@
 import { docRepository } from '../repositories';
 import { projectService } from './project';
+import { activityService } from './activity';
 import { type Doc, type NewDoc } from '../db/schema';
 import type { User } from '../types';
 import { extractSearchTextFromDocContent } from '../utils/doc-search';
@@ -133,6 +134,15 @@ export class DocService {
       createdBy: user.id,
     });
 
+    await activityService.record({
+      actorId: user.id,
+      action: 'doc.created',
+      entityType: 'doc',
+      entityId: doc.id,
+      entityName: doc.title,
+      projectId: doc.projectId,
+    });
+
     return doc;
   }
 
@@ -201,7 +211,22 @@ export class DocService {
       updateData.properties = input.properties;
     }
 
-    return docRepository.update(docId, updateData);
+    const updated = await docRepository.update(docId, updateData);
+    if (updated) {
+      await activityService.record({
+        actorId: user.id,
+        action: 'doc.updated',
+        entityType: 'doc',
+        entityId: updated.id,
+        entityName: updated.title,
+        projectId: updated.projectId,
+        metadata: {
+          changedFields: Object.keys(updateData),
+        },
+      });
+    }
+
+    return updated;
   }
 
   /**
@@ -228,7 +253,19 @@ export class DocService {
       }
     }
 
-    return docRepository.delete(docId);
+    const deleted = await docRepository.delete(docId);
+    if (deleted) {
+      await activityService.record({
+        actorId: user.id,
+        action: 'doc.deleted',
+        entityType: 'doc',
+        entityId: doc.id,
+        entityName: doc.title,
+        projectId: doc.projectId,
+      });
+    }
+
+    return deleted;
   }
 }
 

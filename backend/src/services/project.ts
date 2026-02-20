@@ -1,5 +1,6 @@
 import { projectRepository, projectMemberRepository, projectStatusRepository, teamProjectRepository } from '../repositories';
 import { fileService } from './file';
+import { activityService } from './activity';
 import { db } from '../db/client';
 import { ProjectMemberRole, ProjectMemberSource, UserRole } from '../db/schema';
 import { docs, tasks, channels, whiteboards } from '../db/schema';
@@ -125,6 +126,18 @@ export class ProjectService {
 
     // Add creator as owner
     await projectMemberRepository.addMember(project.id, user.id, ProjectMemberRole.OWNER);
+
+    await activityService.record({
+      actorId: user.id,
+      action: 'project.created',
+      entityType: 'project',
+      entityId: project.id,
+      entityName: project.name,
+      projectId: project.id,
+      metadata: {
+        usedTemplate: false,
+      },
+    });
 
     return project;
   }
@@ -286,6 +299,19 @@ export class ProjectService {
       }
     });
 
+    await activityService.record({
+      actorId: user.id,
+      action: 'project.created',
+      entityType: 'project',
+      entityId: project.id,
+      entityName: project.name,
+      projectId: project.id,
+      metadata: {
+        usedTemplate: true,
+        templateId,
+      },
+    });
+
     return project;
   }
 
@@ -388,7 +414,22 @@ export class ProjectService {
       updateData.targetEndDate = input.targetEndDate || null;
     }
 
-    return projectRepository.update(projectId, updateData);
+    const updated = await projectRepository.update(projectId, updateData);
+    if (updated) {
+      await activityService.record({
+        actorId: user.id,
+        action: 'project.updated',
+        entityType: 'project',
+        entityId: updated.id,
+        entityName: updated.name,
+        projectId: updated.id,
+        metadata: {
+          changedFields: Object.keys(updateData),
+        },
+      });
+    }
+
+    return updated;
   }
 
   /**
@@ -482,6 +523,19 @@ export class ProjectService {
         userId,
         invitedBy: currentUser.name,
       });
+
+      await activityService.record({
+        actorId: currentUser.id,
+        action: 'project.member_added',
+        entityType: 'project',
+        entityId: project.id,
+        entityName: project.name,
+        projectId: project.id,
+        metadata: {
+          memberUserId: userId,
+          role,
+        },
+      });
     }
 
     return member;
@@ -521,7 +575,26 @@ export class ProjectService {
       throw new Error('Invalid role');
     }
 
-    return projectMemberRepository.updateRole(projectId, userId, role);
+    const updated = await projectMemberRepository.updateRole(projectId, userId, role);
+    if (updated) {
+      const project = await projectRepository.findById(projectId);
+      if (project) {
+        await activityService.record({
+          actorId: currentUser.id,
+          action: 'project.member_role_changed',
+          entityType: 'project',
+          entityId: project.id,
+          entityName: project.name,
+          projectId: project.id,
+          metadata: {
+            memberUserId: userId,
+            role,
+          },
+        });
+      }
+    }
+
+    return updated;
   }
 
   /**
@@ -557,10 +630,45 @@ export class ProjectService {
         source: ProjectMemberSource.TEAM,
         sourceTeamId: teamIds[0],
       });
+
+      const project = await projectRepository.findById(projectId);
+      if (project) {
+        await activityService.record({
+          actorId: currentUser.id,
+          action: 'project.member_removed',
+          entityType: 'project',
+          entityId: project.id,
+          entityName: project.name,
+          projectId: project.id,
+          metadata: {
+            memberUserId: userId,
+            retainedViaTeam: true,
+          },
+        });
+      }
       return true;
     }
 
-    return projectMemberRepository.removeMember(projectId, userId);
+    const removed = await projectMemberRepository.removeMember(projectId, userId);
+    if (removed) {
+      const project = await projectRepository.findById(projectId);
+      if (project) {
+        await activityService.record({
+          actorId: currentUser.id,
+          action: 'project.member_removed',
+          entityType: 'project',
+          entityId: project.id,
+          entityName: project.name,
+          projectId: project.id,
+          metadata: {
+            memberUserId: userId,
+            retainedViaTeam: false,
+          },
+        });
+      }
+    }
+
+    return removed;
   }
 
   /**

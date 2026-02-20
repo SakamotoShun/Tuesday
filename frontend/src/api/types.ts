@@ -575,6 +575,62 @@ export interface Notification {
   createdAt: string
 }
 
+export type FavoriteEntityType = "project" | "task" | "doc"
+
+export interface FavoriteItem {
+  id: string
+  entityType: FavoriteEntityType
+  entityId: string
+  title: string
+  subtitle: string | null
+  link: string
+  projectId: string | null
+  sortOrder: number
+  createdAt: string
+}
+
+export interface DashboardStatusCount {
+  statusId: string | null
+  statusName: string
+  color: string
+  count: number
+}
+
+export interface DashboardStats {
+  tasks: {
+    total: number
+    overdue: number
+    dueThisWeek: number
+    completedThisWeek: number
+    byStatus: DashboardStatusCount[]
+  }
+  projects: {
+    total: number
+    byStatus: DashboardStatusCount[]
+  }
+  timeTracking: {
+    hoursToday: number
+    hoursThisWeek: number
+  }
+  unreadNotifications: number
+}
+
+export type ActivityEntityType = "project" | "task" | "doc" | "meeting" | "whiteboard"
+
+export interface ActivityLogItem {
+  id: string
+  actorId: string
+  action: string
+  entityType: ActivityEntityType
+  entityId: string
+  entityName: string
+  projectId: string | null
+  metadata: Record<string, unknown>
+  createdAt: string
+  actor?: Pick<User, "id" | "name" | "email" | "avatarUrl"> | null
+  project?: Pick<Project, "id" | "name"> | null
+}
+
 // Whiteboard types
 export interface Whiteboard {
   id: string

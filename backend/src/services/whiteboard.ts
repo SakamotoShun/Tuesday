@@ -1,5 +1,6 @@
 import { whiteboardRepository } from '../repositories';
 import { projectService } from './project';
+import { activityService } from './activity';
 import { type Whiteboard, type NewWhiteboard } from '../db/schema';
 import type { User } from '../types';
 
@@ -55,6 +56,15 @@ export class WhiteboardService {
       createdBy: user.id,
     } as NewWhiteboard);
 
+    await activityService.record({
+      actorId: user.id,
+      action: 'whiteboard.created',
+      entityType: 'whiteboard',
+      entityId: whiteboard.id,
+      entityName: whiteboard.name,
+      projectId: whiteboard.projectId,
+    });
+
     return whiteboardRepository.findById(whiteboard.id) as Promise<Whiteboard>;
   }
 
@@ -83,7 +93,19 @@ export class WhiteboardService {
       updateData.data = input.data ?? {};
     }
 
-    return whiteboardRepository.update(whiteboardId, updateData);
+    const updated = await whiteboardRepository.update(whiteboardId, updateData);
+    if (updated) {
+      await activityService.record({
+        actorId: user.id,
+        action: 'whiteboard.updated',
+        entityType: 'whiteboard',
+        entityId: updated.id,
+        entityName: updated.name,
+        projectId: updated.projectId,
+      });
+    }
+
+    return updated;
   }
 
   async deleteWhiteboard(whiteboardId: string, user: User): Promise<boolean> {
@@ -98,7 +120,19 @@ export class WhiteboardService {
       throw new Error('Access denied to this whiteboard');
     }
 
-    return whiteboardRepository.delete(whiteboardId);
+    const deleted = await whiteboardRepository.delete(whiteboardId);
+    if (deleted) {
+      await activityService.record({
+        actorId: user.id,
+        action: 'whiteboard.deleted',
+        entityType: 'whiteboard',
+        entityId: whiteboard.id,
+        entityName: whiteboard.name,
+        projectId: whiteboard.projectId,
+      });
+    }
+
+    return deleted;
   }
 }
 

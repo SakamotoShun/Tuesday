@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, boolean, timestamp, jsonb, integer, date, primaryKey, bigserial, bigint, customType, numeric } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, boolean, timestamp, jsonb, integer, date, primaryKey, bigserial, bigint, customType, numeric, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // User roles
@@ -66,6 +66,26 @@ export const ChannelMemberRole = {
 } as const;
 
 export type ChannelMemberRole = typeof ChannelMemberRole[keyof typeof ChannelMemberRole];
+
+// Activity entity types
+export const ActivityEntityType = {
+  PROJECT: 'project',
+  TASK: 'task',
+  DOC: 'doc',
+  MEETING: 'meeting',
+  WHITEBOARD: 'whiteboard',
+} as const;
+
+export type ActivityEntityType = typeof ActivityEntityType[keyof typeof ActivityEntityType];
+
+// Favorite entity types
+export const FavoriteEntityType = {
+  PROJECT: 'project',
+  TASK: 'task',
+  DOC: 'doc',
+} as const;
+
+export type FavoriteEntityType = typeof FavoriteEntityType[keyof typeof FavoriteEntityType];
 
 const bytea = customType<{ data: Buffer }>({
   dataType() {
@@ -316,6 +336,36 @@ export const docCollabUpdates = pgTable('doc_collab_updates', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+// Activity logs table
+export const activityLogs = pgTable('activity_logs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  actorId: uuid('actor_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  action: varchar('action', { length: 100 }).notNull(),
+  entityType: varchar('entity_type', { length: 30 }).notNull(),
+  entityId: uuid('entity_id').notNull(),
+  entityName: varchar('entity_name', { length: 255 }).notNull(),
+  projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+  metadata: jsonb('metadata').notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  actorIdx: index('activity_logs_actor_id_idx').on(table.actorId),
+  projectIdx: index('activity_logs_project_id_idx').on(table.projectId),
+  createdIdx: index('activity_logs_created_at_idx').on(table.createdAt),
+}));
+
+// Favorites table
+export const favorites = pgTable('favorites', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  entityType: varchar('entity_type', { length: 30 }).notNull(),
+  entityId: uuid('entity_id').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  userSortIdx: index('favorites_user_sort_order_idx').on(table.userId, table.sortOrder),
+  uniqueUserEntity: uniqueIndex('favorites_user_entity_unique').on(table.userId, table.entityType, table.entityId),
+}));
+
 
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
@@ -323,6 +373,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   teams: many(teamMembers),
   createdProjects: many(projects, { relationName: 'createdProjects' }),
   sessions: many(sessions),
+  activityLogs: many(activityLogs),
+  favorites: many(favorites),
 }));
 
 export const projectsRelations = relations(projects, ({ one, many }) => ({
@@ -336,6 +388,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
     relationName: 'createdProjects',
   }),
   members: many(projectMembers),
+  activityLogs: many(activityLogs),
 }));
 
 export const teamsRelations = relations(teams, ({ many }) => ({
@@ -704,6 +757,24 @@ export const notificationsRelations = relations(notifications, ({ one }) => ({
   }),
 }));
 
+export const activityLogsRelations = relations(activityLogs, ({ one }) => ({
+  actor: one(users, {
+    fields: [activityLogs.actorId],
+    references: [users.id],
+  }),
+  project: one(projects, {
+    fields: [activityLogs.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const favoritesRelations = relations(favorites, ({ one }) => ({
+  user: one(users, {
+    fields: [favorites.userId],
+    references: [users.id],
+  }),
+}));
+
 // Time entries table
 export const timeEntries = pgTable('time_entries', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -778,5 +849,9 @@ export type Whiteboard = typeof whiteboards.$inferSelect;
 export type NewWhiteboard = typeof whiteboards.$inferInsert;
 export type Notification = typeof notifications.$inferSelect;
 export type NewNotification = typeof notifications.$inferInsert;
+export type ActivityLog = typeof activityLogs.$inferSelect;
+export type NewActivityLog = typeof activityLogs.$inferInsert;
+export type Favorite = typeof favorites.$inferSelect;
+export type NewFavorite = typeof favorites.$inferInsert;
 export type TimeEntry = typeof timeEntries.$inferSelect;
 export type NewTimeEntry = typeof timeEntries.$inferInsert;

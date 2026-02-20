@@ -1,5 +1,6 @@
 import { taskRepository, taskAssigneeRepository, taskStatusRepository } from '../repositories';
 import { projectService } from './project';
+import { activityService } from './activity';
 import { type Task, type NewTask } from '../db/schema';
 import type { User } from '../types';
 
@@ -21,6 +22,7 @@ export interface UpdateTaskInput {
 }
 
 export interface TaskWithAssignees extends Task {
+  status?: { id: string; name: string; color: string } | null;
   assignees?: { userId: string; user: { id: string; name: string; email: string; avatarUrl: string | null } }[];
 }
 
@@ -135,7 +137,22 @@ export class TaskService {
     }
 
     // Return task with assignees
-    return taskRepository.findById(task.id) as Promise<Task>;
+    const completeTask = await taskRepository.findById(task.id) as TaskWithAssignees | null;
+
+    await activityService.record({
+      actorId: user.id,
+      action: 'task.created',
+      entityType: 'task',
+      entityId: task.id,
+      entityName: task.title,
+      projectId,
+      metadata: {
+        statusId: task.statusId,
+        assigneeCount: input.assigneeIds?.length ?? 0,
+      },
+    });
+
+    return (completeTask ?? task) as Task;
   }
 
   /**
@@ -187,7 +204,24 @@ export class TaskService {
       updateData.dueDate = input.dueDate || null;
     }
 
-    return taskRepository.update(taskId, updateData);
+    const updated = await taskRepository.update(taskId, updateData);
+    if (updated) {
+      await activityService.record({
+        actorId: user.id,
+        action: 'task.updated',
+        entityType: 'task',
+        entityId: task.id,
+        entityName: updated.title,
+        projectId: task.projectId,
+        metadata: {
+          changedFields: Object.keys(updateData),
+          previousStatusId: task.statusId,
+          nextStatusId: updated.statusId,
+        },
+      });
+    }
+
+    return updated;
   }
 
   /**
@@ -212,7 +246,23 @@ export class TaskService {
       throw new Error('Invalid status ID');
     }
 
-    return taskRepository.updateStatus(taskId, statusId);
+    const updated = await taskRepository.updateStatus(taskId, statusId);
+    if (updated) {
+      await activityService.record({
+        actorId: user.id,
+        action: 'task.status_changed',
+        entityType: 'task',
+        entityId: task.id,
+        entityName: task.title,
+        projectId: task.projectId,
+        metadata: {
+          previousStatusId: task.statusId,
+          nextStatusId: statusId,
+        },
+      });
+    }
+
+    return updated;
   }
 
   /**
@@ -265,6 +315,19 @@ export class TaskService {
         projectId: task.projectId,
       });
     }
+
+    await activityService.record({
+      actorId: user.id,
+      action: 'task.assignees_changed',
+      entityType: 'task',
+      entityId: task.id,
+      entityName: task.title,
+      projectId: task.projectId,
+      metadata: {
+        previousAssigneeCount: existingAssignees.length,
+        nextAssigneeCount: assigneeIds.length,
+      },
+    });
     
     return taskRepository.findById(taskId) as Promise<Task>;
   }
@@ -285,7 +348,19 @@ export class TaskService {
       throw new Error('Access denied to this task');
     }
 
-    return taskRepository.delete(taskId);
+    const deleted = await taskRepository.delete(taskId);
+    if (deleted) {
+      await activityService.record({
+        actorId: user.id,
+        action: 'task.deleted',
+        entityType: 'task',
+        entityId: task.id,
+        entityName: task.title,
+        projectId: task.projectId,
+      });
+    }
+
+    return deleted;
   }
 }
 

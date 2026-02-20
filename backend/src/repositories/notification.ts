@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { db } from '../db/client';
 import { notifications, type Notification, type NewNotification } from '../db/schema';
 
@@ -50,6 +50,14 @@ export class NotificationRepository {
       .where(eq(notifications.userId, userId))
       .returning();
     return result.length;
+  }
+
+  async countUnreadByUser(userId: string): Promise<number> {
+    const [result] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(notifications)
+      .where(and(eq(notifications.userId, userId), eq(notifications.read, false)));
+    return Number(result?.count ?? 0);
   }
 
   async delete(id: string): Promise<boolean> {

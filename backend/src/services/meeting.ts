@@ -1,5 +1,6 @@
 import { meetingRepository, meetingAttendeeRepository, teamMemberRepository } from '../repositories';
 import { projectService } from './project';
+import { activityService } from './activity';
 import { type Meeting, type NewMeeting } from '../db/schema';
 import type { User } from '../types';
 
@@ -110,7 +111,21 @@ export class MeetingService {
     }
 
     const completeMeeting = await meetingRepository.findById(meeting.id);
-    return completeMeeting ?? meeting;
+    const resolvedMeeting = completeMeeting ?? meeting;
+
+    await activityService.record({
+      actorId: user.id,
+      action: 'meeting.created',
+      entityType: 'meeting',
+      entityId: resolvedMeeting.id,
+      entityName: resolvedMeeting.title,
+      projectId: resolvedMeeting.projectId,
+      metadata: {
+        attendeeCount: attendeeIds.size,
+      },
+    });
+
+    return resolvedMeeting;
   }
 
   async updateMeeting(meetingId: string, input: UpdateMeetingInput, user: User): Promise<Meeting | null> {
@@ -193,6 +208,20 @@ export class MeetingService {
       }
     }
 
+    if (updated) {
+      await activityService.record({
+        actorId: user.id,
+        action: 'meeting.updated',
+        entityType: 'meeting',
+        entityId: meeting.id,
+        entityName: updated.title,
+        projectId: meeting.projectId,
+        metadata: {
+          changedFields: Object.keys(updateData),
+        },
+      });
+    }
+
     return updated ? meetingRepository.findById(meetingId) : null;
   }
 
@@ -208,7 +237,19 @@ export class MeetingService {
       throw new Error('Access denied to this meeting');
     }
 
-    return meetingRepository.delete(meetingId);
+    const deleted = await meetingRepository.delete(meetingId);
+    if (deleted) {
+      await activityService.record({
+        actorId: user.id,
+        action: 'meeting.deleted',
+        entityType: 'meeting',
+        entityId: meeting.id,
+        entityName: meeting.title,
+        projectId: meeting.projectId,
+      });
+    }
+
+    return deleted;
   }
 
   private async hasMeetingAccess(meeting: Meeting, user: User): Promise<boolean> {

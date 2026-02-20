@@ -21,6 +21,8 @@ import { teams } from './teams';
 import { webhooks } from './webhooks';
 import { timeEntries } from './time-entries';
 import { search } from './search';
+import { dashboard } from './dashboard';
+import { favorites } from './favorites';
 
 const routes = new Hono();
 
@@ -47,6 +49,8 @@ routes.route('/api/v1/teams', teams);
 routes.route('/api/v1/webhooks', webhooks);
 routes.route('/api/v1/time-entries', timeEntries);
 routes.route('/api/v1/search', search);
+routes.route('/api/v1/dashboard', dashboard);
+routes.route('/api/v1/favorites', favorites);
 
 // Health check
 routes.get('/health', (c) => {

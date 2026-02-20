@@ -24,5 +24,7 @@ export { botChannelMemberRepository, BotChannelMemberRepository } from './botCha
 export { fileRepository, FileRepository } from './file';
 export { reactionRepository, ReactionRepository } from './reaction';
 export { notificationRepository, NotificationRepository } from './notification';
+export { activityRepository, ActivityRepository } from './activity';
+export { favoriteRepository, FavoriteRepository } from './favorite';
 export { timeEntryRepository, TimeEntryRepository } from './timeEntry';
 export { searchRepository, SearchRepository } from './search';

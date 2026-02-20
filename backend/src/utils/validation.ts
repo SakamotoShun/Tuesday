@@ -394,3 +394,19 @@ export const upsertTimeEntrySchema = z.object({
 });
 
 export type UpsertTimeEntryInput = z.infer<typeof upsertTimeEntrySchema>;
+
+// Favorites validation schemas
+export const favoriteEntityTypeSchema = z.enum(['project', 'task', 'doc']);
+
+export const createFavoriteSchema = z.object({
+  entityType: favoriteEntityTypeSchema,
+  entityId: uuidSchema,
+});
+
+export type CreateFavoriteInput = z.infer<typeof createFavoriteSchema>;
+
+export const reorderFavoritesSchema = z.object({
+  favoriteIds: z.array(uuidSchema).min(1, 'At least one favorite ID is required'),
+});
+
+export type ReorderFavoritesInput = z.infer<typeof reorderFavoritesSchema>;
