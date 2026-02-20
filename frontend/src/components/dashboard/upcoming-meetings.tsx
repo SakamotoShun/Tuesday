@@ -16,7 +16,7 @@ export function UpcomingMeetings({ meetings }: UpcomingMeetingsProps) {
           <div>
             <div className="text-sm font-medium">{meeting.title}</div>
             <div className="text-xs text-muted-foreground">
-              {meeting.project?.name ?? "Project"}
+              {meeting.project?.name ?? (meeting.projectId ? "Project" : "Personal")}
             </div>
           </div>
           <div className="text-xs text-muted-foreground">

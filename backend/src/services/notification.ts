@@ -24,7 +24,7 @@ export interface MeetingInviteNotificationInput {
   meetingId: string;
   meetingTitle: string;
   attendeeIds: string[];
-  projectId: string;
+  projectId?: string | null;
 }
 
 export interface ProjectInviteNotificationInput {
@@ -89,12 +89,16 @@ export class NotificationService {
 
   async notifyMeetingInvite(input: MeetingInviteNotificationInput) {
     const deduped = Array.from(new Set(input.attendeeIds));
+    const link = input.projectId
+      ? `/projects/${input.projectId}/schedule?meeting=${input.meetingId}`
+      : `/my-calendar?meeting=${input.meetingId}`;
+
     await Promise.all(
       deduped.map((userId) =>
         this.notify(userId, 'meeting_invite', {
           title: `Meeting invite: ${input.meetingTitle}`,
           body: 'You have been invited to a meeting',
-          link: `/projects/${input.projectId}/schedule?meeting=${input.meetingId}`,
+          link,
         })
       )
     );

@@ -48,6 +48,28 @@ meetings.post('/projects/:id/meetings', requireProjectAccess, async (c) => {
   }
 });
 
+// POST /api/v1/meetings - Create standalone meeting/event
+meetings.post('/', async (c) => {
+  try {
+    const user = c.get('user');
+    const body = await c.req.json();
+
+    const validation = validateBody(createMeetingSchema, body);
+    if (!validation.success) {
+      return errors.validation(c, formatValidationErrors(validation.errors));
+    }
+
+    const meeting = await meetingService.createMeeting(null, validation.data, user);
+    return success(c, meeting, undefined, 201);
+  } catch (error) {
+    if (error instanceof Error) {
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error creating standalone meeting:', error);
+    return errors.internal(c, 'Failed to create meeting');
+  }
+});
+
 // GET /api/v1/meetings/my - List user's meetings across all projects
 meetings.get('/my', async (c) => {
   try {

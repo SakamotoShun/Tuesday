@@ -17,6 +17,9 @@ export function useMeetings(projectId: string) {
       queryClient.invalidateQueries({
         queryKey: ["projects", projectId, "meetings"],
       })
+      queryClient.invalidateQueries({
+        queryKey: ["meetings", "my"],
+      })
     },
   })
 

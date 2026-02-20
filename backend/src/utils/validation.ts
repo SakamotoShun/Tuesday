@@ -287,8 +287,10 @@ export const createMeetingSchema = z.object({
   startTime: z.string().min(1, 'Start time is required'),
   endTime: z.string().min(1, 'End time is required'),
   location: z.string().max(255).optional(),
+  link: z.string().max(2048).optional(),
   notesMd: z.string().optional(),
   attendeeIds: z.array(uuidSchema).optional(),
+  teamIds: z.array(uuidSchema).optional(),
 });
 
 export type CreateMeetingInput = z.infer<typeof createMeetingSchema>;
@@ -298,8 +300,10 @@ export const updateMeetingSchema = z.object({
   startTime: z.string().optional().nullable(),
   endTime: z.string().optional().nullable(),
   location: z.string().max(255).optional().nullable(),
+  link: z.string().max(2048).optional().nullable(),
   notesMd: z.string().optional().nullable(),
   attendeeIds: z.array(uuidSchema).optional(),
+  teamIds: z.array(uuidSchema).optional(),
 });
 
 export type UpdateMeetingInput = z.infer<typeof updateMeetingSchema>;

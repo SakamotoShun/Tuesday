@@ -1,4 +1,4 @@
-import { meetingRepository, meetingAttendeeRepository } from '../repositories';
+import { meetingRepository, meetingAttendeeRepository, teamMemberRepository } from '../repositories';
 import { projectService } from './project';
 import { type Meeting, type NewMeeting } from '../db/schema';
 import type { User } from '../types';
@@ -8,8 +8,10 @@ export interface CreateMeetingInput {
   startTime: string;
   endTime: string;
   location?: string;
+  link?: string;
   notesMd?: string;
   attendeeIds?: string[];
+  teamIds?: string[];
 }
 
 export interface UpdateMeetingInput {
@@ -17,8 +19,10 @@ export interface UpdateMeetingInput {
   startTime?: string | null;
   endTime?: string | null;
   location?: string | null;
+  link?: string | null;
   notesMd?: string | null;
   attendeeIds?: string[];
+  teamIds?: string[];
 }
 
 export class MeetingService {
@@ -38,7 +42,7 @@ export class MeetingService {
       return null;
     }
 
-    const hasAccess = await projectService.hasAccess(meeting.projectId, user);
+    const hasAccess = await this.hasMeetingAccess(meeting, user);
     if (!hasAccess) {
       throw new Error('Access denied to this meeting');
     }
@@ -58,10 +62,12 @@ export class MeetingService {
     return meetingRepository.findByAttendee(userId);
   }
 
-  async createMeeting(projectId: string, input: CreateMeetingInput, user: User): Promise<Meeting> {
-    const hasAccess = await projectService.hasAccess(projectId, user);
-    if (!hasAccess) {
-      throw new Error('Access denied to this project');
+  async createMeeting(projectId: string | null, input: CreateMeetingInput, user: User): Promise<Meeting> {
+    if (projectId) {
+      const hasAccess = await projectService.hasAccess(projectId, user);
+      if (!hasAccess) {
+        throw new Error('Access denied to this project');
+      }
     }
 
     if (!input.title || input.title.trim() === '') {
@@ -76,16 +82,18 @@ export class MeetingService {
     }
 
     const meeting = await meetingRepository.create({
-      projectId,
+      projectId: projectId ?? null,
       title: input.title.trim(),
       startTime,
       endTime,
       location: input.location?.trim() || null,
+      link: input.link?.trim() || null,
       notesMd: input.notesMd ?? '',
       createdBy: user.id,
     } as NewMeeting);
 
-    const attendeeIds = new Set(input.attendeeIds ?? []);
+    const resolvedAttendeeIds = await this.resolveAttendeeIds(input.attendeeIds ?? [], input.teamIds ?? [], user);
+    const attendeeIds = new Set(resolvedAttendeeIds);
     attendeeIds.add(user.id);
 
     await meetingAttendeeRepository.setAttendees(meeting.id, Array.from(attendeeIds));
@@ -101,7 +109,8 @@ export class MeetingService {
       });
     }
 
-    return meetingRepository.findById(meeting.id) as Promise<Meeting>;
+    const completeMeeting = await meetingRepository.findById(meeting.id);
+    return completeMeeting ?? meeting;
   }
 
   async updateMeeting(meetingId: string, input: UpdateMeetingInput, user: User): Promise<Meeting | null> {
@@ -111,7 +120,7 @@ export class MeetingService {
       return null;
     }
 
-    const hasAccess = await projectService.hasAccess(meeting.projectId, user);
+    const hasAccess = await this.hasMeetingAccess(meeting, user);
     if (!hasAccess) {
       throw new Error('Access denied to this meeting');
     }
@@ -127,6 +136,10 @@ export class MeetingService {
 
     if (input.location !== undefined) {
       updateData.location = input.location?.trim() || null;
+    }
+
+    if (input.link !== undefined) {
+      updateData.link = input.link?.trim() || null;
     }
 
     if (input.notesMd !== undefined) {
@@ -157,11 +170,13 @@ export class MeetingService {
 
     const updated = await meetingRepository.update(meetingId, updateData);
 
-    if (input.attendeeIds) {
+    if (input.attendeeIds !== undefined || input.teamIds !== undefined) {
       const existingAttendees = await meetingAttendeeRepository.findByMeetingId(meetingId);
       const existingIds = existingAttendees.map((attendee) => attendee.userId);
 
-      const attendeeIds = new Set(input.attendeeIds);
+      const baseAttendeeIds = input.attendeeIds ?? existingIds;
+      const resolvedAttendeeIds = await this.resolveAttendeeIds(baseAttendeeIds, input.teamIds ?? [], user);
+      const attendeeIds = new Set(resolvedAttendeeIds);
       attendeeIds.add(meeting.createdBy);
       const nextIds = Array.from(attendeeIds);
       await meetingAttendeeRepository.setAttendees(meetingId, nextIds);
@@ -188,12 +203,46 @@ export class MeetingService {
       return false;
     }
 
-    const hasAccess = await projectService.hasAccess(meeting.projectId, user);
+    const hasAccess = await this.hasMeetingAccess(meeting, user);
     if (!hasAccess) {
       throw new Error('Access denied to this meeting');
     }
 
     return meetingRepository.delete(meetingId);
+  }
+
+  private async hasMeetingAccess(meeting: Meeting, user: User): Promise<boolean> {
+    if (user.role === 'admin') {
+      return true;
+    }
+
+    if (meeting.projectId) {
+      return projectService.hasAccess(meeting.projectId, user);
+    }
+
+    if (meeting.createdBy === user.id) {
+      return true;
+    }
+
+    return meetingAttendeeRepository.isAttendee(meeting.id, user.id);
+  }
+
+  private async resolveAttendeeIds(attendeeIds: string[], teamIds: string[], user: User): Promise<string[]> {
+    const resolvedIds = new Set<string>(attendeeIds);
+
+    for (const teamId of teamIds) {
+      const hasTeamAccess = user.role === 'admin' || await teamMemberRepository.isMember(teamId, user.id);
+      if (!hasTeamAccess) {
+        throw new Error('Access denied to one or more teams');
+      }
+
+      const teamMembers = await teamMemberRepository.findByTeamId(teamId);
+      for (const teamMember of teamMembers) {
+        resolvedIds.add(teamMember.userId);
+      }
+    }
+
+    return Array.from(resolvedIds);
   }
 
   private parseDateTime(value: string, field: string): Date {

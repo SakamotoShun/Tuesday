@@ -1,0 +1,5 @@
+ALTER TABLE meetings
+ALTER COLUMN project_id DROP NOT NULL;
+
+ALTER TABLE meetings
+ADD COLUMN link VARCHAR(2048);

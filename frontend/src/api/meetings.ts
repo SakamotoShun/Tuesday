@@ -52,6 +52,11 @@ export const meetingsApi = {
     return normalizeMeeting(meeting)
   },
 
+  createStandalone: async (input: CreateMeetingInput): Promise<Meeting> => {
+    const meeting = await api.post<BackendMeeting>("/meetings", input)
+    return normalizeMeeting(meeting)
+  },
+
   update: async (meetingId: string, input: UpdateMeetingInput): Promise<Meeting> => {
     const meeting = await api.patch<BackendMeeting>(`/meetings/${meetingId}`, input)
     return normalizeMeeting(meeting)

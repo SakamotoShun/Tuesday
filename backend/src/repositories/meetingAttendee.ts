@@ -55,6 +55,20 @@ export class MeetingAttendeeRepository {
       }
     });
   }
+
+  async isAttendee(meetingId: string, userId: string): Promise<boolean> {
+    const attendee = await db.query.meetingAttendees.findFirst({
+      where: and(
+        eq(meetingAttendees.meetingId, meetingId),
+        eq(meetingAttendees.userId, userId)
+      ),
+      columns: {
+        meetingId: true,
+      },
+    });
+
+    return attendee !== null;
+  }
 }
 
 export const meetingAttendeeRepository = new MeetingAttendeeRepository();

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
+import { X } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -11,8 +12,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Badge } from "@/components/ui/badge"
+import { ItemCombobox } from "@/components/ui/item-combobox"
 import { AttendeePicker } from "@/components/calendar/attendee-picker"
-import type { Meeting, CreateMeetingInput, UpdateMeetingInput, User } from "@/api/types"
+import type { Meeting, CreateMeetingInput, UpdateMeetingInput, Team, User } from "@/api/types"
 
 interface MeetingDialogProps {
   open: boolean
@@ -21,6 +24,7 @@ interface MeetingDialogProps {
   initialStartTime?: Date | null
   initialEndTime?: Date | null
   members: User[]
+  teams?: Team[]
   onSubmit: (data: CreateMeetingInput | UpdateMeetingInput) => Promise<void>
   onDelete?: (() => Promise<void>) | null
   isSubmitting?: boolean
@@ -51,6 +55,7 @@ export function MeetingDialog({
   initialStartTime,
   initialEndTime,
   members,
+  teams = [],
   onSubmit,
   onDelete,
   isSubmitting,
@@ -74,8 +79,16 @@ export function MeetingDialog({
   const [startTime, setStartTime] = useState("")
   const [endTime, setEndTime] = useState("")
   const [location, setLocation] = useState("")
+  const [link, setLink] = useState("")
   const [notes, setNotes] = useState("")
   const [attendeeIds, setAttendeeIds] = useState<string[]>([])
+  const [teamIds, setTeamIds] = useState<string[]>([])
+  const [teamToAdd, setTeamToAdd] = useState<string | null>(null)
+
+  const selectedTeams = useMemo(
+    () => teams.filter((team) => teamIds.includes(team.id)),
+    [teams, teamIds]
+  )
 
   const startParts = splitDateTime(startTime)
   const endParts = splitDateTime(endTime)
@@ -86,9 +99,25 @@ export function MeetingDialog({
     setStartTime(toInputValue(defaultStart))
     setEndTime(toInputValue(defaultEnd))
     setLocation(meeting?.location ?? "")
+    setLink(meeting?.link ?? "")
     setNotes(meeting?.notesMd ?? "")
     setAttendeeIds(meeting?.attendees?.map((attendee) => attendee.userId) ?? [])
+    setTeamIds([])
+    setTeamToAdd(null)
   }, [open, meeting, defaultStart, defaultEnd])
+
+  const addTeam = () => {
+    if (!teamToAdd || teamIds.includes(teamToAdd)) {
+      return
+    }
+
+    setTeamIds((prev) => [...prev, teamToAdd])
+    setTeamToAdd(null)
+  }
+
+  const removeTeam = (teamId: string) => {
+    setTeamIds((prev) => prev.filter((id) => id !== teamId))
+  }
 
   const handleSubmit = async () => {
     if (!title.trim()) return
@@ -98,8 +127,10 @@ export function MeetingDialog({
       startTime,
       endTime,
       location: location.trim() || undefined,
+      link: link.trim() || undefined,
       notesMd: notes || undefined,
       attendeeIds,
+      teamIds: teamIds.length > 0 ? teamIds : undefined,
     })
     onOpenChange(false)
   }
@@ -175,6 +206,55 @@ export function MeetingDialog({
               onChange={(event) => setLocation(event.target.value)}
               placeholder="Conference Room A"
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="meeting-link">Meeting link</Label>
+            <Input
+              id="meeting-link"
+              type="url"
+              value={link}
+              onChange={(event) => setLink(event.target.value)}
+              placeholder="https://meet.google.com/..."
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Teams</Label>
+            <div className="flex gap-2">
+              <ItemCombobox
+                items={teams}
+                value={teamToAdd}
+                onChange={setTeamToAdd}
+                getItemId={(team) => team.id}
+                getItemLabel={(team) => team.name}
+                placeholder="Select a team"
+                searchPlaceholder="Search teams..."
+                emptyLabel="No teams found"
+                className="flex-1"
+                contentClassName="w-[360px]"
+              />
+              <Button type="button" variant="outline" onClick={addTeam} disabled={!teamToAdd}>
+                Add Team
+              </Button>
+            </div>
+
+            {selectedTeams.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {selectedTeams.map((team) => (
+                  <Badge key={team.id} variant="secondary" className="flex items-center gap-1 pr-1">
+                    <span className="text-xs">{team.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeTeam(team.id)}
+                      className="ml-1 rounded hover:bg-muted"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <div className="space-y-2">

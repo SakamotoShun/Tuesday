@@ -37,7 +37,7 @@ export function CalendarView({
           start: meeting.startTime,
           end: meeting.endTime,
           extendedProps: {
-            projectName: meeting.project?.name,
+            projectName: meeting.project?.name ?? (meeting.projectId ? undefined : "Personal"),
           },
         }))}
         eventClick={(info: EventClickArg) => {

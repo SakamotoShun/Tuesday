@@ -240,11 +240,12 @@ export interface MeetingAttendee {
 
 export interface Meeting {
   id: string
-  projectId: string
+  projectId: string | null
   title: string
   startTime: string
   endTime: string
   location: string | null
+  link: string | null
   notesMd: string | null
   createdBy: string
   createdAt: string
@@ -259,8 +260,10 @@ export interface CreateMeetingInput {
   startTime: string
   endTime: string
   location?: string
+  link?: string
   notesMd?: string
   attendeeIds?: string[]
+  teamIds?: string[]
 }
 
 export interface UpdateMeetingInput {
@@ -268,8 +271,10 @@ export interface UpdateMeetingInput {
   startTime?: string | null
   endTime?: string | null
   location?: string | null
+  link?: string | null
   notesMd?: string | null
   attendeeIds?: string[]
+  teamIds?: string[]
 }
 
 // Doc types

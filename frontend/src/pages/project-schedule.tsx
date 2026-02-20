@@ -5,8 +5,9 @@ import { MeetingDetail } from "@/components/calendar/meeting-detail"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useMeetings } from "@/hooks/use-meetings"
-import { useProject } from "@/hooks/use-projects"
-import type { Meeting, CreateMeetingInput, UpdateMeetingInput, User } from "@/api/types"
+import { useWorkspaceUsers } from "@/hooks/use-project-members"
+import { useTeams } from "@/hooks/use-teams"
+import type { Meeting, CreateMeetingInput, UpdateMeetingInput } from "@/api/types"
 
 interface ProjectSchedulePageProps {
   projectId: string
@@ -19,17 +20,14 @@ const withHourOffset = (date: Date, hours: number) => {
 }
 
 export function ProjectSchedulePage({ projectId }: ProjectSchedulePageProps) {
-  const { data: project } = useProject(projectId)
   const { meetings, isLoading, createMeeting, updateMeeting, deleteMeeting } = useMeetings(projectId)
+  const { data: users = [], isLoading: isUsersLoading } = useWorkspaceUsers()
+  const { teams, isLoading: isTeamsLoading } = useTeams()
 
   const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [draftStart, setDraftStart] = useState<Date | null>(null)
   const [draftEnd, setDraftEnd] = useState<Date | null>(null)
-
-  const members: User[] = project?.members
-    ?.map((member) => member.user)
-    .filter((user): user is User => user !== undefined) || []
 
   const defaultDate = useMemo(() => new Date(), [])
 
@@ -53,7 +51,7 @@ export function ProjectSchedulePage({ projectId }: ProjectSchedulePageProps) {
     setSelectedMeeting(meeting)
   }
 
-  if (isLoading) {
+  if (isLoading || isUsersLoading || isTeamsLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-12 w-full" />
@@ -88,7 +86,8 @@ export function ProjectSchedulePage({ projectId }: ProjectSchedulePageProps) {
         meeting={selectedMeeting}
         initialStartTime={draftStart}
         initialEndTime={draftEnd}
-        members={members}
+        members={users}
+        teams={teams}
         isSubmitting={createMeeting.isPending || updateMeeting.isPending || deleteMeeting.isPending}
         onDelete={
           selectedMeeting
