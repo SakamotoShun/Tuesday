@@ -586,7 +586,7 @@ export interface UpdateWhiteboardInput {
 // Time entry types
 export interface TimeEntry {
   id: string
-  projectId: string
+  projectId: string | null
   userId: string
   date: string
   hours: number
@@ -598,7 +598,7 @@ export interface TimeEntry {
 }
 
 export interface UpsertTimeEntryInput {
-  projectId: string
+  projectId?: string | null
   date: string
   hours: number
   note?: string
@@ -614,7 +614,7 @@ export interface MonthlyOverviewWeek {
   weekNumber: number
   weekStart: string
   weekEnd: string
-  projectTotals: Array<{ projectId: string; projectName: string; hours: number }>
+  projectTotals: Array<{ projectId: string | null; projectName: string; hours: number }>
   totalHours: number
 }
 
@@ -622,7 +622,7 @@ export interface MonthlyOverview {
   year: number
   month: number
   weeks: MonthlyOverviewWeek[]
-  projectTotals: Array<{ projectId: string; projectName: string; hours: number }>
+  projectTotals: Array<{ projectId: string | null; projectName: string; hours: number }>
   grandTotal: number
 }
 

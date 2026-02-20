@@ -241,7 +241,7 @@ export function AdminPayrollPage() {
                                         const projectExpanded = !!expandedProjectRows[projectKey]
 
                                         return (
-                                          <Fragment key={project.projectId}>
+                                          <Fragment key={project.projectId ?? "misc"}>
                                             <TableRow>
                                               <TableCell className="font-medium">
                                                 <Button
@@ -268,7 +268,7 @@ export function AdminPayrollPage() {
                                               <TableCell className="text-right tabular-nums font-medium">{formatMoney(project.cost)}</TableCell>
                                             </TableRow>
                                             {projectExpanded && project.weeks.map((week) => (
-                                              <TableRow key={`${project.projectId}-${week.weekStart}`}>
+                                              <TableRow key={`${project.projectId ?? "misc"}-${week.weekStart}`}>
                                                 <TableCell className="pl-8 text-muted-foreground">Weekly</TableCell>
                                                 <TableCell className="text-muted-foreground">{formatWeekLabel(week.weekStart, week.weekEnd)}</TableCell>
                                                 <TableCell className="text-right tabular-nums">{formatHours(week.hours)}</TableCell>

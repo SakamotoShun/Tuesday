@@ -1,4 +1,4 @@
-import { eq, and, gte, lte, sql } from 'drizzle-orm';
+import { eq, and, gte, lte, sql, isNull } from 'drizzle-orm';
 import { db } from '../db/client';
 import { timeEntries, type TimeEntry, type NewTimeEntry } from '../db/schema';
 
@@ -103,23 +103,32 @@ export class TimeEntryRepository {
 
   async findByUserProjectAndDate(
     userId: string,
-    projectId: string,
+    projectId: string | null,
     date: string
   ): Promise<TimeEntry | null> {
+    const whereClause = projectId
+      ? and(
+          eq(timeEntries.userId, userId),
+          eq(timeEntries.projectId, projectId),
+          eq(timeEntries.date, date)
+        )
+      : and(
+          eq(timeEntries.userId, userId),
+          isNull(timeEntries.projectId),
+          eq(timeEntries.date, date)
+        );
+
     const result = await db.query.timeEntries.findFirst({
-      where: and(
-        eq(timeEntries.userId, userId),
-        eq(timeEntries.projectId, projectId),
-        eq(timeEntries.date, date)
-      ),
+      where: whereClause,
     });
     return result || null;
   }
 
   async upsert(data: NewTimeEntry): Promise<TimeEntry> {
+    const projectId = data.projectId ?? null;
     const existing = await this.findByUserProjectAndDate(
       data.userId,
-      data.projectId,
+      projectId,
       data.date as string
     );
 
@@ -149,7 +158,7 @@ export class TimeEntryRepository {
     userId: string,
     year: number,
     month: number
-  ): Promise<Array<{ weekNumber: number; projectId: string; projectName: string; totalHours: string }>> {
+  ): Promise<Array<{ weekNumber: number; projectId: string | null; projectName: string; totalHours: string }>> {
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0);
 
@@ -157,11 +166,11 @@ export class TimeEntryRepository {
       .select({
         weekNumber: sql<number>`EXTRACT(WEEK FROM ${timeEntries.date})`,
         projectId: timeEntries.projectId,
-        projectName: sql<string>`projects.name`,
+        projectName: sql<string>`COALESCE(projects.name, 'Misc')`,
         totalHours: sql<string>`SUM(${timeEntries.hours})`,
       })
       .from(timeEntries)
-      .innerJoin(sql`projects`, sql`projects.id = ${timeEntries.projectId}`)
+      .leftJoin(sql`projects`, sql`projects.id = ${timeEntries.projectId}`)
       .where(
         and(
           eq(timeEntries.userId, userId),
@@ -171,7 +180,7 @@ export class TimeEntryRepository {
       )
       .groupBy(sql`EXTRACT(WEEK FROM ${timeEntries.date})`, timeEntries.projectId, sql`projects.name`);
 
-    return result as Array<{ weekNumber: number; projectId: string; projectName: string; totalHours: string }>;
+    return result as Array<{ weekNumber: number; projectId: string | null; projectName: string; totalHours: string }>;
   }
 
   async getProjectMonthlyOverview(

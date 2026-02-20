@@ -39,10 +39,12 @@ export function TimesheetGrid({
   const [addedProjectIds, setAddedProjectIds] = useState<string[]>([])
   const [hiddenProjectIds, setHiddenProjectIds] = useState<Set<string>>(new Set())
 
+  const projectEntries = useMemo(() => entries.filter((e) => e.projectId !== null), [entries])
+
   const projectsWithEntries = useMemo(() => {
-    const projectIds = new Set(entries.map((e) => e.projectId))
+    const projectIds = new Set(projectEntries.map((e) => e.projectId))
     return projects.filter((p) => projectIds.has(p.id))
-  }, [entries, projects])
+  }, [projectEntries, projects])
 
   const visibleProjects = useMemo(() => {
     const allIds = new Set([...projectsWithEntries.map((p) => p.id), ...addedProjectIds])
@@ -60,11 +62,11 @@ export function TimesheetGrid({
     setAddedProjectIds((prev) => prev.filter((id) => id !== projectId))
   }
 
-  const getEntry = (projectId: string, date: string): TimeEntry | undefined => {
+  const getEntry = (projectId: string | null, date: string): TimeEntry | undefined => {
     return entries.find((e) => e.projectId === projectId && e.date === date)
   }
 
-  const handleHoursChange = (projectId: string, date: string, hours: number) => {
+  const handleHoursChange = (projectId: string | null, date: string, hours: number) => {
     upsertMutation.mutate({
       projectId,
       date,
@@ -80,7 +82,7 @@ export function TimesheetGrid({
     })
   }
 
-  const calculateProjectTotal = (projectId: string): number => {
+  const calculateProjectTotal = (projectId: string | null): number => {
     return entries
       .filter((e) => e.projectId === projectId)
       .reduce((sum, e) => sum + e.hours, 0)
@@ -153,6 +155,31 @@ export function TimesheetGrid({
               </td>
             </tr>
           ))}
+
+          <tr className="border-b bg-muted/20">
+            <td className="py-0.5 px-2">
+              <span className="font-medium text-sm text-muted-foreground">Misc</span>
+            </td>
+            {weekDates.map((date) => {
+              const entry = getEntry(null, date)
+              return (
+                <td key={date} className="p-0">
+                  <TimesheetCell
+                    value={entry?.hours || 0}
+                    note={entry?.note}
+                    onChange={(hours) => handleHoursChange(null, date, hours)}
+                    disabled={upsertMutation.isPending}
+                  />
+                </td>
+              )
+            })}
+            <td className="p-0">
+              <TimesheetCell
+                value={calculateProjectTotal(null)}
+                isTotal
+              />
+            </td>
+          </tr>
 
           {availableProjects.length > 0 && (
             <tr className="border-b">

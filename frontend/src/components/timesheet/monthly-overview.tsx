@@ -34,7 +34,7 @@ export function MonthlyOverview({ data }: MonthlyOverviewProps) {
               </th>
               {projectTotals.map((p) => (
                 <th
-                  key={p.projectId}
+                  key={p.projectId ?? "misc"}
                   className="text-right py-2 px-3 font-medium text-muted-foreground min-w-[80px]"
                 >
                   {p.projectName}
@@ -60,7 +60,7 @@ export function MonthlyOverview({ data }: MonthlyOverviewProps) {
                   )
                   return (
                     <td
-                      key={project.projectId}
+                      key={project.projectId ?? "misc"}
                       className="py-2 px-3 text-right tabular-nums"
                     >
                       {projectWeekTotal ? projectWeekTotal.hours.toFixed(1) : "—"}
@@ -76,7 +76,7 @@ export function MonthlyOverview({ data }: MonthlyOverviewProps) {
               <td className="py-2 px-3">Monthly Total</td>
               {projectTotals.map((project) => (
                 <td
-                  key={project.projectId}
+                  key={project.projectId ?? "misc"}
                   className="py-2 px-3 text-right tabular-nums"
                 >
                   {project.hours.toFixed(1)}

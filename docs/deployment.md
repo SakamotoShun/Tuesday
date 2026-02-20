@@ -15,7 +15,7 @@ This guide covers deploying Tuesday using Docker.
 ```bash
 docker run -d \
   --name tuesday \
-  -p 8080:8080 \
+  -p 7002:8080 \
   -v tuesday_data:/app/data \
   --restart unless-stopped \
   sohshunhong/tuesday:latest
@@ -36,7 +36,7 @@ docker compose ps
 docker compose logs -f
 ```
 
-Tuesday will be available at `http://localhost:8080`. On first visit you will see the setup wizard to create your admin account.
+Tuesday will be available at `http://localhost:7002`. On first visit you will see the setup wizard to create your admin account.
 
 ## Docker Hub
 
@@ -80,7 +80,7 @@ docker compose up -d
 ```bash
 docker run -d \
   --name tuesday \
-  -p 8080:8080 \
+  -p 7002:8080 \
   -v tuesday_data:/app/data \
   --restart unless-stopped \
   sohshunhong/tuesday:latest
@@ -120,7 +120,7 @@ The container includes a built-in health check:
 docker inspect --format='{{.State.Health.Status}}' tuesday
 
 # Manual health check
-curl http://localhost:8080/health
+curl http://localhost:7002/health
 ```
 
 ## Reverse Proxy Setup
@@ -138,7 +138,7 @@ server {
     ssl_certificate_key /path/to/key.pem;
 
     location / {
-        proxy_pass http://localhost:8080;
+        proxy_pass http://localhost:7002;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -168,7 +168,7 @@ server {
 
 ```
 tuesday.example.com {
-    reverse_proxy localhost:8080
+    reverse_proxy localhost:7002
 }
 ```
 
@@ -177,7 +177,7 @@ Caddy handles HTTPS certificates automatically via Let's Encrypt.
 ### Nginx Proxy Manager
 
 1. Add a new proxy host
-2. Set the forward hostname to `localhost` (or the Docker host IP) and port `8080`
+2. Set the forward hostname to `localhost` (or the Docker host IP) and port `7002`
 3. Enable "Websockets Support"
 4. Configure SSL via Let's Encrypt on the SSL tab
 
@@ -220,7 +220,7 @@ docker compose logs --tail 50
 ```
 
 Common issues:
-- **Port conflict**: Another service is using port 8080. Change `TUESDAY_PORT` in `.env`.
+- **Port conflict**: Another service is using port 7002 (or your configured host port). Change `TUESDAY_PORT` in `.env`.
 - **Insufficient permissions**: The data volume must be writable.
 
 ### Database connection errors

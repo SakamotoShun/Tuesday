@@ -3,8 +3,11 @@ import { projectService } from './project';
 import { type TimeEntry, type NewTimeEntry, UserRole } from '../db/schema';
 import type { User } from '../types';
 
+const MISC_PROJECT_ID = '__misc__';
+const MISC_PROJECT_NAME = 'Misc';
+
 export interface UpsertTimeEntryInput {
-  projectId: string;
+  projectId?: string | null;
   date: string;
   hours: number;
   note?: string;
@@ -23,10 +26,10 @@ export interface MonthlyOverview {
     weekNumber: number;
     weekStart: string;
     weekEnd: string;
-    projectTotals: Array<{ projectId: string; projectName: string; hours: number }>;
+    projectTotals: Array<{ projectId: string | null; projectName: string; hours: number }>;
     totalHours: number;
   }>;
-  projectTotals: Array<{ projectId: string; projectName: string; hours: number }>;
+  projectTotals: Array<{ projectId: string | null; projectName: string; hours: number }>;
   grandTotal: number;
 }
 
@@ -112,7 +115,7 @@ export class TimeEntryService {
       const haystack = [
         entry.user?.name ?? '',
         entry.user?.email ?? '',
-        entry.project?.name ?? '',
+        entry.project?.name ?? MISC_PROJECT_NAME,
         entry.note ?? '',
       ].join(' ').toLowerCase();
       return haystack.includes(search);
@@ -192,7 +195,7 @@ export class TimeEntryService {
 
       const item = grouped.get(key)!;
       item.totalHours += hours;
-      if (entry.project?.id) item.projects.add(entry.project.id);
+      item.projects.add(entry.project?.id ?? MISC_PROJECT_ID);
       if (item.hourlyRate !== null && item.totalCost !== null) {
         item.totalCost += hours * item.hourlyRate;
       }
@@ -260,9 +263,11 @@ export class TimeEntryService {
     }>();
 
     for (const entry of entries) {
-      if (!entry.user || !entry.project) continue;
+      if (!entry.user) continue;
       const hours = this.toNumber(entry.hours) ?? 0;
       const hourlyRate = this.toNumber(entry.user.hourlyRate);
+      const projectId = entry.project?.id ?? MISC_PROJECT_ID;
+      const projectName = entry.project?.name ?? MISC_PROJECT_NAME;
 
       if (!usersMap.has(entry.user.id)) {
         usersMap.set(entry.user.id, {
@@ -276,24 +281,24 @@ export class TimeEntryService {
       }
 
       const user = usersMap.get(entry.user.id)!;
-      if (!user.projects.has(entry.project.id)) {
-        user.projects.set(entry.project.id, {
-          projectId: entry.project.id,
-          projectName: entry.project.name,
+      if (!user.projects.has(projectId)) {
+        user.projects.set(projectId, {
+          projectId,
+          projectName,
           hours: 0,
           cost: user.hourlyRate !== null ? 0 : null,
           weeks: new Map(),
         });
       }
 
-      const project = user.projects.get(entry.project.id)!;
+      const project = user.projects.get(projectId)!;
       project.hours += hours;
       if (project.cost !== null && user.hourlyRate !== null) {
         project.cost += hours * user.hourlyRate;
       }
 
       const { weekStart, weekEnd } = this.getWeekRange(entry.date);
-      const weekKey = `${weekStart}:${entry.project.id}`;
+      const weekKey = `${weekStart}:${projectId}`;
       if (!project.weeks.has(weekKey)) {
         project.weeks.set(weekKey, {
           weekStart,
@@ -373,32 +378,33 @@ export class TimeEntryService {
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0);
     
-    const weeksMap = new Map<number, Map<string, { projectId: string; projectName: string; hours: number }>>();
-    const projectTotalsMap = new Map<string, { projectId: string; projectName: string; hours: number }>();
+    const weeksMap = new Map<number, Map<string, { projectId: string | null; projectName: string; hours: number }>>();
+    const projectTotalsMap = new Map<string, { projectId: string | null; projectName: string; hours: number }>();
     
     for (const row of rawData) {
+      const projectKey = row.projectId ?? MISC_PROJECT_ID;
       if (!weeksMap.has(row.weekNumber)) {
         weeksMap.set(row.weekNumber, new Map());
       }
       const weekData = weeksMap.get(row.weekNumber)!;
       const hours = parseFloat(row.totalHours) || 0;
       
-      if (weekData.has(row.projectId)) {
-        weekData.get(row.projectId)!.hours += hours;
+      if (weekData.has(projectKey)) {
+        weekData.get(projectKey)!.hours += hours;
       } else {
-        weekData.set(row.projectId, {
+        weekData.set(projectKey, {
           projectId: row.projectId,
-          projectName: row.projectName,
+          projectName: row.projectName || MISC_PROJECT_NAME,
           hours,
         });
       }
       
-      if (projectTotalsMap.has(row.projectId)) {
-        projectTotalsMap.get(row.projectId)!.hours += hours;
+      if (projectTotalsMap.has(projectKey)) {
+        projectTotalsMap.get(projectKey)!.hours += hours;
       } else {
-        projectTotalsMap.set(row.projectId, {
+        projectTotalsMap.set(projectKey, {
           projectId: row.projectId,
-          projectName: row.projectName,
+          projectName: row.projectName || MISC_PROJECT_NAME,
           hours,
         });
       }
@@ -428,9 +434,11 @@ export class TimeEntryService {
   }
 
   async upsertEntry(userId: string, input: UpsertTimeEntryInput, user: User): Promise<TimeEntry> {
-    const hasAccess = await projectService.hasAccess(input.projectId, user);
-    if (!hasAccess) {
-      throw new Error('Access denied to this project');
+    if (input.projectId) {
+      const hasAccess = await projectService.hasAccess(input.projectId, user);
+      if (!hasAccess) {
+        throw new Error('Access denied to this project');
+      }
     }
 
     if (input.hours < 0 || input.hours > 24) {
@@ -443,7 +451,7 @@ export class TimeEntryService {
     }
 
     const data: NewTimeEntry = {
-      projectId: input.projectId,
+      projectId: input.projectId ?? null,
       userId,
       date: input.date,
       hours: input.hours.toString(),
@@ -588,7 +596,7 @@ export class TimeEntryService {
     
     const header = 'Project,Date,Hours,Note';
     const rows = entries.map(entry => {
-      const projectName = (entry as any).project?.name || 'Unknown Project';
+      const projectName = entry.projectId ? ((entry as any).project?.name || 'Unknown Project') : MISC_PROJECT_NAME;
       const note = entry.note || '';
       return `"${projectName}","${entry.date}","${entry.hours}","${note.replace(/"/g, '""')}"`;
     });
@@ -684,7 +692,7 @@ export class TimeEntryService {
     const rows = entries.map(entry => {
       const userName = (entry as any).user?.name || 'Unknown User';
       const userEmail = (entry as any).user?.email || '';
-      const projectName = (entry as any).project?.name || 'Unknown Project';
+      const projectName = entry.projectId ? ((entry as any).project?.name || 'Unknown Project') : MISC_PROJECT_NAME;
       const note = entry.note || '';
       return `"${userName}","${userEmail}","${projectName}","${entry.date}","${entry.hours}","${note.replace(/"/g, '""')}"`;
     });

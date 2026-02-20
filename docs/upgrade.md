@@ -68,7 +68,7 @@ If you deployed with `docker run`, follow the same upgrade flow but replace the 
    ```bash
    docker run -d \
      --name tuesday \
-     -p 8080:8080 \
+     -p 7002:8080 \
      -v tuesday_data:/app/data \
      --restart unless-stopped \
      sohshunhong/tuesday:latest

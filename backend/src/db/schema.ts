@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, boolean, timestamp, jsonb, integer, date, primaryKey, bigserial, bigint, customType, numeric, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, boolean, timestamp, jsonb, integer, date, primaryKey, bigserial, bigint, customType, numeric } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // User roles
@@ -698,16 +698,14 @@ export const notificationsRelations = relations(notifications, ({ one }) => ({
 // Time entries table
 export const timeEntries = pgTable('time_entries', {
   id: uuid('id').primaryKey().defaultRandom(),
-  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   date: date('date').notNull(),
   hours: numeric('hours', { precision: 5, scale: 2 }).notNull(),
   note: varchar('note', { length: 500 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  projectUserDateIdx: uniqueIndex('time_entries_project_user_date_idx').on(table.projectId, table.userId, table.date),
-}));
+});
 
 export const timeEntriesRelations = relations(timeEntries, ({ one }) => ({
   project: one(projects, {

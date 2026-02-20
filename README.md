@@ -23,10 +23,10 @@ Run your team's work hub without per-seat SaaS pricing.
 ## Quick Start
 
 ```bash
-docker run -d --name tuesday -p 8080:8080 -v tuesday_data:/app/data sohshunhong/tuesday:latest
+docker run -d --name tuesday -p 7002:8080 -v tuesday_data:/app/data sohshunhong/tuesday:latest
 ```
 
-Visit **http://localhost:8080** and complete the setup wizard. That's it.
+Visit **http://localhost:7002** and complete the setup wizard. That's it.
 
 Single Docker container. Embedded PostgreSQL. No external dependencies.
 
@@ -93,7 +93,7 @@ Single Docker container. Embedded PostgreSQL. No external dependencies.
 ```bash
 docker run -d \
   --name tuesday \
-  -p 8080:8080 \
+  -p 7002:8080 \
   -v tuesday_data:/app/data \
   --restart unless-stopped \
   sohshunhong/tuesday:latest
@@ -112,7 +112,7 @@ docker compose up -d
 **Caddy** (automatic HTTPS):
 ```
 tuesday.example.com {
-    reverse_proxy localhost:8080
+    reverse_proxy localhost:7002
 }
 ```
 
@@ -222,8 +222,8 @@ All settings are optional with sensible defaults.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TUESDAY_PORT` | `8080` | Host port mapping |
-| `TUESDAY_BASE_URL` | `http://localhost:8080` | Public URL |
+| `TUESDAY_PORT` | `7002` | Host port mapping |
+| `TUESDAY_BASE_URL` | `http://localhost:7002` | Public URL |
 | `SESSION_SECRET` | Auto-generated | Session signing key (min 32 chars) |
 | `SESSION_DURATION_HOURS` | `24` | Session expiry |
 | `UPLOAD_MAX_SIZE_MB` | `10` | Max upload size |
