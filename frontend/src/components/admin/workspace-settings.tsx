@@ -10,6 +10,7 @@ export function WorkspaceSettings() {
   const [workspaceName, setWorkspaceName] = useState(settings?.workspaceName ?? "")
   const [siteUrl, setSiteUrl] = useState(settings?.siteUrl ?? "")
   const [openaiApiKey, setOpenaiApiKey] = useState("")
+  const [openrouterApiKey, setOpenrouterApiKey] = useState("")
 
   useEffect(() => {
     setWorkspaceName(settings?.workspaceName ?? "")
@@ -23,7 +24,8 @@ export function WorkspaceSettings() {
     return <div className="text-sm text-muted-foreground">Loading settings...</div>
   }
 
-  const hasApiKey = Boolean(settings?.openaiApiKey)
+  const hasOpenAiApiKey = Boolean(settings?.openaiApiKey)
+  const hasOpenRouterApiKey = Boolean(settings?.openrouterApiKey)
 
   return (
     <div className="space-y-4">
@@ -70,7 +72,7 @@ export function WorkspaceSettings() {
         <Label htmlFor="openai-api-key">OpenAI API Key</Label>
         <div className="text-sm text-muted-foreground">
           Required for AI bots. Get your API key from platform.openai.com.
-          {hasApiKey && (
+          {hasOpenAiApiKey && (
             <span className="ml-1 font-medium text-foreground">
               Current key: {settings?.openaiApiKey}
             </span>
@@ -82,7 +84,7 @@ export function WorkspaceSettings() {
             type="password"
             value={openaiApiKey}
             onChange={(event) => setOpenaiApiKey(event.target.value)}
-            placeholder={hasApiKey ? "Enter new key to replace" : "sk-..."}
+            placeholder={hasOpenAiApiKey ? "Enter new key to replace" : "sk-..."}
           />
           <Button
             onClick={() => {
@@ -93,12 +95,53 @@ export function WorkspaceSettings() {
           >
             Save
           </Button>
-          {hasApiKey && (
+          {hasOpenAiApiKey && (
             <Button
               variant="outline"
               onClick={() => {
                 updateSettings.mutate({ openaiApiKey: "" })
                 setOpenaiApiKey("")
+              }}
+              disabled={updateSettings.isPending}
+            >
+              Remove
+            </Button>
+          )}
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="openrouter-api-key">OpenRouter API Key</Label>
+        <div className="text-sm text-muted-foreground">
+          Required for AI bots using OpenRouter. Get your API key from openrouter.ai/keys.
+          {hasOpenRouterApiKey && (
+            <span className="ml-1 font-medium text-foreground">
+              Current key: {settings?.openrouterApiKey}
+            </span>
+          )}
+        </div>
+        <div className="flex flex-col md:flex-row gap-2">
+          <Input
+            id="openrouter-api-key"
+            type="password"
+            value={openrouterApiKey}
+            onChange={(event) => setOpenrouterApiKey(event.target.value)}
+            placeholder={hasOpenRouterApiKey ? "Enter new key to replace" : "sk-or-..."}
+          />
+          <Button
+            onClick={() => {
+              updateSettings.mutate({ openrouterApiKey: openrouterApiKey.trim() })
+              setOpenrouterApiKey("")
+            }}
+            disabled={updateSettings.isPending || !openrouterApiKey.trim()}
+          >
+            Save
+          </Button>
+          {hasOpenRouterApiKey && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                updateSettings.mutate({ openrouterApiKey: "" })
+                setOpenrouterApiKey("")
               }}
               disabled={updateSettings.isPending}
             >

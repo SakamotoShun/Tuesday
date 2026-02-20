@@ -57,6 +57,15 @@ export function useAdminSettings() {
   return { settings: settingsQuery.data, isLoading: settingsQuery.isLoading, error: settingsQuery.error, updateSettings }
 }
 
+export function useOpenRouterModels(enabled = true) {
+  return useQuery({
+    queryKey: ["admin", "openrouter-models"],
+    queryFn: adminApi.getOpenRouterModels,
+    enabled,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
 export function useAdminUsers() {
   const queryClient = useQueryClient()
   const usersQuery = useQuery({
@@ -173,12 +182,12 @@ export function useAdminBots() {
   })
 
   const createBot = useMutation({
-    mutationFn: (data: { name: string; avatarUrl?: string | null; type?: "webhook" | "ai"; systemPrompt?: string | null; model?: string | null }) => adminApi.createBot(data),
+    mutationFn: (data: { name: string; avatarUrl?: string | null; type?: "webhook" | "ai"; provider?: "openai" | "openrouter"; systemPrompt?: string | null; model?: string | null }) => adminApi.createBot(data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "bots"] }),
   })
 
   const updateBot = useMutation({
-    mutationFn: ({ botId, data }: { botId: string; data: { name?: string; avatarUrl?: string | null; isDisabled?: boolean; systemPrompt?: string | null; model?: string | null } }) =>
+    mutationFn: ({ botId, data }: { botId: string; data: { name?: string; avatarUrl?: string | null; isDisabled?: boolean; provider?: "openai" | "openrouter"; systemPrompt?: string | null; model?: string | null } }) =>
       adminApi.updateBot(botId, data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "bots"] }),
   })

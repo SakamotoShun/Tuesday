@@ -72,6 +72,7 @@ export const createBotSchema = z.object({
   name: botNameSchema,
   avatarUrl: botAvatarUrlSchema,
   type: z.enum(['webhook', 'ai']).default('webhook'),
+  provider: z.enum(['openai', 'openrouter']).default('openai'),
   systemPrompt: z.string().max(10000).optional().nullable(),
   model: z.string().max(100).optional().nullable(),
 });
@@ -82,6 +83,7 @@ export const updateBotSchema = z.object({
   name: botNameSchema.optional(),
   avatarUrl: botAvatarUrlSchema,
   isDisabled: z.boolean().optional(),
+  provider: z.enum(['openai', 'openrouter']).optional(),
   systemPrompt: z.string().max(10000).optional().nullable(),
   model: z.string().max(100).optional().nullable(),
 });

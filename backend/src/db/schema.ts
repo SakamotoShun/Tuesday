@@ -106,6 +106,13 @@ export const BotType = {
 
 export type BotType = typeof BotType[keyof typeof BotType];
 
+export const AiProvider = {
+  OPENAI: 'openai',
+  OPENROUTER: 'openrouter',
+} as const;
+
+export type AiProvider = typeof AiProvider[keyof typeof AiProvider];
+
 // Bots table
 export const bots = pgTable('bots', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -115,6 +122,7 @@ export const bots = pgTable('bots', {
   createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
   isDisabled: boolean('is_disabled').notNull().default(false),
   type: varchar('type', { length: 20 }).notNull().default(BotType.WEBHOOK),
+  provider: varchar('provider', { length: 20 }).notNull().default(AiProvider.OPENAI),
   systemPrompt: text('system_prompt'),
   model: varchar('model', { length: 100 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

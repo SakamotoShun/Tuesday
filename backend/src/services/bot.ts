@@ -15,6 +15,7 @@ interface CreateBotInput {
   name: string;
   avatarUrl?: string | null;
   type?: 'webhook' | 'ai';
+  provider?: 'openai' | 'openrouter';
   systemPrompt?: string | null;
   model?: string | null;
 }
@@ -23,6 +24,7 @@ interface UpdateBotInput {
   name?: string;
   avatarUrl?: string | null;
   isDisabled?: boolean;
+  provider?: 'openai' | 'openrouter';
   systemPrompt?: string | null;
   model?: string | null;
 }
@@ -48,6 +50,7 @@ export class BotService {
     }
     const avatarUrl = this.normalizeAvatarUrl(input.avatarUrl);
     const type = input.type ?? 'webhook';
+    const provider = type === 'ai' ? (input.provider ?? 'openai') : 'openai';
     return botRepository.create({
       name,
       avatarUrl,
@@ -55,6 +58,7 @@ export class BotService {
       createdBy: user.id,
       isDisabled: false,
       type,
+      provider,
       systemPrompt: type === 'ai' ? (input.systemPrompt?.trim() || null) : null,
       model: type === 'ai' ? (input.model?.trim() || null) : null,
     });
@@ -74,6 +78,9 @@ export class BotService {
     }
     if (input.isDisabled !== undefined) {
       data.isDisabled = input.isDisabled;
+    }
+    if (input.provider !== undefined) {
+      data.provider = input.provider;
     }
     if (input.systemPrompt !== undefined) {
       data.systemPrompt = input.systemPrompt?.trim() || null;

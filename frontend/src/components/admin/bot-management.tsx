@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { ApiErrorResponse } from "@/api/client"
-import { useAdminBotChannels, useAdminBots, useAdminSettings } from "@/hooks/use-admin"
+import { useAdminBotChannels, useAdminBots, useAdminSettings, useOpenRouterModels } from "@/hooks/use-admin"
 import type { Bot as BotType, BotChannelMember, Channel } from "@/api/types"
 
 const getInitials = (name: string) =>
@@ -50,6 +50,19 @@ const buildWebhookUrl = (baseUrl: string, bot: BotType, channelId: string) => {
   return `${normalized}/api/v1/webhooks/${bot.id}/${bot.webhookToken}/channels/${channelId}`
 }
 
+const OPENAI_MODEL_OPTIONS = [
+  { value: "gpt5.2", label: "gpt5.2" },
+  { value: "gpt-4o", label: "gpt-4o" },
+  { value: "gpt-4o-mini", label: "gpt-4o-mini" },
+  { value: "o3", label: "o3" },
+  { value: "o3-mini", label: "o3-mini" },
+  { value: "o1", label: "o1" },
+  { value: "o1-mini", label: "o1-mini" },
+]
+
+const CUSTOM_MODEL_OPTION = "__custom_model__"
+const OPENROUTER_MODEL_LIMIT = 250
+
 export function BotManagement() {
   const {
     bots,
@@ -70,6 +83,7 @@ export function BotManagement() {
   const [newName, setNewName] = useState("")
   const [newAvatarUrl, setNewAvatarUrl] = useState("")
   const [newBotType, setNewBotType] = useState<"webhook" | "ai">("webhook")
+  const [newProvider, setNewProvider] = useState<"openai" | "openrouter">("openai")
   const [newSystemPrompt, setNewSystemPrompt] = useState("")
   const [newModel, setNewModel] = useState("gpt5.2")
 
@@ -78,6 +92,7 @@ export function BotManagement() {
   const [editName, setEditName] = useState("")
   const [editAvatarUrl, setEditAvatarUrl] = useState("")
   const [editDisabled, setEditDisabled] = useState(false)
+  const [editProvider, setEditProvider] = useState<"openai" | "openrouter">("openai")
   const [editSystemPrompt, setEditSystemPrompt] = useState("")
   const [editModel, setEditModel] = useState("")
   const [channelToAdd, setChannelToAdd] = useState<string | null>(null)
@@ -90,6 +105,12 @@ export function BotManagement() {
   const botChannelsQuery = useAdminBotChannels(selectedBot?.id, manageOpen)
   const botChannels = botChannelsQuery.data ?? []
 
+  const shouldLoadOpenRouterModels =
+    (newBotType === "ai" && newProvider === "openrouter") ||
+    (manageOpen && selectedBot?.type === "ai" && editProvider === "openrouter")
+  const openRouterModelsQuery = useOpenRouterModels(shouldLoadOpenRouterModels)
+  const openRouterModels = (openRouterModelsQuery.data ?? []).slice(0, OPENROUTER_MODEL_LIMIT)
+
   const fallbackOrigin = typeof window !== "undefined" ? window.location.origin : ""
   const baseUrl = (settings?.siteUrl?.trim() || fallbackOrigin).replace(/\/+$/, "")
   const hasSiteUrl = Boolean(settings?.siteUrl?.trim())
@@ -99,6 +120,7 @@ export function BotManagement() {
       setEditName(selectedBot.name)
       setEditAvatarUrl(selectedBot.avatarUrl ?? "")
       setEditDisabled(selectedBot.isDisabled)
+      setEditProvider(selectedBot.provider ?? "openai")
       setEditSystemPrompt(selectedBot.systemPrompt ?? "")
       setEditModel(selectedBot.model ?? "gpt5.2")
       setChannelToAdd(null)
@@ -126,6 +148,7 @@ export function BotManagement() {
       name: newName.trim(),
       avatarUrl: newAvatarUrl.trim() ? newAvatarUrl.trim() : null,
       type: newBotType,
+      provider: newBotType === "ai" ? newProvider : undefined,
       systemPrompt: newBotType === "ai" ? (newSystemPrompt.trim() || null) : null,
       model: newBotType === "ai" ? (newModel.trim() || null) : null,
     })
@@ -141,6 +164,7 @@ export function BotManagement() {
         avatarUrl: editAvatarUrl.trim() ? editAvatarUrl.trim() : null,
         isDisabled: editDisabled,
         ...(selectedBot.type === "ai" ? {
+          provider: editProvider,
           systemPrompt: editSystemPrompt.trim() || null,
           model: editModel.trim() || null,
         } : {}),
@@ -201,6 +225,20 @@ export function BotManagement() {
     (channel) => !botChannels.some((member) => member.channelId === channel.id)
   )
 
+  const createModelOptions = newProvider === "openai"
+    ? OPENAI_MODEL_OPTIONS
+    : openRouterModels.map((model) => ({ value: model.id, label: model.name }))
+  const createModelValue = createModelOptions.some((option) => option.value === newModel)
+    ? newModel
+    : CUSTOM_MODEL_OPTION
+
+  const editModelOptions = editProvider === "openai"
+    ? OPENAI_MODEL_OPTIONS
+    : openRouterModels.map((model) => ({ value: model.id, label: model.name }))
+  const editModelValue = editModelOptions.some((option) => option.value === editModel)
+    ? editModel
+    : CUSTOM_MODEL_OPTION
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -216,6 +254,7 @@ export function BotManagement() {
               setNewName("")
               setNewAvatarUrl("")
               setNewBotType("webhook")
+              setNewProvider("openai")
               setNewSystemPrompt("")
               setNewModel("gpt5.2")
               setCreatedBot(null)
@@ -259,7 +298,7 @@ export function BotManagement() {
                 <div className="text-xs text-muted-foreground">
                   {newBotType === "webhook"
                     ? "Receive messages from external services via webhook URL."
-                    : "An AI assistant powered by OpenAI that responds to @mentions."}
+                    : "An AI assistant that responds to @mentions using OpenAI or OpenRouter."}
                 </div>
               </div>
               <div className="space-y-2">
@@ -278,6 +317,26 @@ export function BotManagement() {
               {newBotType === "ai" && (
                 <>
                   <div className="space-y-2">
+                    <Label htmlFor="bot-provider">Provider</Label>
+                    <Select
+                      value={newProvider}
+                      onValueChange={(value) => setNewProvider(value as "openai" | "openrouter")}
+                    >
+                      <SelectTrigger id="bot-provider">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="openai">OpenAI</SelectItem>
+                        <SelectItem value="openrouter">OpenRouter</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <div className="text-xs text-muted-foreground">
+                      {newProvider === "openai"
+                        ? "Uses the OpenAI API key from Workspace Settings."
+                        : "Uses the OpenRouter API key from Workspace Settings."}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="bot-system-prompt">System Prompt</Label>
                     <textarea
                       id="bot-system-prompt"
@@ -289,15 +348,46 @@ export function BotManagement() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="bot-model">Model</Label>
+                    <Label htmlFor="bot-model-preset">Model Preset</Label>
+                    <Select
+                      value={createModelValue}
+                      onValueChange={(value) => {
+                        if (value !== CUSTOM_MODEL_OPTION) {
+                          setNewModel(value)
+                        }
+                      }}
+                    >
+                      <SelectTrigger id="bot-model-preset">
+                        <SelectValue placeholder="Select a model preset" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={CUSTOM_MODEL_OPTION}>Custom model (type below)</SelectItem>
+                        {createModelOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {newProvider === "openrouter" && openRouterModelsQuery.isLoading && (
+                      <div className="text-xs text-muted-foreground">Loading OpenRouter models...</div>
+                    )}
+                    {newProvider === "openrouter" && openRouterModelsQuery.isError && (
+                      <div className="text-xs text-destructive">Failed to load OpenRouter models. You can still enter a model manually.</div>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="bot-model">Model ID</Label>
                     <Input
                       id="bot-model"
                       value={newModel}
                       onChange={(event) => setNewModel(event.target.value)}
-                      placeholder="gpt5.2"
+                      placeholder={newProvider === "openrouter" ? "openai/gpt-5.2" : "gpt5.2"}
                     />
                     <div className="text-xs text-muted-foreground">
-                      The OpenAI model to use. Requires an OpenAI API key in Workspace Settings.
+                      {newProvider === "openrouter"
+                        ? "Select from OpenRouter models or enter any OpenRouter model ID."
+                        : "Pick a common OpenAI model or enter a custom model ID."}
                     </div>
                   </div>
                 </>
@@ -369,6 +459,11 @@ export function BotManagement() {
                       <Badge variant="secondary" className="text-[10px] px-2 py-0">
                         {bot.type === "ai" ? "AI BOT" : "BOT"}
                       </Badge>
+                      {bot.type === "ai" && (
+                        <Badge variant="outline" className="text-[10px] px-2 py-0 uppercase">
+                          {bot.provider}
+                        </Badge>
+                      )}
                       {bot.isDisabled && <Badge variant="outline">Disabled</Badge>}
                     </div>
                     <div className="text-xs text-muted-foreground">Created {new Date(bot.createdAt).toLocaleDateString()}</div>
@@ -455,6 +550,26 @@ export function BotManagement() {
                 <div className="rounded-lg border border-border p-4 space-y-4">
                   <div className="text-sm font-medium">AI Configuration</div>
                   <div className="space-y-2">
+                    <Label htmlFor="edit-provider">Provider</Label>
+                    <Select
+                      value={editProvider}
+                      onValueChange={(value) => setEditProvider(value as "openai" | "openrouter")}
+                    >
+                      <SelectTrigger id="edit-provider">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="openai">OpenAI</SelectItem>
+                        <SelectItem value="openrouter">OpenRouter</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <div className="text-xs text-muted-foreground">
+                      {editProvider === "openai"
+                        ? "Uses the OpenAI API key from Workspace Settings."
+                        : "Uses the OpenRouter API key from Workspace Settings."}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="edit-system-prompt">System Prompt</Label>
                     <textarea
                       id="edit-system-prompt"
@@ -466,15 +581,46 @@ export function BotManagement() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="edit-model">Model</Label>
+                    <Label htmlFor="edit-model-preset">Model Preset</Label>
+                    <Select
+                      value={editModelValue}
+                      onValueChange={(value) => {
+                        if (value !== CUSTOM_MODEL_OPTION) {
+                          setEditModel(value)
+                        }
+                      }}
+                    >
+                      <SelectTrigger id="edit-model-preset">
+                        <SelectValue placeholder="Select a model preset" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={CUSTOM_MODEL_OPTION}>Custom model (type below)</SelectItem>
+                        {editModelOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {editProvider === "openrouter" && openRouterModelsQuery.isLoading && (
+                      <div className="text-xs text-muted-foreground">Loading OpenRouter models...</div>
+                    )}
+                    {editProvider === "openrouter" && openRouterModelsQuery.isError && (
+                      <div className="text-xs text-destructive">Failed to load OpenRouter models. You can still enter a model manually.</div>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-model">Model ID</Label>
                     <Input
                       id="edit-model"
                       value={editModel}
                       onChange={(event) => setEditModel(event.target.value)}
-                      placeholder="gpt5.2"
+                      placeholder={editProvider === "openrouter" ? "openai/gpt-5.2" : "gpt5.2"}
                     />
                     <div className="text-xs text-muted-foreground">
-                      The OpenAI model to use for this bot.
+                      {editProvider === "openrouter"
+                        ? "Select from OpenRouter models or enter any OpenRouter model ID."
+                        : "Pick a common OpenAI model or enter a custom model ID."}
                     </div>
                   </div>
                 </div>

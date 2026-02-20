@@ -43,7 +43,37 @@ const updateSettingsSchema = z.object({
   workspaceName: z.string().max(255).optional(),
   siteUrl: z.union([z.string().url('Invalid site URL').max(2000), z.literal('')]).optional(),
   openaiApiKey: z.union([z.string().max(500), z.literal('')]).optional(),
+  openrouterApiKey: z.union([z.string().max(500), z.literal('')]).optional(),
 });
+
+interface OpenRouterModel {
+  id: string;
+  name: string;
+  contextLength: number | null;
+}
+
+interface OpenRouterModelsResponse {
+  data?: Array<{
+    id?: string;
+    name?: string;
+    context_length?: number;
+  }>;
+}
+
+const OPENROUTER_MODELS_CACHE_TTL_MS = 5 * 60 * 1000;
+let openRouterModelsCache: { expiresAt: number; models: OpenRouterModel[] } | null = null;
+
+function maskApiKey(apiKey: string | null | undefined): string {
+  if (!apiKey) {
+    return '';
+  }
+
+  if (apiKey.length > 8) {
+    return `${apiKey.slice(0, 5)}...${apiKey.slice(-4)}`;
+  }
+
+  return '****';
+}
 
 const createUserSchema = z.object({
   email: emailSchema,
@@ -134,22 +164,14 @@ admin.get('/settings', async (c) => {
     const updatedWorkspaceName = await settingsRepository.get<string>('workspace_name');
     const siteUrl = await settingsRepository.get<string>('site_url');
     const openaiApiKey = await settingsRepository.get<string>('openai_api_key');
-
-    // Mask the API key for display
-    let maskedKey = '';
-    if (openaiApiKey) {
-      if (openaiApiKey.length > 8) {
-        maskedKey = `${openaiApiKey.slice(0, 5)}...${openaiApiKey.slice(-4)}`;
-      } else {
-        maskedKey = '****';
-      }
-    }
+    const openrouterApiKey = await settingsRepository.get<string>('openrouter_api_key');
 
     return success(c, {
       allowRegistration: allowRegistration ?? false,
       workspaceName: updatedWorkspaceName ?? '',
       siteUrl: siteUrl ?? '',
-      openaiApiKey: maskedKey,
+      openaiApiKey: maskApiKey(openaiApiKey),
+      openrouterApiKey: maskApiKey(openrouterApiKey),
     });
   } catch (error) {
     console.error('Error fetching admin settings:', error);
@@ -196,30 +218,81 @@ admin.patch('/settings', async (c) => {
       }
     }
 
+    if (validation.data.openrouterApiKey !== undefined) {
+      const trimmedKey = validation.data.openrouterApiKey.trim();
+      if (trimmedKey.length === 0) {
+        await settingsRepository.delete('openrouter_api_key');
+      } else {
+        await settingsRepository.set('openrouter_api_key', trimmedKey);
+      }
+      openRouterModelsCache = null;
+    }
+
     // Return updated settings
     const updatedAllowRegistration = await settingsRepository.get<boolean>('allow_registration');
     const updatedWorkspaceName = await settingsRepository.get<string>('workspace_name');
     const updatedSiteUrl = await settingsRepository.get<string>('site_url');
     const updatedOpenaiApiKey = await settingsRepository.get<string>('openai_api_key');
-
-    let maskedKey = '';
-    if (updatedOpenaiApiKey) {
-      if (updatedOpenaiApiKey.length > 8) {
-        maskedKey = `${updatedOpenaiApiKey.slice(0, 5)}...${updatedOpenaiApiKey.slice(-4)}`;
-      } else {
-        maskedKey = '****';
-      }
-    }
+    const updatedOpenrouterApiKey = await settingsRepository.get<string>('openrouter_api_key');
 
     return success(c, {
       allowRegistration: updatedAllowRegistration ?? false,
       workspaceName: updatedWorkspaceName ?? '',
       siteUrl: updatedSiteUrl ?? '',
-      openaiApiKey: maskedKey,
+      openaiApiKey: maskApiKey(updatedOpenaiApiKey),
+      openrouterApiKey: maskApiKey(updatedOpenrouterApiKey),
     });
   } catch (error) {
     console.error('Error updating admin settings:', error);
     return errors.internal(c, 'Failed to update settings');
+  }
+});
+
+// GET /api/v1/admin/openrouter-models - List available OpenRouter models
+admin.get('/openrouter-models', async (c) => {
+  try {
+    const apiKey = await settingsRepository.get<string>('openrouter_api_key');
+    if (!apiKey) {
+      return errors.badRequest(c, 'OpenRouter API key is not configured');
+    }
+
+    if (openRouterModelsCache && openRouterModelsCache.expiresAt > Date.now()) {
+      return success(c, openRouterModelsCache.models);
+    }
+
+    const response = await fetch('https://openrouter.ai/api/v1/models', {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      console.error('Failed to fetch OpenRouter models:', response.status, body);
+      return errors.badRequest(c, 'Failed to fetch OpenRouter models');
+    }
+
+    const payload = await response.json() as OpenRouterModelsResponse;
+    const models = (payload.data ?? [])
+      .filter((model): model is { id: string; name?: string; context_length?: number } =>
+        typeof model.id === 'string' && model.id.trim().length > 0
+      )
+      .map((model) => ({
+        id: model.id,
+        name: model.name?.trim() || model.id,
+        contextLength: typeof model.context_length === 'number' ? model.context_length : null,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    openRouterModelsCache = {
+      models,
+      expiresAt: Date.now() + OPENROUTER_MODELS_CACHE_TTL_MS,
+    };
+
+    return success(c, models);
+  } catch (error) {
+    console.error('Error fetching OpenRouter models:', error);
+    return errors.internal(c, 'Failed to fetch OpenRouter models');
   }
 });
 

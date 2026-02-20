@@ -21,6 +21,7 @@ import type {
   PayrollSummaryItem,
   PayrollSummaryMeta,
   PayrollBreakdownUser,
+  OpenRouterModel,
 } from "./types"
 
 type BackendTimeEntry = Omit<TimeEntry, "hours"> & { hours: string }
@@ -38,6 +39,10 @@ export async function getSettings(): Promise<AdminSettings> {
 
 export async function updateSettings(data: UpdateAdminSettingsInput): Promise<AdminSettings> {
   return api.patch<AdminSettings>("/admin/settings", data)
+}
+
+export async function getOpenRouterModels(): Promise<OpenRouterModel[]> {
+  return api.get<OpenRouterModel[]>("/admin/openrouter-models")
 }
 
 export async function listUsers(): Promise<User[]> {
@@ -122,7 +127,7 @@ export async function listBotAvailableChannels(): Promise<Channel[]> {
   return api.get<Channel[]>("/admin/bots/channels")
 }
 
-export async function createBot(data: { name: string; avatarUrl?: string | null; type?: "webhook" | "ai"; systemPrompt?: string | null; model?: string | null }): Promise<Bot> {
+export async function createBot(data: { name: string; avatarUrl?: string | null; type?: "webhook" | "ai"; provider?: "openai" | "openrouter"; systemPrompt?: string | null; model?: string | null }): Promise<Bot> {
   return api.post<Bot>("/admin/bots", data)
 }
 
@@ -130,7 +135,7 @@ export async function getBot(botId: string): Promise<Bot> {
   return api.get<Bot>(`/admin/bots/${botId}`)
 }
 
-export async function updateBot(botId: string, data: { name?: string; avatarUrl?: string | null; isDisabled?: boolean; systemPrompt?: string | null; model?: string | null }): Promise<Bot> {
+export async function updateBot(botId: string, data: { name?: string; avatarUrl?: string | null; isDisabled?: boolean; provider?: "openai" | "openrouter"; systemPrompt?: string | null; model?: string | null }): Promise<Bot> {
   return api.patch<Bot>(`/admin/bots/${botId}`, data)
 }
 

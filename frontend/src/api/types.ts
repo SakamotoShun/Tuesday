@@ -339,6 +339,7 @@ export interface AdminSettings {
   workspaceName: string
   siteUrl: string
   openaiApiKey: string
+  openrouterApiKey: string
 }
 
 export interface UpdateAdminSettingsInput {
@@ -346,6 +347,7 @@ export interface UpdateAdminSettingsInput {
   workspaceName?: string
   siteUrl?: string
   openaiApiKey?: string
+  openrouterApiKey?: string
 }
 
 export interface AdminCreateUserInput {
@@ -436,10 +438,17 @@ export interface Bot {
   createdBy: string
   isDisabled: boolean
   type: "webhook" | "ai"
+  provider: "openai" | "openrouter"
   systemPrompt: string | null
   model: string | null
   createdAt: string
   updatedAt: string
+}
+
+export interface OpenRouterModel {
+  id: string
+  name: string
+  contextLength: number | null
 }
 
 export interface ChannelBot {
