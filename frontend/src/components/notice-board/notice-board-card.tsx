@@ -59,8 +59,13 @@ export function NoticeBoardCard() {
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Notice Board</h2>
           {canManage && (
-            <Button type="button" size="sm" variant="outline" onClick={handleOpenCreate}>
-              <Plus className="mr-1.5 h-4 w-4" />
+            <Button
+              type="button"
+              variant="outline"
+              className="h-7 px-2 text-xs"
+              onClick={handleOpenCreate}
+            >
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
               Add
             </Button>
           )}
