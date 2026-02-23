@@ -5,6 +5,7 @@ node_modules/
 dist/
 *.exe
 tuesday
+/backend/tuesday
 
 # Environment files
 .env
