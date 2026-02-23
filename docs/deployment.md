@@ -98,6 +98,42 @@ docker compose up -d
 
 See [Configuration Reference](./configuration.md) for all available options.
 
+## Automatic Updates (Watchtower)
+
+[Watchtower](https://github.com/nicholas-fedor/watchtower) can automatically pull new Tuesday images and restart the container when updates are available.
+
+### Docker CLI
+
+```bash
+docker run -d \
+  --name watchtower \
+  --restart unless-stopped \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  nickfedor/watchtower tuesday
+```
+
+By default, Watchtower checks for updates every 24 hours. To check more frequently, set an interval in seconds:
+
+```bash
+docker run -d \
+  --name watchtower \
+  --restart unless-stopped \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  nickfedor/watchtower --interval 300 tuesday
+```
+
+### Docker Compose
+
+The included `docker-compose.yml` already defines a `watchtower` service that monitors only the `tuesday` container.
+
+```bash
+docker compose up -d
+```
+
+### Port Safety
+
+Watchtower does not publish any host ports in this setup. Even though the Watchtower container exposes `8080/tcp` internally, it does not conflict with Tuesday's `7002:8080` mapping.
+
 ## Data Persistence
 
 All persistent data is stored in the `/app/data` Docker volume:

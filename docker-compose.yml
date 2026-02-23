@@ -17,5 +17,13 @@ services:
       retries: 3
       start_period: 40s
 
+  watchtower:
+    image: nickfedor/watchtower:latest
+    container_name: watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: ["tuesday"]
+
 volumes:
   tuesday_data:

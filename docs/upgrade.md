@@ -82,6 +82,30 @@ If you deployed with `docker run`, follow the same upgrade flow but replace the 
 
 Database migrations run automatically on startup. The application will not start until all migrations have been applied.
 
+## Automatic Upgrades with Watchtower
+
+If you want Tuesday to auto-update without manual `docker pull` and restart steps, run Watchtower:
+
+```bash
+docker run -d \
+  --name watchtower \
+  --restart unless-stopped \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  nickfedor/watchtower tuesday
+```
+
+This monitors the `tuesday` container, pulls new images when available, and restarts the container with the same configuration.
+
+By default, Watchtower checks every 24 hours. To check every 5 minutes:
+
+```bash
+docker run -d \
+  --name watchtower \
+  --restart unless-stopped \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  nickfedor/watchtower --interval 300 tuesday
+```
+
 ## Rollback
 
 If something goes wrong after an upgrade:
