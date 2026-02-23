@@ -5,8 +5,20 @@ import { loginSchema, registerSchema, formatValidationErrors } from '../utils/va
 import { success, errors } from '../utils/response';
 import { auth, authRateLimit } from '../middleware';
 import { config } from '../config';
+import type { User } from '../types';
 
 const authRouter = new Hono();
+
+const toPublicUser = (user: User) => {
+  const hourlyRate = user.hourlyRate !== null && user.hourlyRate !== undefined
+    ? Number(user.hourlyRate)
+    : null;
+
+  return {
+    ...user,
+    hourlyRate: Number.isFinite(hourlyRate) ? hourlyRate : null,
+  };
+};
 
 /**
  * POST /api/v1/auth/register
@@ -31,7 +43,7 @@ authRouter.post('/register', authRateLimit, async (c) => {
     // Register user
     const user = await authService.register(validation.data);
 
-    return success(c, { user }, undefined, 201);
+    return success(c, { user: toPublicUser(user) }, undefined, 201);
   } catch (error) {
     if (error instanceof Error) {
       if (error.message === 'User with this email already exists') {
@@ -70,7 +82,7 @@ authRouter.post('/login', authRateLimit, async (c) => {
     // Set session cookie
     c.header('Set-Cookie', `session_id=${result.sessionId}; HttpOnly; Path=/; Max-Age=${config.sessionDurationHours * 3600}; SameSite=Strict${config.nodeEnv === 'production' ? '; Secure' : ''}`);
 
-    return success(c, { user: result.user });
+    return success(c, { user: toPublicUser(result.user) });
   } catch (error) {
     if (error instanceof Error) {
       if (error.message === 'Invalid credentials' || error.message === 'Account has been disabled') {
@@ -104,7 +116,7 @@ authRouter.post('/logout', auth, async (c) => {
  */
 authRouter.get('/me', auth, (c) => {
   const user = c.get('user');
-  return success(c, { user });
+  return success(c, { user: toPublicUser(user) });
 });
 
 export { authRouter };

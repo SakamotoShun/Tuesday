@@ -88,6 +88,8 @@ export class TimeEntryRepository {
             name: true,
             email: true,
             avatarUrl: true,
+            employmentType: true,
+            hourlyRate: true,
           },
         },
         project: {

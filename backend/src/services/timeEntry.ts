@@ -339,14 +339,15 @@ export class TimeEntryService {
     const rows = await this.getPayrollBreakdown(input);
     const header = 'Employee,Email,Employment Type,Hourly Rate,Project,Hours,Cost';
     const lines: string[] = [];
+    const escapeCsv = (value: string) => value.replace(/"/g, '""');
 
     for (const user of rows) {
       for (const project of user.projects) {
         const hourlyRate = user.hourlyRate !== null ? user.hourlyRate.toFixed(2) : '';
         const cost = project.cost !== null ? project.cost.toFixed(2) : '';
         lines.push(
-          `"${user.userName}","${user.userEmail}","${user.employmentType}","${hourlyRate}","${project.projectName}","${project.hours.toFixed(2)}",` +
-          `"${cost}"`
+          `"${escapeCsv(user.userName)}","${escapeCsv(user.userEmail)}","${escapeCsv(user.employmentType)}",` +
+          `"${hourlyRate}","${escapeCsv(project.projectName)}","${project.hours.toFixed(2)}","${cost}"`
         );
       }
     }
