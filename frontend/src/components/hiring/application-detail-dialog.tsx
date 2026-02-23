@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { Plus, Calendar, Star, ExternalLink, Trash2, Pencil } from "lucide-react"
+import { Plus, Calendar, Star, ExternalLink, Trash2, Pencil, Check, ChevronsUpDown } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -19,12 +19,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { ApiErrorResponse } from "@/api/client"
+import { cn } from "@/lib/utils"
 import { InterviewFormDialog } from "./interview-form-dialog"
 import {
+  useApplicationMutations,
+  useInterviewStages,
   useInterviews,
   useInterviewMutations,
   useInterviewNotes,
   useInterviewNoteMutations,
+  useJobPositions,
 } from "@/hooks/use-hiring"
 import type { Candidate, JobApplication, Interview, CreateInterviewInput, UpdateInterviewInput } from "@/api/types"
 
@@ -48,6 +62,11 @@ export function ApplicationDetailDialog({
   const navigate = useNavigate()
   const [interviewDialogOpen, setInterviewDialogOpen] = useState(false)
   const [editingInterview, setEditingInterview] = useState<Interview | null>(null)
+  const [selectedPositionIds, setSelectedPositionIds] = useState<string[]>([])
+  const [selectedStageId, setSelectedStageId] = useState("")
+  const [positionPickerOpen, setPositionPickerOpen] = useState(false)
+  const [applicationUpdateError, setApplicationUpdateError] = useState<string | null>(null)
+  const [isUpdatingApplications, setIsUpdatingApplications] = useState(false)
 
   const orderedApplications = useMemo(() => {
     const source = applicationOptions?.length ? applicationOptions : application ? [application] : []
@@ -73,12 +92,134 @@ export function ApplicationDetailDialog({
   }, [application, orderedApplications, selectedApplicationId])
 
   const applicationId = selectedApplication?.id || ""
+  const { data: stages = [] } = useInterviewStages()
+  const { data: allPositions = [] } = useJobPositions()
   const { data: interviews = [] } = useInterviews(applicationId)
   const { data: notes = [] } = useInterviewNotes(applicationId)
+  const { createApplication, moveApplication, deleteApplication } = useApplicationMutations()
   const { createInterview, updateInterview, deleteInterview } = useInterviewMutations(applicationId)
   const { createNote, deleteNote } = useInterviewNoteMutations(applicationId)
 
   const candidate = candidateProp ?? selectedApplication?.candidate ?? application?.candidate ?? null
+
+  const selectedPositionsLabel = useMemo(() => {
+    if (selectedPositionIds.length === 0) {
+      return "Select positions"
+    }
+
+    const selectedTitles = allPositions
+      .filter((position) => selectedPositionIds.includes(position.id))
+      .map((position) => position.title)
+
+    if (selectedTitles.length === 1) {
+      return selectedTitles[0]
+    }
+
+    return `${selectedTitles.length} positions selected`
+  }, [allPositions, selectedPositionIds])
+
+  const togglePosition = (positionId: string) => {
+    setSelectedPositionIds((prev) => {
+      if (prev.includes(positionId)) {
+        return prev.filter((id) => id !== positionId)
+      }
+      return [...prev, positionId]
+    })
+  }
+
+  const handleSaveApplications = async () => {
+    if (!candidate) return
+
+    if (selectedPositionIds.length === 0) {
+      setApplicationUpdateError("Select at least one position")
+      return
+    }
+
+    if (!selectedStageId) {
+      setApplicationUpdateError("Select a status to sync across positions")
+      return
+    }
+
+    setApplicationUpdateError(null)
+    setIsUpdatingApplications(true)
+
+    try {
+      const selectedPositionSet = new Set(selectedPositionIds)
+      const existingPositionSet = new Set<string>()
+      const operations: Array<Promise<unknown>> = []
+
+      for (const applicationItem of orderedApplications) {
+        if (selectedPositionSet.has(applicationItem.positionId)) {
+          existingPositionSet.add(applicationItem.positionId)
+
+          if (applicationItem.stageId !== selectedStageId) {
+            operations.push(
+              moveApplication.mutateAsync({
+                id: applicationItem.id,
+                data: { stageId: selectedStageId },
+              })
+            )
+          }
+          continue
+        }
+
+        operations.push(deleteApplication.mutateAsync(applicationItem.id))
+      }
+
+      for (const positionId of selectedPositionSet) {
+        if (!existingPositionSet.has(positionId)) {
+          operations.push(
+            createApplication.mutateAsync({
+              candidateId: candidate.id,
+              positionId,
+              stageId: selectedStageId,
+            })
+          )
+        }
+      }
+
+      await Promise.all(operations)
+    } catch (err) {
+      if (err instanceof ApiErrorResponse) setApplicationUpdateError(err.message)
+      else setApplicationUpdateError("Failed to update applications")
+    } finally {
+      setIsUpdatingApplications(false)
+    }
+  }
+
+  const isSavingApplications =
+    isUpdatingApplications ||
+    createApplication.isPending ||
+    moveApplication.isPending ||
+    deleteApplication.isPending
+
+  const hasNoStageOptions = stages.length === 0
+
+  useEffect(() => {
+    if (!open) return
+
+    const uniquePositionIds = Array.from(new Set(orderedApplications.map((item) => item.positionId)))
+    setSelectedPositionIds(uniquePositionIds)
+
+    const stageIds = Array.from(
+      new Set(
+        orderedApplications
+          .map((item) => item.stageId)
+          .filter((stageId): stageId is string => !!stageId)
+      )
+    )
+
+    if (stageIds.length === 1) {
+      setSelectedStageId(stageIds[0] ?? "")
+    } else if (stageIds.length > 1) {
+      setSelectedStageId("")
+    } else {
+      const fallbackStageId = stages.find((stage) => stage.isDefault)?.id ?? stages[0]?.id ?? ""
+      setSelectedStageId(fallbackStageId)
+    }
+
+    setApplicationUpdateError(null)
+  }, [open, orderedApplications, stages])
 
   if (!candidate && !selectedApplication) return null
 
@@ -191,6 +332,99 @@ export function ApplicationDetailDialog({
               </Select>
             </div>
           )}
+
+          <div className="mt-4 space-y-3 rounded-lg border border-border p-3">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Position</Label>
+                <Popover open={positionPickerOpen} onOpenChange={setPositionPickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className="w-full justify-between"
+                      disabled={isSavingApplications}
+                    >
+                      <span className="truncate">{selectedPositionsLabel}</span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[280px] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search positions..." />
+                      <CommandList>
+                        <CommandEmpty>No positions found</CommandEmpty>
+                        <CommandGroup>
+                          {allPositions.map((position) => {
+                            const isSelected = selectedPositionIds.includes(position.id)
+
+                            return (
+                              <CommandItem
+                                key={position.id}
+                                value={position.title}
+                                onSelect={() => togglePosition(position.id)}
+                                className="aria-selected:bg-muted aria-selected:text-foreground hover:bg-muted"
+                              >
+                                <Check className={cn("mr-2 h-4 w-4", isSelected ? "opacity-100" : "opacity-0")} />
+                                {position.title}
+                              </CommandItem>
+                            )
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select
+                  value={selectedStageId}
+                  onValueChange={setSelectedStageId}
+                  disabled={isSavingApplications || hasNoStageOptions}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {stages
+                      .slice()
+                      .sort((a, b) => a.sortOrder - b.sortOrder)
+                      .map((stage) => (
+                        <SelectItem key={stage.id} value={stage.id}>
+                          {stage.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {applicationUpdateError && (
+              <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {applicationUpdateError}
+              </div>
+            )}
+
+            {hasNoStageOptions && (
+              <p className="text-xs text-muted-foreground">
+                No pipeline statuses configured. Add at least one status in Pipeline Settings.
+              </p>
+            )}
+
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                onClick={() => {
+                  void handleSaveApplications()
+                }}
+                disabled={isSavingApplications || hasNoStageOptions}
+              >
+                {isSavingApplications ? "Saving..." : "Save Position and Status"}
+              </Button>
+            </div>
+          </div>
 
           <Tabs defaultValue="interviews" className="mt-4">
             <TabsList>

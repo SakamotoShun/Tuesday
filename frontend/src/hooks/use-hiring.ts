@@ -182,11 +182,15 @@ export function useApplication(id: string) {
   })
 }
 
-export function useApplicationMutations(positionId: string) {
+export function useApplicationMutations(positionId?: string) {
   const queryClient = useQueryClient()
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["applications", positionId] })
+    if (positionId) {
+      queryClient.invalidateQueries({ queryKey: ["applications", positionId] })
+    }
+    queryClient.invalidateQueries({ queryKey: ["applications"] })
     queryClient.invalidateQueries({ queryKey: ["applications", "detail"] })
+    queryClient.invalidateQueries({ queryKey: ["candidates"] })
   }
 
   const createApplication = useMutation({
