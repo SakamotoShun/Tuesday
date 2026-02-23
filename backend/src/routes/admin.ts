@@ -391,6 +391,7 @@ admin.get('/users', async (c) => {
       ...user,
       employmentType: user.employmentType,
       hourlyRate: user.hourlyRate !== null ? Number(user.hourlyRate) : null,
+      onboardingCompletedAt: user.onboardingCompletedAt,
     })));
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -434,6 +435,7 @@ admin.post('/users', async (c) => {
         employmentType: created.employmentType,
         hourlyRate: created.hourlyRate !== null ? Number(created.hourlyRate) : null,
         isDisabled: created.isDisabled,
+        onboardingCompletedAt: created.onboardingCompletedAt,
         createdAt: created.createdAt,
         updatedAt: created.updatedAt,
         temporaryPassword: validation.data.password ? undefined : password,
@@ -478,6 +480,7 @@ admin.patch('/users/:id', async (c) => {
       employmentType: updated.employmentType,
       hourlyRate: updated.hourlyRate !== null ? Number(updated.hourlyRate) : null,
       isDisabled: updated.isDisabled,
+      onboardingCompletedAt: updated.onboardingCompletedAt,
       createdAt: updated.createdAt,
       updatedAt: updated.updatedAt,
     });

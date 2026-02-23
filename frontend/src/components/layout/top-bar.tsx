@@ -86,7 +86,7 @@ export function TopBar() {
     <header className="h-[72px] bg-card border-b border-border flex items-center px-6 gap-6 shrink-0">
       <Logo />
 
-      <div ref={containerRef} className="flex-1 max-w-[460px]">
+      <div ref={containerRef} className="flex-1 max-w-[460px]" data-tour="global-search">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -194,7 +194,9 @@ export function TopBar() {
       </div>
 
       <div className="flex items-center gap-4 ml-auto">
-        <NotificationBell />
+        <div data-tour="notifications">
+          <NotificationBell />
+        </div>
 
         <UserMenu />
       </div>

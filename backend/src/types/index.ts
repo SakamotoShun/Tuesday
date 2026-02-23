@@ -27,6 +27,7 @@ export const UserSchema = z.object({
   employmentType: z.enum(['hourly', 'full_time']).optional(),
   hourlyRate: z.string().nullable().optional(),
   isDisabled: z.boolean(),
+  onboardingCompletedAt: z.date().nullable().optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });

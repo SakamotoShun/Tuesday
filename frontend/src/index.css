@@ -107,3 +107,42 @@
 .emoji-picker-panel .emoji-mart {
   height: 320px;
 }
+
+.workhub-tour-popover.driver-popover {
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.14);
+}
+
+.workhub-tour-popover .driver-popover-title {
+  color: hsl(var(--foreground));
+  font-family: var(--font-serif, inherit);
+}
+
+.workhub-tour-popover .driver-popover-description,
+.workhub-tour-popover .driver-popover-progress-text {
+  color: hsl(var(--muted-foreground));
+}
+
+.workhub-tour-popover .driver-popover-next-btn,
+.workhub-tour-popover .driver-popover-prev-btn {
+  border: none;
+  border-radius: 0.5rem;
+  text-shadow: none;
+}
+
+.workhub-tour-popover .driver-popover-next-btn {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.workhub-tour-popover .driver-popover-prev-btn {
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+}
+
+.workhub-tour-popover .driver-popover-close-btn {
+  color: hsl(var(--muted-foreground));
+}

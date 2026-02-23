@@ -1,6 +1,7 @@
-import { LogOut, Moon, Sun, User, Monitor } from "lucide-react"
+import { Compass, LogOut, Moon, Sun, User, Monitor } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "@/hooks/use-auth"
+import { useOnboarding } from "@/hooks/use-onboarding"
 import { useUIStore } from "@/store/ui-store"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -13,6 +14,7 @@ import {
 
 export function UserMenu() {
   const { user, logout } = useAuth()
+  const { startTour } = useOnboarding()
   const { theme, setTheme } = useUIStore()
   const navigate = useNavigate()
 
@@ -35,7 +37,7 @@ export function UserMenu() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger>
+      <DropdownMenuTrigger data-tour="user-menu">
         <Avatar className="h-9 w-9 cursor-pointer">
           {user.avatarUrl ? (
             <AvatarImage src={user.avatarUrl} alt={user.name} />
@@ -70,6 +72,10 @@ export function UserMenu() {
         <DropdownMenuItem className="gap-2" onClick={cycleTheme}>
           <ThemeIcon className="h-4 w-4" />
           Theme: {themeLabel}
+        </DropdownMenuItem>
+        <DropdownMenuItem className="gap-2" onClick={startTour}>
+          <Compass className="h-4 w-4" />
+          Replay Tour
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem

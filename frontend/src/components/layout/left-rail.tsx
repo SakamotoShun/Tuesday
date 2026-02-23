@@ -16,15 +16,15 @@ export function LeftRail() {
   const isAdmin = user?.role === "admin"
 
   return (
-    <nav className="w-[84px] bg-card border-r border-border flex flex-col items-center py-4 gap-2">
-      <RailItem icon={Home} label="Home" href="/" />
-      <RailItem icon={FolderKanban} label="Projects" href="/projects" />
-      <RailItem icon={ListTodo} label="My Work" href="/my-work" />
-      <RailItem icon={Calendar} label="Calendar" href="/my-calendar" />
-      <RailItem icon={MessageSquare} label="Chat" href="/chat" />
-      {isAdmin && <RailItem icon={UserSearch} label="Hiring" href="/hiring" />}
-      {isAdmin && <RailItem icon={Settings} label="Admin" href="/admin" />}
-      {isAdmin && <RailItem icon={Receipt} label="Payroll" href="/admin/payroll" />}
+    <nav className="w-[84px] bg-card border-r border-border flex flex-col items-center py-4 gap-2" data-tour="left-rail">
+      <RailItem icon={Home} label="Home" href="/" tourId="nav-home" />
+      <RailItem icon={FolderKanban} label="Projects" href="/projects" tourId="nav-projects" />
+      <RailItem icon={ListTodo} label="My Work" href="/my-work" tourId="nav-my-work" />
+      <RailItem icon={Calendar} label="Calendar" href="/my-calendar" tourId="nav-calendar" />
+      <RailItem icon={MessageSquare} label="Chat" href="/chat" tourId="nav-chat" />
+      {isAdmin && <RailItem icon={UserSearch} label="Hiring" href="/hiring" tourId="nav-hiring" />}
+      {isAdmin && <RailItem icon={Settings} label="Admin" href="/admin" tourId="nav-admin" />}
+      {isAdmin && <RailItem icon={Receipt} label="Payroll" href="/admin/payroll" tourId="nav-payroll" />}
     </nav>
   )
 }

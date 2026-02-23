@@ -121,6 +121,7 @@ export const users = pgTable('users', {
   employmentType: varchar('employment_type', { length: 20 }).notNull().default(EmploymentType.FULL_TIME),
   hourlyRate: numeric('hourly_rate', { precision: 10, scale: 2 }),
   isDisabled: boolean('is_disabled').notNull().default(false),
+  onboardingCompletedAt: timestamp('onboarding_completed_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

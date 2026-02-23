@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { useMyTasks, useTaskStatuses } from "@/hooks/use-tasks"
 import { useProjects } from "@/hooks/use-projects"
 import { useMyTimesheet, useMyMonthlyOverview } from "@/hooks/use-time-entries"
@@ -28,6 +28,7 @@ function formatDateForMonth(date: Date): string {
 
 export function MyWorkPage() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { data: statuses } = useTaskStatuses()
   const { projects } = useProjects()
   const { data: tasks, isLoading: isTasksLoading } = useMyTasks()
@@ -53,6 +54,20 @@ export function MyWorkPage() {
     })
   }, [tasks, selectedProjectId, selectedStatusId])
 
+  const activeTab = searchParams.get("tab") === "timesheet" ? "timesheet" : "tasks"
+
+  const handleTabChange = (value: string) => {
+    const nextParams = new URLSearchParams(searchParams)
+
+    if (value === "tasks") {
+      nextParams.delete("tab")
+    } else {
+      nextParams.set("tab", value)
+    }
+
+    setSearchParams(nextParams, { replace: true })
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -60,10 +75,10 @@ export function MyWorkPage() {
         <p className="text-muted-foreground">All tasks and time tracking across your projects.</p>
       </div>
 
-      <Tabs defaultValue="tasks">
-        <TabsList>
-          <TabsTrigger value="tasks">Tasks</TabsTrigger>
-          <TabsTrigger value="timesheet">Timesheet</TabsTrigger>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
+        <TabsList data-tour="my-work-tabs">
+          <TabsTrigger value="tasks" data-tour="my-work-tasks-tab">Tasks</TabsTrigger>
+          <TabsTrigger value="timesheet" data-tour="my-work-timesheet-tab">Timesheet</TabsTrigger>
         </TabsList>
 
         <TabsContent value="tasks" className="mt-6">
@@ -107,7 +122,7 @@ export function MyWorkPage() {
         </TabsContent>
 
         <TabsContent value="timesheet" className="mt-6">
-          <div className="space-y-6">
+          <div className="space-y-6" data-tour="my-work-timesheet-panel">
             <TimesheetHeader
               currentDate={currentDate}
               viewMode={viewMode}

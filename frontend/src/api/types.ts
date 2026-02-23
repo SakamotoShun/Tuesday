@@ -10,6 +10,7 @@ export interface User {
   employmentType: "hourly" | "full_time"
   hourlyRate: number | null
   isDisabled: boolean
+  onboardingCompletedAt: string | null
   createdAt: string
   updatedAt: string
 }

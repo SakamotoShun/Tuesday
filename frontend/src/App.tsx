@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { QueryProvider } from "@/providers/query-provider"
 import { ProtectedRoute } from "@/components/auth/protected-route"
 import { AppLayout } from "@/components/layout/app-layout"
+import { OnboardingProvider } from "@/components/onboarding/onboarding-provider"
 import { useSetup } from "@/hooks/use-setup"
 import { LoadingSpinner } from "@/components/common/loading-spinner"
 import { SetupPage } from "@/pages/setup"
@@ -81,7 +82,9 @@ function AppRoutes() {
                   </div>
                 }
               >
-                <AppLayout />
+                <OnboardingProvider>
+                  <AppLayout />
+                </OnboardingProvider>
               </Suspense>
             </ProtectedRoute>
           }

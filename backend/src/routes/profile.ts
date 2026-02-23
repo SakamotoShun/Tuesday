@@ -20,6 +20,7 @@ const toPublicUser = (user: DbUser) => ({
   employmentType: user.employmentType,
   hourlyRate: user.hourlyRate !== null ? Number(user.hourlyRate) : null,
   isDisabled: user.isDisabled,
+  onboardingCompletedAt: user.onboardingCompletedAt,
   createdAt: user.createdAt,
   updatedAt: user.updatedAt,
 });

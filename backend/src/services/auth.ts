@@ -74,6 +74,7 @@ export class AuthService {
       employmentType: user.employmentType as 'hourly' | 'full_time',
       hourlyRate: user.hourlyRate,
       isDisabled: user.isDisabled,
+      onboardingCompletedAt: user.onboardingCompletedAt,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
@@ -124,6 +125,7 @@ export class AuthService {
         employmentType: user.employmentType as 'hourly' | 'full_time',
         hourlyRate: user.hourlyRate,
         isDisabled: user.isDisabled,
+        onboardingCompletedAt: user.onboardingCompletedAt,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
       },
@@ -170,6 +172,7 @@ export class AuthService {
       employmentType: result.user.employmentType as 'hourly' | 'full_time',
       hourlyRate: result.user.hourlyRate,
       isDisabled: result.user.isDisabled,
+      onboardingCompletedAt: result.user.onboardingCompletedAt,
       createdAt: result.user.createdAt,
       updatedAt: result.user.updatedAt,
     };
