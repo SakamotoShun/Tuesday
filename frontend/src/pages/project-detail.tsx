@@ -3,7 +3,7 @@ import { Link, useParams, useNavigate } from "react-router-dom"
 import { ArrowLeft, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -200,6 +200,10 @@ export function ProjectDetailPage() {
                     key={member.userId}
                     className="h-8 w-8 border-2 border-card"
                   >
+                    <AvatarImage
+                      src={member.user?.avatarUrl ?? undefined}
+                      alt={member.user?.name ?? "User"}
+                    />
                     <AvatarFallback className="bg-primary text-primary-foreground text-xs">
                       {getInitials(member.user?.name || "U")}
                     </AvatarFallback>

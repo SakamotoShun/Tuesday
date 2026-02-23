@@ -1,6 +1,6 @@
 import { Megaphone, Pencil, Square, CheckSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import type { NoticeBoardItem } from "@/api/types"
 
 interface NoticeBoardItemRowProps {
@@ -38,6 +38,7 @@ export function NoticeBoardItemRow({ item, canManage, onToggle, onEdit }: Notice
           {isTodo && item.assignee && (
             <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
               <Avatar className="h-5 w-5">
+                <AvatarImage src={item.assignee.avatarUrl ?? undefined} alt={item.assignee.name} />
                 <AvatarFallback className="text-[10px] bg-primary/10">
                   {getInitials(item.assignee.name)}
                 </AvatarFallback>

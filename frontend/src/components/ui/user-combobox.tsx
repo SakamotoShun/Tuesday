@@ -3,7 +3,7 @@ import { Check, ChevronsUpDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
 import type { User } from "@/api/types"
 
@@ -124,6 +124,7 @@ export function UserCombobox({
                 >
                   <div className="flex items-center gap-2 flex-1">
                     <Avatar className="h-6 w-6">
+                      <AvatarImage src={user.avatarUrl ?? undefined} alt={user.name} />
                       <AvatarFallback className="text-[10px] bg-primary/10">
                         {getInitials(user.name)}
                       </AvatarFallback>

@@ -2,7 +2,7 @@ import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import type { Task } from "@/api/types"
 import { Calendar, GripVertical, Pencil } from "lucide-react"
@@ -97,6 +97,7 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
                       className="h-5 w-5 border-2 border-background"
                       style={{ zIndex: (task.assignees?.length ?? 0) - index }}
                     >
+                      <AvatarImage src={assignee.avatarUrl ?? undefined} alt={assignee.name} />
                       <AvatarFallback className="text-[10px] bg-primary/10">
                         {getInitials(assignee.name)}
                       </AvatarFallback>
