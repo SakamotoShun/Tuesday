@@ -329,6 +329,7 @@ export const docs = pgTable('docs', {
   searchText: text('search_text').notNull().default(''),
   properties: jsonb('properties').default({}),
   isDatabase: boolean('is_database').notNull().default(false),
+  isPolicy: boolean('is_policy').notNull().default(false),
   schema: jsonb('schema'),
   createdBy: uuid('created_by').notNull().references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

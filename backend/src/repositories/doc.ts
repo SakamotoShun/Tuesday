@@ -40,6 +40,7 @@ export class DocRepository {
             searchText: true,
             properties: true,
             isDatabase: true,
+            isPolicy: true,
             schema: true,
             createdBy: true,
             createdAt: true,
@@ -71,7 +72,8 @@ export class DocRepository {
     return db.query.docs.findMany({
       where: and(
         eq(docs.createdBy, userId),
-        isNull(docs.projectId)
+        isNull(docs.projectId),
+        eq(docs.isPolicy, false)
       ),
       orderBy: [desc(docs.updatedAt)],
     });
@@ -125,7 +127,8 @@ export class DocRepository {
       const result = await db.query.docs.findFirst({
         where: and(
           eq(docs.id, docId),
-          isNull(docs.projectId)
+          isNull(docs.projectId),
+          eq(docs.isPolicy, false)
         ),
       });
       return result || null;

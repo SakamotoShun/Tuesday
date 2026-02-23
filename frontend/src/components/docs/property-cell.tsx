@@ -24,6 +24,7 @@ interface PropertyCellProps {
   value: PropertyValue
   options?: string[]
   placeholder?: string
+  readOnly?: boolean
   onCommit: (value: PropertyValue) => void
 }
 
@@ -34,6 +35,7 @@ export function PropertyCell({
   value,
   options = [],
   placeholder = EMPTY_LABEL,
+  readOnly = false,
   onCommit,
 }: PropertyCellProps) {
   const [isEditing, setIsEditing] = useState(false)
@@ -61,6 +63,51 @@ export function PropertyCell({
   const commitValue = (nextValue: PropertyValue) => {
     setIsEditing(false)
     onCommit(nextValue)
+  }
+
+  if (readOnly) {
+    if (type === "checkbox") {
+      return (
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={Boolean(value)}
+            disabled
+            className="h-4 w-4 rounded border-muted-foreground/40"
+          />
+        </label>
+      )
+    }
+
+    if (type === "multi-select") {
+      const selectedValues = Array.isArray(value) ? value : []
+      if (selectedValues.length === 0) {
+        return <span className="text-muted-foreground">{placeholder}</span>
+      }
+      return (
+        <span className="flex flex-wrap gap-1">
+          {selectedValues.map((item) => (
+            <Badge key={item} variant="secondary" className="text-xs">
+              {item}
+            </Badge>
+          ))}
+        </span>
+      )
+    }
+
+    if (type === "url" && typeof value === "string" && value) {
+      return (
+        <a href={value} target="_blank" rel="noreferrer" className="truncate text-primary hover:underline">
+          {value}
+        </a>
+      )
+    }
+
+    return (
+      <span className={cn(displayValue === placeholder ? "text-muted-foreground" : "text-foreground")}>
+        {displayValue}
+      </span>
+    )
   }
 
   const handleInputCommit = () => {

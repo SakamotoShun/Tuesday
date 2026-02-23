@@ -4,6 +4,7 @@ import {
   ListTodo,
   Calendar,
   MessageSquare,
+  FileText,
   Settings,
   Receipt,
   UserSearch,
@@ -22,6 +23,7 @@ export function LeftRail() {
       <RailItem icon={ListTodo} label="My Work" href="/my-work" tourId="nav-my-work" />
       <RailItem icon={Calendar} label="Calendar" href="/my-calendar" tourId="nav-calendar" />
       <RailItem icon={MessageSquare} label="Chat" href="/chat" tourId="nav-chat" />
+      <RailItem icon={FileText} label="Policies" href="/policies" tourId="nav-policies" />
       {isAdmin && <RailItem icon={UserSearch} label="Hiring" href="/hiring" tourId="nav-hiring" />}
       {isAdmin && <RailItem icon={Settings} label="Admin" href="/admin" tourId="nav-admin" />}
       {isAdmin && <RailItem icon={Receipt} label="Payroll" href="/admin/payroll" tourId="nav-payroll" />}

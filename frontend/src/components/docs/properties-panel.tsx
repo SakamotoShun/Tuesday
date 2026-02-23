@@ -10,9 +10,16 @@ interface PropertiesPanelProps {
   schema: DatabaseSchema
   onUpdate: (properties: Record<string, PropertyValue>) => Promise<void>
   onOpenDatabase?: () => void
+  readOnly?: boolean
 }
 
-export function PropertiesPanel({ doc, schema, onUpdate, onOpenDatabase }: PropertiesPanelProps) {
+export function PropertiesPanel({
+  doc,
+  schema,
+  onUpdate,
+  onOpenDatabase,
+  readOnly = false,
+}: PropertiesPanelProps) {
   const [isOpen, setIsOpen] = useState(true)
 
   const properties = useMemo(() => doc.properties ?? {}, [doc.properties])
@@ -54,6 +61,7 @@ export function PropertiesPanel({ doc, schema, onUpdate, onOpenDatabase }: Prope
                     type={column.type}
                     value={properties[column.id] ?? null}
                     options={column.options}
+                    readOnly={readOnly}
                     onCommit={(value) =>
                       onUpdate({
                         ...properties,

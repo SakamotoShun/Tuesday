@@ -26,7 +26,7 @@ export function DocPage() {
   const fromHiring = searchParams.get("from") === "hiring"
   const navigate = useNavigate()
   const { data: doc, isLoading, error } = useDocWithChildren(docId || "")
-  const { updateDoc, deleteDoc } = useDocs(projectId)
+  const { createDoc, updateDoc, deleteDoc } = useDocs(projectId)
   const [titleDraft, setTitleDraft] = useState("")
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [titleError, setTitleError] = useState<string | null>(null)
@@ -309,7 +309,16 @@ export function DocPage() {
       </div>
 
       {doc.isDatabase ? (
-        <DatabaseView doc={doc} projectId={projectId} />
+        <DatabaseView
+          doc={doc}
+          getRowPath={(rowId) => getDocPath(projectId, rowId)}
+          onUpdateRow={(rowId, data) => updateDoc.mutateAsync({ docId: rowId, data })}
+          onUpdateSchema={(databaseId, schema) =>
+            updateDoc.mutateAsync({ docId: databaseId, data: { schema } })
+          }
+          onCreateRow={(data) => createDoc.mutateAsync(data)}
+          isCreating={createDoc.isPending}
+        />
       ) : (
         <div className="space-y-4">
           {isDatabaseRow && parentDatabase?.schema && (

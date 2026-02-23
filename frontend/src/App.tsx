@@ -20,6 +20,7 @@ import { NotificationsPage } from "@/pages/notifications"
 import { ProfilePage } from "@/pages/profile"
 import { HiringPage } from "@/pages/hiring"
 import { PositionDetailPage } from "@/pages/position-detail"
+import { PoliciesPage } from "@/pages/policies-page"
 
 // Lazy-loaded pages with heavy dependencies
 const DocPage = lazy(() =>
@@ -35,6 +36,12 @@ const MyCalendarPage = lazy(() =>
 )
 const ChatPage = lazy(() =>
   import("@/pages/chat").then((m) => ({ default: m.ChatPage }))
+)
+const PolicyDatabasePage = lazy(() =>
+  import("@/pages/policy-database-page").then((m) => ({ default: m.PolicyDatabasePage }))
+)
+const PolicyDocPage = lazy(() =>
+  import("@/pages/policy-doc-page").then((m) => ({ default: m.PolicyDocPage }))
 )
 
 function AppRoutes() {
@@ -98,6 +105,9 @@ function AppRoutes() {
           <Route path="my-calendar" element={<MyCalendarPage />} />
           <Route path="whiteboards/:id" element={<WhiteboardEditorPage />} />
           <Route path="chat" element={<ChatPage />} />
+          <Route path="policies" element={<PoliciesPage />} />
+          <Route path="policies/:id" element={<PolicyDatabasePage />} />
+          <Route path="policies/:id/:rowId" element={<PolicyDocPage />} />
           <Route path="notifications" element={<NotificationsPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="hiring" element={<HiringPage />} />

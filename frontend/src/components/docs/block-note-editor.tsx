@@ -79,6 +79,7 @@ interface BlockNoteEditorProps {
   onChange?: (content: Block[]) => void
   onBlur?: () => void
   onSyncStateChange?: (state: "connecting" | "synced" | "error") => void
+  editable?: boolean
 }
 
 export function BlockNoteEditor({
@@ -87,18 +88,20 @@ export function BlockNoteEditor({
   onChange,
   onBlur,
   onSyncStateChange,
+  editable = true,
 }: BlockNoteEditorProps) {
   const { ydoc, awareness, syncState, hasRemoteContent } = useDocCollaboration(docId)
   const fragment = useMemo(() => ydoc.getXmlFragment("prosemirror"), [ydoc])
   const editor = useCreateBlockNote({
     schema,
+    editable,
     collaboration: {
       fragment,
       user: awareness.getLocalState()?.user ?? { name: "Anonymous", color: "#0F766E" },
       provider: { awareness },
       showCursorLabels: "always",
     },
-  }, [fragment, awareness])
+  }, [fragment, awareness, editable])
   const themePreference = useUIStore((state) => state.theme)
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light")
   const hasSeeded = useRef(false)
@@ -147,10 +150,12 @@ export function BlockNoteEditor({
       className="bn-cursor-labels-always rounded-lg border border-border bg-card px-4 py-6"
       onBlur={onBlur}
     >
-      <BlockNoteView editor={editor} onChange={handleChange} theme={editorTheme} sideMenu={false}>
-        <SideMenuController
-          sideMenu={(props) => <SideMenu {...props} dragHandleMenu={CustomDragHandleMenu} />}
-        />
+      <BlockNoteView editor={editor} onChange={handleChange} theme={editorTheme} sideMenu={false} editable={editable}>
+        {editable && (
+          <SideMenuController
+            sideMenu={(props) => <SideMenu {...props} dragHandleMenu={CustomDragHandleMenu} />}
+          />
+        )}
       </BlockNoteView>
     </div>
   )

@@ -7,14 +7,15 @@ import {
   type ColumnDef,
 } from "@tanstack/react-table"
 import type {
+  CreateDocInput,
   DatabaseSchema,
   Doc,
   DocWithChildren,
   PropertyValue,
   SchemaColumn,
+  UpdateDocInput,
 } from "@/api/types"
 import { ApiErrorResponse } from "@/api/client"
-import { useDocs } from "@/hooks/use-docs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { PropertyCell } from "@/components/docs/property-cell"
 import { SchemaEditor } from "@/components/docs/schema-editor"
@@ -22,14 +23,12 @@ import { NewRowButton } from "@/components/docs/new-row-button"
 
 interface DatabaseViewProps {
   doc: DocWithChildren
-  projectId: string | null
-}
-
-function getDocPath(projectId: string | null, docId: string) {
-  if (projectId) {
-    return `/projects/${projectId}/docs/${docId}`
-  }
-  return `/docs/personal/${docId}`
+  getRowPath: (rowId: string) => string
+  onUpdateRow: (rowId: string, data: UpdateDocInput) => Promise<Doc>
+  onUpdateSchema: (docId: string, schema: DatabaseSchema) => Promise<Doc>
+  onCreateRow: (data: CreateDocInput) => Promise<Doc>
+  isCreating?: boolean
+  readOnly?: boolean
 }
 
 const buildSchema = (schema: DatabaseSchema | null): DatabaseSchema => ({
@@ -54,9 +53,16 @@ const defaultValueForColumn = (column: SchemaColumn): PropertyValue => {
   }
 }
 
-export function DatabaseView({ doc, projectId }: DatabaseViewProps) {
+export function DatabaseView({
+  doc,
+  getRowPath,
+  onUpdateRow,
+  onUpdateSchema,
+  onCreateRow,
+  isCreating,
+  readOnly = false,
+}: DatabaseViewProps) {
   const navigate = useNavigate()
-  const { updateDoc, createDoc } = useDocs(projectId)
   const [error, setError] = useState<string | null>(null)
 
   const schema = useMemo(() => buildSchema(doc.schema ?? null), [doc.schema])
@@ -71,7 +77,7 @@ export function DatabaseView({ doc, projectId }: DatabaseViewProps) {
       setError(null)
       const nextProperties = { ...(rowDoc.properties ?? {}) }
       nextProperties[columnId] = value
-      await updateDoc.mutateAsync({ docId: rowDoc.id, data: { properties: nextProperties } })
+      await onUpdateRow(rowDoc.id, { properties: nextProperties })
     } catch (err) {
       if (err instanceof ApiErrorResponse) {
         setError(err.message)
@@ -79,13 +85,13 @@ export function DatabaseView({ doc, projectId }: DatabaseViewProps) {
         setError("Failed to update row")
       }
     }
-  }, [updateDoc])
+  }, [onUpdateRow])
 
   const handleUpdateRowTitle = useCallback(async (rowDoc: Doc, value: PropertyValue) => {
     if (typeof value !== "string") return
     try {
       setError(null)
-      await updateDoc.mutateAsync({ docId: rowDoc.id, data: { title: value } })
+      await onUpdateRow(rowDoc.id, { title: value })
     } catch (err) {
       if (err instanceof ApiErrorResponse) {
         setError(err.message)
@@ -93,12 +99,12 @@ export function DatabaseView({ doc, projectId }: DatabaseViewProps) {
         setError("Failed to update row title")
       }
     }
-  }, [updateDoc])
+  }, [onUpdateRow])
 
   const handleSchemaSave = useCallback(async (nextSchema: DatabaseSchema) => {
     try {
       setError(null)
-      await updateDoc.mutateAsync({ docId: doc.id, data: { schema: nextSchema } })
+      await onUpdateSchema(doc.id, nextSchema)
     } catch (err) {
       if (err instanceof ApiErrorResponse) {
         setError(err.message)
@@ -107,7 +113,7 @@ export function DatabaseView({ doc, projectId }: DatabaseViewProps) {
       }
       throw err
     }
-  }, [doc.id, updateDoc])
+  }, [doc.id, onUpdateSchema])
 
   const handleCreateRow = useCallback(async () => {
     try {
@@ -116,7 +122,7 @@ export function DatabaseView({ doc, projectId }: DatabaseViewProps) {
         acc[column.id] = defaultValueForColumn(column)
         return acc
       }, {})
-      const created = await createDoc.mutateAsync({
+      const created = await onCreateRow({
         title: "Untitled",
         parentId: doc.id,
         properties,
@@ -130,14 +136,14 @@ export function DatabaseView({ doc, projectId }: DatabaseViewProps) {
       }
       return undefined
     }
-  }, [createDoc, doc.id, schema.columns])
+  }, [doc.id, onCreateRow, schema.columns])
 
   const handleCreateRowAsPage = useCallback(async () => {
     const created = await handleCreateRow()
     if (created) {
-      navigate(getDocPath(projectId, created.id))
+      navigate(getRowPath(created.id))
     }
-  }, [handleCreateRow, navigate, projectId])
+  }, [getRowPath, handleCreateRow, navigate])
 
   const columns = useMemo<ColumnDef<Doc>[]>(() => {
     const base: ColumnDef<Doc>[] = [
@@ -151,13 +157,14 @@ export function DatabaseView({ doc, projectId }: DatabaseViewProps) {
               <PropertyCell
                 type="text"
                 value={row.original.title}
+                readOnly={readOnly}
                 onCommit={(value) => handleUpdateRowTitle(row.original, value)}
               />
             </div>
             <button
               type="button"
               className="text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => navigate(getDocPath(projectId, row.original.id))}
+              onClick={() => navigate(getRowPath(row.original.id))}
             >
               Open
             </button>
@@ -175,13 +182,14 @@ export function DatabaseView({ doc, projectId }: DatabaseViewProps) {
           type={column.type}
           value={row.original.properties?.[column.id] ?? null}
           options={column.options}
+          readOnly={readOnly}
           onCommit={(value) => handleUpdateRowProperty(row.original, column.id, value)}
         />
       ),
     }))
 
     return base.concat(schemaColumns)
-  }, [schema.columns, handleUpdateRowProperty, handleUpdateRowTitle])
+  }, [getRowPath, handleUpdateRowProperty, handleUpdateRowTitle, navigate, readOnly])
 
   const table = useReactTable<Doc>({
     data: rows,
@@ -193,14 +201,16 @@ export function DatabaseView({ doc, projectId }: DatabaseViewProps) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-sm text-muted-foreground">{rows.length} rows</div>
-        <div className="flex items-center gap-2">
-          <SchemaEditor schema={schema} onSave={handleSchemaSave} />
-          <NewRowButton
-            onAddRow={() => void handleCreateRow()}
-            onAddAsPage={() => void handleCreateRowAsPage()}
-            isSubmitting={createDoc.isPending}
-          />
-        </div>
+        {!readOnly && (
+          <div className="flex items-center gap-2">
+            <SchemaEditor schema={schema} onSave={handleSchemaSave} />
+            <NewRowButton
+              onAddRow={() => void handleCreateRow()}
+              onAddAsPage={() => void handleCreateRowAsPage()}
+              isSubmitting={isCreating}
+            />
+          </div>
+        )}
       </div>
 
       {error && (

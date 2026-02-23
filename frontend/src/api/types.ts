@@ -346,6 +346,7 @@ export interface Doc {
   content: Block[]
   properties: Record<string, PropertyValue> | null
   isDatabase: boolean
+  isPolicy: boolean
   schema: DatabaseSchema | null
   createdBy: string
   createdAt: string
