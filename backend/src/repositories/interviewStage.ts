@@ -39,16 +39,45 @@ export class InterviewStageRepository {
 
   async delete(id: string): Promise<boolean> {
     const { jobApplications } = await import('../db/schema');
-    const applicationsUsingStage = await db.query.jobApplications.findMany({
-      where: eq(jobApplications.stageId, id),
+
+    return db.transaction(async (tx) => {
+      const stage = await tx.query.interviewStages.findFirst({
+        where: eq(interviewStages.id, id),
+      });
+
+      if (!stage) {
+        return false;
+      }
+
+      const allStages = await tx.query.interviewStages.findMany({
+        orderBy: [asc(interviewStages.sortOrder)],
+      });
+
+      if (allStages.length <= 1) {
+        throw new Error('Cannot delete the last remaining stage');
+      }
+
+      const applicationsUsingStage = await tx.query.jobApplications.findMany({
+        where: eq(jobApplications.stageId, id),
+      });
+
+      if (applicationsUsingStage.length > 0) {
+        throw new Error('Cannot delete stage that is in use by applications');
+      }
+
+      if (stage.isDefault) {
+        const fallbackStage = allStages.find((candidateStage) => candidateStage.id !== id);
+        if (fallbackStage) {
+          await tx
+            .update(interviewStages)
+            .set({ isDefault: true })
+            .where(eq(interviewStages.id, fallbackStage.id));
+        }
+      }
+
+      const result = await tx.delete(interviewStages).where(eq(interviewStages.id, id)).returning();
+      return result.length > 0;
     });
-
-    if (applicationsUsingStage.length > 0) {
-      throw new Error('Cannot delete stage that is in use by applications');
-    }
-
-    const result = await db.delete(interviewStages).where(eq(interviewStages.id, id)).returning();
-    return result.length > 0;
   }
 
   async reorder(ids: string[]): Promise<void> {

@@ -73,6 +73,7 @@ export function InterviewStageManager() {
           const edit = edits[stage.id]
           if (!edit) return null
           const hasChanges = edit.name !== stage.name || edit.color !== stage.color
+          const isLastRemainingStage = stages.length <= 1
 
           return (
             <div key={stage.id} className="flex items-center gap-2">
@@ -101,7 +102,7 @@ export function InterviewStageManager() {
                 size="sm"
                 className="text-muted-foreground hover:text-destructive"
                 onClick={() => handleDelete(stage.id)}
-                disabled={deleteStage.isPending}
+                disabled={deleteStage.isPending || isLastRemainingStage}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>

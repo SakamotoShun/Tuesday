@@ -296,17 +296,30 @@ export class HiringService {
     positionId: string;
     stageId?: string;
   }, user: User): Promise<JobApplication> {
-    // Use default stage if none provided
     let stageId = input.stageId;
-    if (!stageId) {
+    if (stageId) {
+      const stage = await interviewStageRepository.findById(stageId);
+      if (!stage) {
+        throw new Error('Invalid stage ID');
+      }
+    } else {
       const defaultStage = await interviewStageRepository.findDefault();
       stageId = defaultStage?.id;
+
+      if (!stageId) {
+        const stages = await interviewStageRepository.findAll();
+        stageId = stages[0]?.id;
+      }
+
+      if (!stageId) {
+        throw new Error('No interview stages configured');
+      }
     }
 
     const application = await jobApplicationRepository.create({
       candidateId: input.candidateId,
       positionId: input.positionId,
-      stageId: stageId || null,
+      stageId,
       sortOrder: 0,
       createdBy: user.id,
     });
