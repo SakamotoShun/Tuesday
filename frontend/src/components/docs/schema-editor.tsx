@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react"
 import type { DatabaseSchema, SchemaColumn, PropertyType } from "@/api/types"
 import { Button } from "@/components/ui/button"
@@ -36,23 +36,30 @@ const createColumn = (): SchemaColumn => ({
 export function SchemaEditor({ schema, onSave, trigger }: SchemaEditorProps) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<DatabaseSchema>({ columns: [] })
+  const [optionsText, setOptionsText] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
-    setDraft({ columns: schema?.columns ? [...schema.columns] : [] })
+    const initialColumns = schema?.columns ? [...schema.columns] : []
+    setDraft({ columns: initialColumns })
+    setOptionsText(
+      initialColumns.reduce<Record<string, string>>((acc, column) => {
+        if (!column.options || column.options.length === 0) return acc
+        acc[column.id] = column.options.join(", ")
+        return acc
+      }, {})
+    )
     setError(null)
   }, [open, schema])
 
   const hasColumns = draft.columns.length > 0
 
-  const optionsSummary = useMemo(() => {
-    return draft.columns.reduce<Record<string, string>>((acc, column) => {
-      if (!column.options || column.options.length === 0) return acc
-      acc[column.id] = column.options.join(", ")
-      return acc
-    }, {})
-  }, [draft.columns])
+  const parseOptions = (value: string) =>
+    value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
 
   const handleAddColumn = () => {
     setDraft((current) => ({ ...current, columns: [...current.columns, createColumn()] }))
@@ -63,6 +70,12 @@ export function SchemaEditor({ schema, onSave, trigger }: SchemaEditorProps) {
       ...current,
       columns: current.columns.filter((column) => column.id !== columnId),
     }))
+    setOptionsText((current) => {
+      if (!(columnId in current)) return current
+      const next = { ...current }
+      delete next[columnId]
+      return next
+    })
   }
 
   const handleMoveColumn = (columnId: string, direction: "up" | "down") => {
@@ -89,7 +102,24 @@ export function SchemaEditor({ schema, onSave, trigger }: SchemaEditorProps) {
   }
 
   const handleSave = async () => {
-    const invalid = draft.columns.find((column) => !column.name.trim())
+    const preparedDraft: DatabaseSchema = {
+      columns: draft.columns.map((column) => {
+        if (column.type !== "select" && column.type !== "multi-select") {
+          return column
+        }
+
+        if (!(column.id in optionsText)) {
+          return column
+        }
+
+        return {
+          ...column,
+          options: parseOptions(optionsText[column.id] ?? ""),
+        }
+      }),
+    }
+
+    const invalid = preparedDraft.columns.find((column) => !column.name.trim())
     if (invalid) {
       setError("Every column needs a name.")
       return
@@ -97,7 +127,7 @@ export function SchemaEditor({ schema, onSave, trigger }: SchemaEditorProps) {
 
     try {
       setError(null)
-      await onSave(draft)
+      await onSave(preparedDraft)
       setOpen(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update schema")
@@ -158,6 +188,12 @@ export function SchemaEditor({ schema, onSave, trigger }: SchemaEditorProps) {
                         const updates: Partial<SchemaColumn> = { type: nextType as PropertyType }
                         if (nextType !== "select" && nextType !== "multi-select") {
                           updates.options = undefined
+                          setOptionsText((current) => {
+                            if (!(column.id in current)) return current
+                            const next = { ...current }
+                            delete next[column.id]
+                            return next
+                          })
                         }
                         handleUpdateColumn(column.id, updates)
                       }}
@@ -211,12 +247,16 @@ export function SchemaEditor({ schema, onSave, trigger }: SchemaEditorProps) {
                   <div className="mt-3 space-y-1">
                     <Label>Options (comma separated)</Label>
                     <Input
-                      value={optionsSummary[column.id] ?? ""}
+                      value={optionsText[column.id] ?? ""}
                       onChange={(event) => {
-                        const nextOptions = event.target.value
-                          .split(",")
-                          .map((item) => item.trim())
-                          .filter(Boolean)
+                        const nextValue = event.target.value
+                        setOptionsText((current) => ({
+                          ...current,
+                          [column.id]: nextValue,
+                        }))
+                      }}
+                      onBlur={(event) => {
+                        const nextOptions = parseOptions(event.target.value)
                         handleUpdateColumn(column.id, { options: nextOptions })
                       }}
                       placeholder="Backlog, In Progress, Done"
