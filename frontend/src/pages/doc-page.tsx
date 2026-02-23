@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Link, useNavigate, useParams } from "react-router-dom"
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { ArrowLeft, FileText, Pencil, Table, X } from "lucide-react"
 import type { Block } from "@blocknote/core"
 import { Button } from "@/components/ui/button"
@@ -21,7 +21,9 @@ import { ApiErrorResponse } from "@/api/client"
 
 export function DocPage() {
   const { id: routeProjectId, docId } = useParams<{ id?: string; docId: string }>()
+  const [searchParams] = useSearchParams()
   const projectId = routeProjectId ?? null
+  const fromHiring = searchParams.get("from") === "hiring"
   const navigate = useNavigate()
   const { data: doc, isLoading, error } = useDocWithChildren(docId || "")
   const { updateDoc, deleteDoc } = useDocs(projectId)
@@ -171,7 +173,7 @@ export function DocPage() {
   const handleDelete = async () => {
     if (!doc) return
     await deleteDoc.mutateAsync(doc.id)
-    navigate(projectId ? `/projects/${projectId}` : "/")
+    navigate(projectId ? `/projects/${projectId}` : fromHiring ? "/hiring" : "/")
   }
 
   if (isLoading) {
@@ -241,8 +243,8 @@ export function DocPage() {
     </div>
   )
 
-  const breadcrumbHref = projectId ? `/projects/${projectId}` : "/"
-  const breadcrumbLabel = projectId ? "Docs" : "Personal Docs"
+  const breadcrumbHref = projectId ? `/projects/${projectId}` : fromHiring ? "/hiring" : "/"
+  const breadcrumbLabel = projectId ? "Docs" : fromHiring ? "Hiring" : "Personal Docs"
 
   const docContent = (
     <div className="space-y-4 p-1">

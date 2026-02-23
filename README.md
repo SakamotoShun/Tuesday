@@ -54,23 +54,23 @@ Single Docker container. Embedded PostgreSQL. No external dependencies.
 
 ### Everything Included
 
-- **Setup Wizard** - No config files needed, configure via browser
-- **Authentication** - Secure session-based auth with bcrypt
-- **Projects** - Organize work with members, roles, and custom statuses
-- **Docs** - BlockNote editor with database views and real-time collaboration
-- **Global Search** - Search projects, tasks, and doc content (including personal docs) with permission-aware results
-- **Tasks** - Kanban boards with drag-and-drop, filters, and My Work view
-- **Meetings** - Project and personal calendars
-- **Whiteboards** - Excalidraw editor with real-time collaboration
-- **Chat** - Channels, DMs, mentions, reactions, file attachments
-- **Notifications** - Real-time inbox with WebSocket delivery
-- **Teams** - Group users with cascading project access
-- **Admin Panel** - User management, workspace settings, status configuration
-- **File Uploads** - Attachments with automatic lifecycle management
-- **Project Templates** - Create projects from blueprints with cloned docs, tasks, channels, and whiteboards
-- **Webhook Bots** - Integrate external services that post rich messages to channels via webhooks
-- **AI Bots** - OpenAI-powered chat bots that respond to @mentions with configurable system prompts
-- **Dark Mode** - Light, dark, and system theme support
+- Setup Wizard: No config files needed, configure via browser
+- Authentication: Secure session-based auth with bcrypt
+- Projects: Organize work with members, roles, and custom statuses
+- Docs: BlockNote editor with database views and real-time collaboration
+- Global Search: Search projects, tasks, and doc content (including personal docs) with permission-aware results
+- Tasks: Kanban boards with drag-and-drop, filters, and My Work view
+- Meetings: Project and personal calendars
+- Whiteboards: Excalidraw editor with real-time collaboration
+- Chat: Channels, DMs, mentions, reactions, file attachments
+- Notifications: Real-time inbox with WebSocket delivery
+- Teams: Group users with cascading project access
+- Admin Panel: User management, workspace settings, status configuration
+- File Uploads: Attachments with automatic lifecycle management
+- Project Templates: Create projects from blueprints with cloned docs, tasks, channels, and whiteboards
+- Webhook Bots: Integrate external services that post rich messages to channels via webhooks
+- AI Bots: OpenAI-powered chat bots that respond to @mentions with configurable system prompts
+- Dark Mode: Light, dark, and system theme support
 
 ---
 
@@ -78,11 +78,11 @@ Single Docker container. Embedded PostgreSQL. No external dependencies.
 
 | | Tuesday | SaaS Alternatives |
 |---|---|---|
-| **Cost** | Free, forever | $8-25/user/month |
-| **Data** | Your server, your data | Vendor cloud |
-| **Deployment** | Single Docker container | N/A |
-| **Features** | Projects, docs, tasks, chat, whiteboards, calendar, bots | Often split across multiple tools |
-| **Setup** | 1 command, 30 seconds | Account creation, team setup, billing |
+| Cost | Free, forever | $8-25/user/month |
+| Data | Your server, your data | Vendor cloud |
+| Deployment | Single Docker container | N/A |
+| Features | Projects, docs, tasks, chat, whiteboards, calendar, bots | Often split across multiple tools |
+| Setup | 1 command, 30 seconds | Account creation, team setup, billing |
 
 ---
 
@@ -150,7 +150,7 @@ See [docs/deployment.md](docs/deployment.md) for Nginx configuration with WebSoc
 ---
 
 <details>
-<summary><strong>Development Setup</strong></summary>
+<summary>Development Setup</summary>
 
 ### Prerequisites
 
@@ -216,7 +216,7 @@ docker compose build        # Rebuild image
 </details>
 
 <details>
-<summary><strong>Configuration</strong></summary>
+<summary>Configuration</summary>
 
 All settings are optional with sensible defaults.
 
@@ -235,7 +235,7 @@ See [docs/configuration.md](docs/configuration.md) for the full reference.
 </details>
 
 <details>
-<summary><strong>API Reference</strong></summary>
+<summary>API Reference</summary>
 
 Base path: `/api/v1`
 
@@ -318,7 +318,7 @@ Base path: `/api/v1`
 </details>
 
 <details>
-<summary><strong>Project Structure</strong></summary>
+<summary>Project Structure</summary>
 
 ```
 tuesday/
@@ -357,19 +357,19 @@ tuesday/
 </details>
 
 <details>
-<summary><strong>Security</strong></summary>
+<summary>Security</summary>
 
-- **Authentication** - bcrypt password hashing (cost factor 12), secure HTTP-only session cookies with SameSite=Strict
-- **Rate Limiting** - Auth endpoints limited to 5 requests/minute per IP
-- **Access Control** - Two-level model: workspace role (admin/member) + project membership (owner/member)
-- **SQL Injection** - Prevented via Drizzle ORM parameterized queries
-- **XSS Prevention** - React auto-escaping + server-side sanitization
-- **Security Headers** - CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy
+- Authentication: bcrypt password hashing (cost factor 12), secure HTTP-only session cookies with SameSite=Strict
+- Rate Limiting: Auth endpoints limited to 5 requests/minute per IP
+- Access Control: Two-level model: workspace role (admin/member) + project membership (owner/member)
+- SQL Injection: Prevented via Drizzle ORM parameterized queries
+- XSS Prevention: React auto-escaping + server-side sanitization
+- Security Headers: CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy
 
 </details>
 
 <details>
-<summary><strong>Troubleshooting</strong></summary>
+<summary>Troubleshooting</summary>
 
 **Container won't start**
 ```bash

@@ -95,6 +95,15 @@ export const NoticeBoardItemType = {
 
 export type NoticeBoardItemType = typeof NoticeBoardItemType[keyof typeof NoticeBoardItemType];
 
+// Job position statuses
+export const JobPositionStatus = {
+  OPEN: 'open',
+  ON_HOLD: 'on_hold',
+  CLOSED: 'closed',
+} as const;
+
+export type JobPositionStatus = typeof JobPositionStatus[keyof typeof JobPositionStatus];
+
 const bytea = customType<{ data: Buffer }>({
   dataType() {
     return 'bytea';
@@ -846,6 +855,219 @@ export const timeEntriesRelations = relations(timeEntries, ({ one }) => ({
   }),
 }));
 
+// Interview pipeline stages (configurable, like task_statuses)
+export const interviewStages = pgTable('interview_stages', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: varchar('name', { length: 50 }).notNull(),
+  color: varchar('color', { length: 20 }).notNull().default('#6b7280'),
+  sortOrder: integer('sort_order').notNull().default(0),
+  isDefault: boolean('is_default').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Job positions (open roles / JDs)
+export const jobPositions = pgTable('job_positions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  title: varchar('title', { length: 200 }).notNull(),
+  department: varchar('department', { length: 100 }),
+  descriptionMd: text('description_md').default(''),
+  status: varchar('status', { length: 20 }).notNull().default(JobPositionStatus.OPEN),
+  hiringManagerId: uuid('hiring_manager_id').references(() => users.id, { onDelete: 'set null' }),
+  createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  statusIdx: index('idx_hiring_positions_status').on(table.status),
+  createdByIdx: index('idx_hiring_positions_created_by').on(table.createdBy),
+}));
+
+// Candidates (people being interviewed)
+export const candidates = pgTable('candidates', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: varchar('name', { length: 200 }).notNull(),
+  email: varchar('email', { length: 255 }),
+  phone: varchar('phone', { length: 50 }),
+  resumeUrl: text('resume_url'),
+  source: varchar('source', { length: 100 }),
+  notes: text('notes'),
+  createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  createdByIdx: index('idx_candidates_created_by').on(table.createdBy),
+}));
+
+// Job applications (links candidate to position + pipeline stage — the kanban card)
+export const jobApplications = pgTable('job_applications', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  candidateId: uuid('candidate_id').notNull().references(() => candidates.id, { onDelete: 'cascade' }),
+  positionId: uuid('position_id').notNull().references(() => jobPositions.id, { onDelete: 'cascade' }),
+  stageId: uuid('stage_id').references(() => interviewStages.id, { onDelete: 'set null' }),
+  sortOrder: integer('sort_order').notNull().default(0),
+  appliedAt: timestamp('applied_at', { withTimezone: true }).notNull().defaultNow(),
+  createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  positionIdx: index('idx_job_applications_position').on(table.positionId),
+  candidateIdx: index('idx_job_applications_candidate').on(table.candidateId),
+  stageIdx: index('idx_job_applications_stage').on(table.stageId),
+}));
+
+// Interviews (scheduled interview sessions)
+export const interviews = pgTable('interviews', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  applicationId: uuid('application_id').notNull().references(() => jobApplications.id, { onDelete: 'cascade' }),
+  interviewerId: uuid('interviewer_id').references(() => users.id, { onDelete: 'set null' }),
+  scheduledAt: timestamp('scheduled_at', { withTimezone: true }),
+  durationMinutes: integer('duration_minutes'),
+  type: varchar('type', { length: 50 }),
+  location: varchar('location', { length: 255 }),
+  link: text('link'),
+  rating: integer('rating'),
+  feedback: text('feedback'),
+  createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  applicationIdx: index('idx_interviews_application').on(table.applicationId),
+  interviewerIdx: index('idx_interviews_interviewer').on(table.interviewerId),
+}));
+
+// Interview notes (rich-text notes using BlockNote JSON)
+export const interviewNotes = pgTable('interview_notes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  applicationId: uuid('application_id').references(() => jobApplications.id, { onDelete: 'cascade' }),
+  interviewId: uuid('interview_id').references(() => interviews.id, { onDelete: 'cascade' }),
+  docId: uuid('doc_id').notNull().references(() => docs.id, { onDelete: 'cascade' }),
+  title: varchar('title', { length: 200 }).notNull(),
+  content: jsonb('content').notNull().default([]),
+  createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  applicationIdx: index('idx_interview_notes_application').on(table.applicationId),
+  interviewIdx: index('idx_interview_notes_interview').on(table.interviewId),
+  docIdx: uniqueIndex('idx_interview_notes_doc_id_unique').on(table.docId),
+}));
+
+// Position docs (links positions to collaborative docs)
+export const positionDocs = pgTable('position_docs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  positionId: uuid('position_id').notNull().references(() => jobPositions.id, { onDelete: 'cascade' }),
+  docId: uuid('doc_id').notNull().references(() => docs.id, { onDelete: 'cascade' }),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  positionSortIdx: index('idx_position_docs_position_sort').on(table.positionId, table.sortOrder),
+  uniquePositionDoc: uniqueIndex('position_docs_position_doc_unique').on(table.positionId, table.docId),
+  uniqueDocId: uniqueIndex('position_docs_doc_id_unique').on(table.docId),
+}));
+
+// Interview tracking relations
+export const interviewStagesRelations = relations(interviewStages, ({ many }) => ({
+  applications: many(jobApplications),
+}));
+
+export const jobPositionsRelations = relations(jobPositions, ({ one, many }) => ({
+  hiringManager: one(users, {
+    fields: [jobPositions.hiringManagerId],
+    references: [users.id],
+    relationName: 'hiringManagerPositions',
+  }),
+  createdByUser: one(users, {
+    fields: [jobPositions.createdBy],
+    references: [users.id],
+    relationName: 'createdPositions',
+  }),
+  applications: many(jobApplications),
+  docs: many(positionDocs),
+}));
+
+export const positionDocsRelations = relations(positionDocs, ({ one }) => ({
+  position: one(jobPositions, {
+    fields: [positionDocs.positionId],
+    references: [jobPositions.id],
+  }),
+  doc: one(docs, {
+    fields: [positionDocs.docId],
+    references: [docs.id],
+  }),
+  createdByUser: one(users, {
+    fields: [positionDocs.createdBy],
+    references: [users.id],
+  }),
+}));
+
+export const candidatesRelations = relations(candidates, ({ one, many }) => ({
+  createdByUser: one(users, {
+    fields: [candidates.createdBy],
+    references: [users.id],
+    relationName: 'createdCandidates',
+  }),
+  applications: many(jobApplications),
+}));
+
+export const jobApplicationsRelations = relations(jobApplications, ({ one, many }) => ({
+  candidate: one(candidates, {
+    fields: [jobApplications.candidateId],
+    references: [candidates.id],
+  }),
+  position: one(jobPositions, {
+    fields: [jobApplications.positionId],
+    references: [jobPositions.id],
+  }),
+  stage: one(interviewStages, {
+    fields: [jobApplications.stageId],
+    references: [interviewStages.id],
+  }),
+  createdByUser: one(users, {
+    fields: [jobApplications.createdBy],
+    references: [users.id],
+    relationName: 'createdApplications',
+  }),
+  interviews: many(interviews),
+  notes: many(interviewNotes),
+}));
+
+export const interviewsRelations = relations(interviews, ({ one, many }) => ({
+  application: one(jobApplications, {
+    fields: [interviews.applicationId],
+    references: [jobApplications.id],
+  }),
+  interviewer: one(users, {
+    fields: [interviews.interviewerId],
+    references: [users.id],
+    relationName: 'interviewerInterviews',
+  }),
+  createdByUser: one(users, {
+    fields: [interviews.createdBy],
+    references: [users.id],
+    relationName: 'createdInterviews',
+  }),
+  notes: many(interviewNotes),
+}));
+
+export const interviewNotesRelations = relations(interviewNotes, ({ one }) => ({
+  application: one(jobApplications, {
+    fields: [interviewNotes.applicationId],
+    references: [jobApplications.id],
+  }),
+  interview: one(interviews, {
+    fields: [interviewNotes.interviewId],
+    references: [interviews.id],
+  }),
+  doc: one(docs, {
+    fields: [interviewNotes.docId],
+    references: [docs.id],
+  }),
+  createdByUser: one(users, {
+    fields: [interviewNotes.createdBy],
+    references: [users.id],
+    relationName: 'createdInterviewNotes',
+  }),
+}));
+
 // Type exports
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -905,3 +1127,17 @@ export type NoticeBoardItem = typeof noticeBoardItems.$inferSelect;
 export type NewNoticeBoardItem = typeof noticeBoardItems.$inferInsert;
 export type TimeEntry = typeof timeEntries.$inferSelect;
 export type NewTimeEntry = typeof timeEntries.$inferInsert;
+export type InterviewStage = typeof interviewStages.$inferSelect;
+export type NewInterviewStage = typeof interviewStages.$inferInsert;
+export type JobPosition = typeof jobPositions.$inferSelect;
+export type NewJobPosition = typeof jobPositions.$inferInsert;
+export type PositionDoc = typeof positionDocs.$inferSelect;
+export type NewPositionDoc = typeof positionDocs.$inferInsert;
+export type Candidate = typeof candidates.$inferSelect;
+export type NewCandidate = typeof candidates.$inferInsert;
+export type JobApplication = typeof jobApplications.$inferSelect;
+export type NewJobApplication = typeof jobApplications.$inferInsert;
+export type Interview = typeof interviews.$inferSelect;
+export type NewInterview = typeof interviews.$inferInsert;
+export type InterviewNote = typeof interviewNotes.$inferSelect;
+export type NewInterviewNote = typeof interviewNotes.$inferInsert;

@@ -6,6 +6,7 @@ import {
   MessageSquare,
   Settings,
   Receipt,
+  UserSearch,
 } from "lucide-react"
 import { RailItem } from "./rail-item"
 import { useAuth } from "@/hooks/use-auth"
@@ -21,6 +22,7 @@ export function LeftRail() {
       <RailItem icon={ListTodo} label="My Work" href="/my-work" />
       <RailItem icon={Calendar} label="Calendar" href="/my-calendar" />
       <RailItem icon={MessageSquare} label="Chat" href="/chat" />
+      {isAdmin && <RailItem icon={UserSearch} label="Hiring" href="/hiring" />}
       {isAdmin && <RailItem icon={Settings} label="Admin" href="/admin" />}
       {isAdmin && <RailItem icon={Receipt} label="Payroll" href="/admin/payroll" />}
     </nav>

@@ -17,6 +17,8 @@ import { AdminPayrollPage } from "@/pages/admin-payroll"
 import { MyWorkPage } from "@/pages/my-work"
 import { NotificationsPage } from "@/pages/notifications"
 import { ProfilePage } from "@/pages/profile"
+import { HiringPage } from "@/pages/hiring"
+import { PositionDetailPage } from "@/pages/position-detail"
 
 // Lazy-loaded pages with heavy dependencies
 const DocPage = lazy(() =>
@@ -95,6 +97,8 @@ function AppRoutes() {
           <Route path="chat" element={<ChatPage />} />
           <Route path="notifications" element={<NotificationsPage />} />
           <Route path="profile" element={<ProfilePage />} />
+          <Route path="hiring" element={<HiringPage />} />
+          <Route path="hiring/positions/:id" element={<PositionDetailPage />} />
           <Route path="admin" element={<AdminPage />} />
           <Route path="admin/payroll" element={<AdminPayrollPage />} />
         </Route>

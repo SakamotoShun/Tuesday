@@ -432,3 +432,147 @@ export const reorderFavoritesSchema = z.object({
 });
 
 export type ReorderFavoritesInput = z.infer<typeof reorderFavoritesSchema>;
+
+// Interview stage validation schemas
+export const createInterviewStageSchema = z.object({
+  name: z.string().min(1, 'Stage name is required').max(50),
+  color: z.string().max(20).default('#6b7280'),
+  sortOrder: z.number().int().default(0),
+});
+
+export type CreateInterviewStageInput = z.infer<typeof createInterviewStageSchema>;
+
+export const updateInterviewStageSchema = z.object({
+  name: z.string().min(1).max(50).optional(),
+  color: z.string().max(20).optional(),
+  sortOrder: z.number().int().optional(),
+});
+
+export type UpdateInterviewStageInput = z.infer<typeof updateInterviewStageSchema>;
+
+export const reorderInterviewStagesSchema = z.object({
+  ids: z.array(uuidSchema),
+});
+
+export type ReorderInterviewStagesInput = z.infer<typeof reorderInterviewStagesSchema>;
+
+// Job position validation schemas
+export const createJobPositionSchema = z.object({
+  title: z.string().min(1, 'Position title is required').max(200),
+  department: z.string().max(100).optional().nullable(),
+  descriptionMd: z.string().optional(),
+  status: z.enum(['open', 'on_hold', 'closed']).default('open'),
+  hiringManagerId: uuidSchema.optional().nullable(),
+});
+
+export type CreateJobPositionInput = z.infer<typeof createJobPositionSchema>;
+
+export const updateJobPositionSchema = z.object({
+  title: z.string().min(1).max(200).optional(),
+  department: z.string().max(100).optional().nullable(),
+  descriptionMd: z.string().optional(),
+  status: z.enum(['open', 'on_hold', 'closed']).optional(),
+  hiringManagerId: uuidSchema.optional().nullable(),
+});
+
+export type UpdateJobPositionInput = z.infer<typeof updateJobPositionSchema>;
+
+// Candidate validation schemas
+const candidateSourceSchema = z.enum(['MyCareersFuture', 'Referal', 'Linkedin', 'Others']);
+
+export const createCandidateSchema = z.object({
+  name: z.string().min(1, 'Candidate name is required').max(200),
+  email: z.string().email('Invalid email format').max(255).optional().nullable(),
+  phone: z.string().max(50).optional().nullable(),
+  resumeUrl: z.string().max(2048).optional().nullable(),
+  source: candidateSourceSchema.optional().nullable(),
+  notes: z.string().optional().nullable(),
+});
+
+export type CreateCandidateInput = z.infer<typeof createCandidateSchema>;
+
+export const updateCandidateSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  email: z.string().email('Invalid email format').max(255).optional().nullable(),
+  phone: z.string().max(50).optional().nullable(),
+  resumeUrl: z.string().max(2048).optional().nullable(),
+  source: candidateSourceSchema.optional().nullable(),
+  notes: z.string().optional().nullable(),
+});
+
+export type UpdateCandidateInput = z.infer<typeof updateCandidateSchema>;
+
+// Job application validation schemas
+export const createJobApplicationSchema = z.object({
+  candidateId: uuidSchema,
+  positionId: uuidSchema,
+  stageId: uuidSchema.optional(),
+});
+
+export type CreateJobApplicationInput = z.infer<typeof createJobApplicationSchema>;
+
+export const updateJobApplicationSchema = z.object({
+  stageId: uuidSchema.optional().nullable(),
+  sortOrder: z.number().int().min(0).optional(),
+});
+
+export type UpdateJobApplicationInput = z.infer<typeof updateJobApplicationSchema>;
+
+export const moveApplicationSchema = z.object({
+  stageId: uuidSchema,
+  sortOrder: z.number().int().min(0).optional(),
+});
+
+export type MoveApplicationInput = z.infer<typeof moveApplicationSchema>;
+
+// Interview validation schemas
+export const createInterviewSchema = z.object({
+  applicationId: uuidSchema,
+  interviewerId: uuidSchema.optional().nullable(),
+  scheduledAt: z.string().optional().nullable(),
+  durationMinutes: z.number().int().min(1).max(480).optional().nullable(),
+  type: z.string().max(50).optional().nullable(),
+  location: z.string().max(255).optional().nullable(),
+  link: z.string().max(2048).optional().nullable(),
+  rating: z.number().int().min(1).max(5).optional().nullable(),
+  feedback: z.string().optional().nullable(),
+});
+
+export type CreateInterviewInput = z.infer<typeof createInterviewSchema>;
+
+export const updateInterviewSchema = z.object({
+  interviewerId: uuidSchema.optional().nullable(),
+  scheduledAt: z.string().optional().nullable(),
+  durationMinutes: z.number().int().min(1).max(480).optional().nullable(),
+  type: z.string().max(50).optional().nullable(),
+  location: z.string().max(255).optional().nullable(),
+  link: z.string().max(2048).optional().nullable(),
+  rating: z.number().int().min(1).max(5).optional().nullable(),
+  feedback: z.string().optional().nullable(),
+});
+
+export type UpdateInterviewInput = z.infer<typeof updateInterviewSchema>;
+
+// Interview note validation schemas
+export const createInterviewNoteSchema = z.object({
+  applicationId: uuidSchema.optional().nullable(),
+  interviewId: uuidSchema.optional().nullable(),
+  title: z.string().min(1, 'Note title is required').max(200),
+  content: z.array(z.record(z.unknown())).optional(),
+});
+
+export type CreateInterviewNoteInput = z.infer<typeof createInterviewNoteSchema>;
+
+export const updateInterviewNoteSchema = z.object({
+  title: z.string().min(1).max(200).optional(),
+  content: z.array(z.record(z.unknown())).optional(),
+});
+
+export type UpdateInterviewNoteInput = z.infer<typeof updateInterviewNoteSchema>;
+
+export const createPositionDocSchema = z.object({
+  title: z.string().min(1, 'Doc title is required').max(255),
+  content: z.array(z.record(z.unknown())).optional(),
+});
+
+export type CreatePositionDocInput = z.infer<typeof createPositionDocSchema>;

@@ -1,12 +1,14 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useCallback } from "react"
 import {
   DndContext,
   DragOverlay,
-  closestCorners,
+  pointerWithin,
+  rectIntersection,
   KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
@@ -69,6 +71,22 @@ export function KanbanBoard({
   const activeTask = useMemo(() => {
     return activeId ? localTasks.find((t) => t.id === activeId) : null
   }, [activeId, localTasks])
+
+  const statusIds = useMemo(() => new Set(statuses.map((status) => status.id)), [statuses])
+
+  const collisionDetectionStrategy = useCallback<CollisionDetection>((args) => {
+    const pointerCollisions = pointerWithin(args)
+
+    if (pointerCollisions.length > 0) {
+      const taskCollisions = pointerCollisions.filter(
+        ({ id }) => !statusIds.has(String(id))
+      )
+
+      return taskCollisions.length > 0 ? taskCollisions : pointerCollisions
+    }
+
+    return rectIntersection(args)
+  }, [statusIds])
 
   const handleDragStart = (event: DragStartEvent) => {
     const taskId = event.active.id as string
@@ -187,7 +205,7 @@ export function KanbanBoard({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={collisionDetectionStrategy}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
@@ -209,7 +227,9 @@ export function KanbanBoard({
 
       <DragOverlay>
         {activeTask ? (
-          <TaskCard task={activeTask} />
+          <div className="w-[264px]">
+            <TaskCard task={activeTask} />
+          </div>
         ) : null}
       </DragOverlay>
     </DndContext>

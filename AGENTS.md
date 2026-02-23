@@ -4,12 +4,12 @@ This document provides guidance for AI agents working on the WorkHub codebase - 
 
 ## Project Overview
 
-- **Backend**: Bun + Hono framework
-- **Frontend**: React 18 + TypeScript + Vite + shadcn/ui
-- **Database**: PostgreSQL 16 (embedded in Docker container)
-- **ORM**: Drizzle ORM
-- **Real-time**: WebSockets
-- **Deployment**: Single Docker container
+- Backend: Bun + Hono framework
+- Frontend: React 18 + TypeScript + Vite + shadcn/ui
+- Database: PostgreSQL 16 (embedded in Docker container)
+- ORM: Drizzle ORM
+- Real-time: WebSockets
+- Deployment: Single Docker container
 
 ## Build, Test, and Lint Commands
 
@@ -327,11 +327,11 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 ### Theme Configuration
 
 The project uses:
-- **Style**: Nova
-- **Base Color**: Stone
-- **Icon Library**: Phosphor Icons
-- **Font**: Inter
-- **Radius**: Small
+- Style: Nova
+- Base color: Stone
+- Icons: Phosphor
+- Font: Inter
+- Radius: Small
 
 ## API Response Format
 

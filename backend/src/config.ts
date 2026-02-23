@@ -29,7 +29,7 @@ function loadConfig(): Config {
     rateLimitEnabled: process.env.RATE_LIMIT_ENABLED !== 'false',
     uploadMaxSizeMb: parseInt(process.env.UPLOAD_MAX_SIZE_MB || '10', 10),
     uploadStoragePath: process.env.UPLOAD_STORAGE_PATH || '/app/data/uploads',
-    uploadAllowedTypes: (process.env.UPLOAD_ALLOWED_TYPES || 'image/*,application/pdf,text/plain,text/markdown').split(',').map((entry) => entry.trim()).filter(Boolean),
+    uploadAllowedTypes: (process.env.UPLOAD_ALLOWED_TYPES || 'image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown').split(',').map((entry) => entry.trim()).filter(Boolean),
     uploadPendingTtlMinutes: parseInt(process.env.UPLOAD_PENDING_TTL_MINUTES || '30', 10),
     deletedMessageFileRetentionDays: parseInt(process.env.DELETED_MESSAGE_FILE_RETENTION_DAYS || '30', 10),
     staticDir: process.env.STATIC_DIR || undefined,

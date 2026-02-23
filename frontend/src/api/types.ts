@@ -763,3 +763,191 @@ export interface WorkspaceMonthlyOverview {
   userTotals: Array<{ userId: string; userName: string; hours: number }>
   grandTotal: number
 }
+
+// Interview tracking types
+export type JobPositionStatus = "open" | "on_hold" | "closed"
+export type CandidateSource = "MyCareersFuture" | "Referal" | "Linkedin" | "Others"
+
+export interface InterviewStage {
+  id: string
+  name: string
+  color: string
+  sortOrder: number
+  isDefault: boolean
+  createdAt: string
+}
+
+export interface JobPosition {
+  id: string
+  title: string
+  department: string | null
+  descriptionMd: string | null
+  status: JobPositionStatus
+  hiringManagerId: string | null
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+  hiringManager?: User | null
+  createdByUser?: User | null
+}
+
+export interface PositionDoc {
+  id: string
+  positionId: string
+  docId: string
+  sortOrder: number
+  createdBy: string
+  createdAt: string
+  position?: JobPosition
+  doc?: Doc
+  createdByUser?: User | null
+}
+
+export interface Candidate {
+  id: string
+  name: string
+  email: string | null
+  phone: string | null
+  resumeUrl: string | null
+  source: CandidateSource | null
+  notes: string | null
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+  createdByUser?: User | null
+  applications?: JobApplication[]
+}
+
+export interface JobApplication {
+  id: string
+  candidateId: string
+  positionId: string
+  stageId: string | null
+  sortOrder: number
+  appliedAt: string
+  createdBy: string
+  updatedAt: string
+  candidate?: Candidate
+  position?: JobPosition
+  stage?: InterviewStage | null
+  createdByUser?: User | null
+  interviews?: Interview[]
+  notes?: InterviewNote[]
+}
+
+export interface Interview {
+  id: string
+  applicationId: string
+  interviewerId: string | null
+  scheduledAt: string | null
+  durationMinutes: number | null
+  type: string | null
+  location: string | null
+  link: string | null
+  rating: number | null
+  feedback: string | null
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+  application?: JobApplication
+  interviewer?: User | null
+  createdByUser?: User | null
+  notes?: InterviewNote[]
+}
+
+export interface InterviewNote {
+  id: string
+  applicationId: string | null
+  interviewId: string | null
+  docId: string
+  title: string
+  content: Block[]
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+  createdByUser?: User | null
+  doc?: Pick<Doc, "id" | "title" | "updatedAt"> | null
+}
+
+export interface CreateJobPositionInput {
+  title: string
+  department?: string | null
+  status?: JobPositionStatus
+  hiringManagerId?: string | null
+}
+
+export interface UpdateJobPositionInput {
+  title?: string
+  department?: string | null
+  status?: JobPositionStatus
+  hiringManagerId?: string | null
+}
+
+export interface CreatePositionDocInput {
+  title: string
+  content?: Block[]
+}
+
+export interface CreateCandidateInput {
+  name: string
+  email?: string | null
+  phone?: string | null
+  resumeUrl?: string | null
+  source?: CandidateSource | null
+  notes?: string | null
+}
+
+export interface UpdateCandidateInput {
+  name?: string
+  email?: string | null
+  phone?: string | null
+  resumeUrl?: string | null
+  source?: CandidateSource | null
+  notes?: string | null
+}
+
+export interface CreateJobApplicationInput {
+  candidateId: string
+  positionId: string
+  stageId?: string
+}
+
+export interface MoveApplicationInput {
+  stageId: string
+  sortOrder?: number
+}
+
+export interface CreateInterviewInput {
+  applicationId: string
+  interviewerId?: string | null
+  scheduledAt?: string | null
+  durationMinutes?: number | null
+  type?: string | null
+  location?: string | null
+  link?: string | null
+  rating?: number | null
+  feedback?: string | null
+}
+
+export interface UpdateInterviewInput {
+  interviewerId?: string | null
+  scheduledAt?: string | null
+  durationMinutes?: number | null
+  type?: string | null
+  location?: string | null
+  link?: string | null
+  rating?: number | null
+  feedback?: string | null
+}
+
+export interface CreateInterviewNoteInput {
+  applicationId?: string | null
+  interviewId?: string | null
+  title: string
+  content?: Block[]
+}
+
+export interface UpdateInterviewNoteInput {
+  title?: string
+  content?: Block[]
+}

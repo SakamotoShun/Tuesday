@@ -13,6 +13,7 @@
     "db:migrate": "bun run src/db/migrate.ts",
     "db:studio": "drizzle-kit studio",
     "search:backfill-docs": "bun run src/scripts/backfill-doc-search.ts",
+    "cleanup:hiring-doc-orphans": "bun run src/scripts/cleanup-orphaned-hiring-docs.ts",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit"

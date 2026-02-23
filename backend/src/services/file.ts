@@ -138,6 +138,10 @@ export class FileService {
     await fileRepository.updateStatus([fileId], 'avatar');
   }
 
+  async markAsCandidate(fileId: string): Promise<void> {
+    await fileRepository.updateStatus([fileId], 'candidate');
+  }
+
   async deleteAvatarFile(fileId: string): Promise<boolean> {
     const file = await fileRepository.findById(fileId);
     if (!file) {
