@@ -83,7 +83,7 @@ export function TaskDetailDialog({
 
   // Populate form when task changes
   useEffect(() => {
-    if (task && open) {
+    if (task && open && statuses.length > 0) {
       const fallbackStatusId = statuses[0]?.id
       reset({
         title: task.title,
@@ -191,7 +191,7 @@ export function TaskDetailDialog({
           <div className="space-y-2">
             <Label htmlFor="status">Status</Label>
             <Select
-              value={watch("statusId") || statuses[0]?.id || ""}
+              value={watch("statusId")}
               onValueChange={(value) => setValue("statusId", value)}
             >
               <SelectTrigger>
