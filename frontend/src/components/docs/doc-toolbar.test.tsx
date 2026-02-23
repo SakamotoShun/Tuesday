@@ -21,7 +21,8 @@ const renderToolbar = (props: {
   return render(
     <MemoryRouter>
       <DocToolbar
-        projectId="project-1"
+        breadcrumbHref="/projects/project-1"
+        breadcrumbLabel="Docs"
         title="Product Brief"
         saveState={props.saveState}
         onDelete={onDelete}
