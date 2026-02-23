@@ -53,7 +53,7 @@ If you deployed with `docker run`, follow the same upgrade flow but replace the 
 2. **Pull the latest image** (or a specific version tag):
 
    ```bash
-   docker pull sohshunhong/tuesday:latest
+   docker pull ghcr.io/sakamotoshun/tuesday:latest
    ```
 
 3. **Stop and remove the old container**:
@@ -71,7 +71,7 @@ If you deployed with `docker run`, follow the same upgrade flow but replace the 
      -p 7002:8080 \
      -v tuesday_data:/app/data \
      --restart unless-stopped \
-     sohshunhong/tuesday:latest
+     ghcr.io/sakamotoshun/tuesday:latest
    ```
 
 5. **Verify** the container is healthy:

@@ -1,6 +1,6 @@
 services:
   tuesday:
-    image: sohshunhong/tuesday:latest
+    image: ghcr.io/sakamotoshun/tuesday:latest
     build: .
     container_name: tuesday
     ports:

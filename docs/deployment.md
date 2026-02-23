@@ -10,7 +10,7 @@ This guide covers deploying Tuesday using Docker.
 
 ## Quick Start
 
-### Option 1: Pull from Docker Hub (fastest)
+### Option 1: Pull from GitHub Container Registry (fastest)
 
 ```bash
 docker run -d \
@@ -18,7 +18,7 @@ docker run -d \
   -p 7002:8080 \
   -v tuesday_data:/app/data \
   --restart unless-stopped \
-  sohshunhong/tuesday:latest
+  ghcr.io/sakamotoshun/tuesday:latest
 ```
 
 ### Option 2: Build from source
@@ -38,16 +38,16 @@ docker compose logs -f
 
 Tuesday will be available at `http://localhost:7002`. On first visit you will see the setup wizard to create your admin account.
 
-## Docker Hub
+## GitHub Container Registry (GHCR)
 
-Pre-built images are available on Docker Hub:
+Pre-built images are available on GHCR:
 
-- `sohshunhong/tuesday:latest` — Latest release
-- `sohshunhong/tuesday:1.2.0` — Pinned version
+- `ghcr.io/sakamotoshun/tuesday:latest` — Latest release
+- `ghcr.io/sakamotoshun/tuesday:1.2.0` — Pinned version
 
 ```bash
 # Pull a specific version
-docker pull sohshunhong/tuesday:1.2.0
+docker pull ghcr.io/sakamotoshun/tuesday:1.2.0
 ```
 
 ## Building the Image
@@ -83,7 +83,7 @@ docker run -d \
   -p 7002:8080 \
   -v tuesday_data:/app/data \
   --restart unless-stopped \
-  sohshunhong/tuesday:latest
+  ghcr.io/sakamotoshun/tuesday:latest
 ```
 
 ### Environment Variables

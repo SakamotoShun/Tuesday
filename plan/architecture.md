@@ -593,7 +593,7 @@ docker run -d \
   -p 3000:8080 \
   -v workhub:/app/data \
   --name workhub \
-  ghcr.io/your-org/workhub:latest
+  ghcr.io/sakamotoshun/tuesday:latest
 
 # Open in browser
 open http://localhost:3000
@@ -745,9 +745,9 @@ docker exec workhub pg_dump -U workhub workhub > backup.sql
 cat backup.sql | docker exec -i workhub psql -U workhub workhub
 
 # Update to new version
-docker pull ghcr.io/your-org/workhub:latest
+docker pull ghcr.io/sakamotoshun/tuesday:latest
 docker stop workhub && docker rm workhub
-docker run -d -p 3000:8080 -v workhub:/app/data --name workhub ghcr.io/your-org/workhub:latest
+docker run -d -p 3000:8080 -v workhub:/app/data --name workhub ghcr.io/sakamotoshun/tuesday:latest
 ```
 
 ---

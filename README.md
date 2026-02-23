@@ -6,8 +6,8 @@
 
 Run your team's work hub without per-seat SaaS pricing.
 
-[![Docker Hub](https://img.shields.io/docker/pulls/sohshunhong/tuesday?style=flat-square&logo=docker&label=Docker%20Hub)](https://hub.docker.com/r/sohshunhong/tuesday)
-[![Docker Image Size](https://img.shields.io/docker/image-size/sohshunhong/tuesday/latest?style=flat-square&logo=docker&label=Image%20Size)](https://hub.docker.com/r/sohshunhong/tuesday)
+[![CI](https://img.shields.io/github/actions/workflow/status/SakamotoShun/Tuesday/release.yml?style=flat-square&label=CI)](https://github.com/SakamotoShun/Tuesday/actions/workflows/release.yml)
+[![GHCR](https://img.shields.io/badge/GHCR-ghcr.io%2Fsakamotoshun%2Ftuesday-2f81f7?style=flat-square&logo=github)](https://github.com/SakamotoShun/Tuesday/pkgs/container/tuesday)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 [![Version](https://img.shields.io/badge/version-1.2.0-green?style=flat-square)](CHANGELOG.md)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20Tuesday-ff5e5b?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/sakamotoshun)
@@ -23,7 +23,7 @@ Run your team's work hub without per-seat SaaS pricing.
 ## Quick Start
 
 ```bash
-docker run -d --name tuesday -p 7002:8080 -v tuesday_data:/app/data sohshunhong/tuesday:latest
+docker run -d --name tuesday -p 7002:8080 -v tuesday_data:/app/data ghcr.io/sakamotoshun/tuesday:latest
 ```
 
 Visit **http://localhost:7002** and complete the setup wizard. That's it.
@@ -88,7 +88,7 @@ Single Docker container. Embedded PostgreSQL. No external dependencies.
 
 ## Deployment
 
-### Docker Hub (recommended)
+### GitHub Container Registry (recommended)
 
 ```bash
 docker run -d \
@@ -96,7 +96,7 @@ docker run -d \
   -p 7002:8080 \
   -v tuesday_data:/app/data \
   --restart unless-stopped \
-  sohshunhong/tuesday:latest
+  ghcr.io/sakamotoshun/tuesday:latest
 ```
 
 ### Build from Source
@@ -409,7 +409,7 @@ docker compose up -d
 
 <div align="center">
 
-**[Documentation](docs/deployment.md)** &middot; **[Docker Hub](https://hub.docker.com/r/sohshunhong/tuesday)** &middot; **[Changelog](CHANGELOG.md)** &middot; **[Support on Ko-fi](https://ko-fi.com/sakamotoshun)**
+**[Documentation](docs/deployment.md)** &middot; **[GHCR Package](https://github.com/SakamotoShun/Tuesday/pkgs/container/tuesday)** &middot; **[Changelog](CHANGELOG.md)** &middot; **[Support on Ko-fi](https://ko-fi.com/sakamotoshun)**
 
 MIT License &copy; 2026 UltreonAI
 
