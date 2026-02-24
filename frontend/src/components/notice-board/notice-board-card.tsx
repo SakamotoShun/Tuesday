@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { Plus } from "lucide-react"
+import { Plus } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useAuth } from "@/hooks/use-auth"

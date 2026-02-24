@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Trash2 } from "lucide-react"
+import { Trash2 } from "@/lib/icons"
 import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import {

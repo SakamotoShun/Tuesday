@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { Link } from "react-router-dom"
-import { ChevronDown, ChevronRight } from "lucide-react"
+import { ChevronDown, ChevronRight } from "@/lib/icons"
 import { ProjectDocsDropdown } from "@/components/dashboard/project-docs-dropdown"
 import { StatusBadge } from "@/components/projects/status-badge"
 

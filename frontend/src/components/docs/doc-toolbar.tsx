@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { Link } from "react-router-dom"
-import { AlertTriangle, Check, CloudOff, Loader2, MessageSquare, Trash2 } from "lucide-react"
+import { AlertTriangle, Check, CloudOff, Loader2, MessageSquare, Trash2 } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,

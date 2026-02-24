@@ -1,4 +1,4 @@
-import { FileText, Plus } from "lucide-react"
+import { FileText, Plus } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"

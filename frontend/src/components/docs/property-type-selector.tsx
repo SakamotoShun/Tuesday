@@ -1,4 +1,4 @@
-import { ListChecks, Link, Text, Hash, Calendar, CheckSquare, Check } from "lucide-react"
+import { ListChecks, Link, Text, Hash, Calendar, CheckSquare, Check } from "@/lib/icons"
 import type { PropertyType } from "@/api/types"
 import {
   Select,

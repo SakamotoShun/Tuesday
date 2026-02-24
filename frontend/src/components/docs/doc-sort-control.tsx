@@ -1,4 +1,4 @@
-import { ArrowUpDown, Check } from "lucide-react"
+import { ArrowUpDown, Check } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,

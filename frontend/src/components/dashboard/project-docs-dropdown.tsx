@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { Link } from "react-router-dom"
-import { ChevronDown, ChevronRight, FileText, Folder, Table } from "lucide-react"
+import { ChevronDown, ChevronRight, FileText, Folder, Table } from "@/lib/icons"
 import type { Doc } from "@/api/types"
 import { useDocs } from "@/hooks/use-docs"
 

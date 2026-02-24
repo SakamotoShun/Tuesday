@@ -1,4 +1,4 @@
-import { ChevronDown, Plus } from "lucide-react"
+import { ChevronDown, Plus } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,

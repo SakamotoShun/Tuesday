@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { Link, useParams, useNavigate } from "react-router-dom"
-import { ArrowLeft, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { ArrowLeft, MoreHorizontal, Pencil, Trash2 } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"

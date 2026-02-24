@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
-import { ArrowLeft, FileText, Pencil, Table, X } from "lucide-react"
+import { ArrowLeft, FileText, Pencil, Table, X } from "@/lib/icons"
 import type { Block } from "@blocknote/core"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"

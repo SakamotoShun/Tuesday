@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
-import { Download, ChevronDown, ChevronRight } from "lucide-react"
+import { Download, ChevronDown, ChevronRight } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"

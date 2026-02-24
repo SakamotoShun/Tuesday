@@ -1,4 +1,4 @@
-import { Bell, Calendar, CheckCircle, MessageCircle, UserPlus } from "lucide-react"
+import { Bell, Calendar, CheckCircle, MessageCircle, UserPlus } from "@/lib/icons"
 import type { Notification } from "@/api/types"
 import { cn } from "@/lib/utils"
 

@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { FileText, CheckSquare, MessageSquare, PenTool, LayoutTemplate, X } from "lucide-react"
+import { FileText, CheckSquare, MessageSquare, PenTool, LayoutTemplate, X } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import {
   Select,

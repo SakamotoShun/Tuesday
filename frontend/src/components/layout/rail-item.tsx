@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
-import type { LucideIcon } from "lucide-react"
+import type { LucideIcon } from "@/lib/icons"
 
 interface RailItemProps {
   icon: LucideIcon

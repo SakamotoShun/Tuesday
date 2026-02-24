@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { X } from "lucide-react"
+import { X } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { ItemCombobox } from "@/components/ui/item-combobox"
 import { TimesheetCell } from "./timesheet-cell"

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { ChevronDown, ChevronUp, Table } from "lucide-react"
+import { ChevronDown, ChevronUp, Table } from "@/lib/icons"
 import type { DatabaseSchema, Doc, PropertyValue } from "@/api/types"
 import { Button } from "@/components/ui/button"
 import { PropertyCell } from "@/components/docs/property-cell"

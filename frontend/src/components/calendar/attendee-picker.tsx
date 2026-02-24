@@ -1,4 +1,4 @@
-import { X } from "lucide-react"
+import { X } from "@/lib/icons"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { UserCombobox } from "@/components/ui/user-combobox"

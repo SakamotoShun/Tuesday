@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { ChevronLeft, ChevronRight, Download } from "lucide-react"
+import { ChevronLeft, ChevronRight, Download } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { LoadingSpinner } from "@/components/common/loading-spinner"
 import {

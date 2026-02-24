@@ -1,4 +1,4 @@
-import { FileText } from "lucide-react"
+import { FileText } from "@/lib/icons"
 import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DocList } from "@/components/docs/doc-list"

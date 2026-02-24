@@ -16,7 +16,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { ChevronDown, ChevronRight, GripVertical, Lock, MoreHorizontal, Plus, Trash2 } from "lucide-react"
+import { ChevronDown, ChevronRight, GripVertical, Lock, MoreHorizontal, Plus, Trash2 } from "@/lib/icons"
 import type { Channel } from "@/api/types"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"

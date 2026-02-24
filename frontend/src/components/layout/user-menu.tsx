@@ -1,4 +1,4 @@
-import { Compass, LogOut, Moon, Sun, User, Monitor } from "lucide-react"
+import { Compass, SignOut, Moon, Sun, User, Monitor } from "@/lib/icons"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "@/hooks/use-auth"
 import { useOnboarding } from "@/hooks/use-onboarding"
@@ -82,7 +82,7 @@ export function UserMenu() {
           className="gap-2 text-destructive"
           onClick={() => logout.mutate()}
         >
-          <LogOut className="h-4 w-4" />
+          <SignOut className="h-4 w-4" />
           Logout
         </DropdownMenuItem>
       </DropdownMenuContent>

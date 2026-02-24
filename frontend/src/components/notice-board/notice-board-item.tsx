@@ -1,4 +1,4 @@
-import { Megaphone, Pencil, Square, CheckSquare } from "lucide-react"
+import { Megaphone, Pencil, Square, CheckSquare } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import type { NoticeBoardItem } from "@/api/types"

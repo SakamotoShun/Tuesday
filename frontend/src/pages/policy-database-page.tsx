@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { Link, useParams } from "react-router-dom"
-import { ArrowLeft, Pencil, Table as TableIcon } from "lucide-react"
+import { ArrowLeft, Pencil, Table as TableIcon } from "@/lib/icons"
 import { ApiErrorResponse } from "@/api/client"
 import { useAuth } from "@/hooks/use-auth"
 import { usePolicyDatabase, usePolicies } from "@/hooks/use-policies"

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
-import { ArrowLeft, Check, CloudOff, FileText, Loader2, Pencil, Trash2 } from "lucide-react"
+import { ArrowLeft, Check, CloudOff, FileText, Loader2, Pencil, Trash2 } from "@/lib/icons"
 import type { Block } from "@blocknote/core"
 import { ApiErrorResponse } from "@/api/client"
 import type { PropertyValue } from "@/api/types"

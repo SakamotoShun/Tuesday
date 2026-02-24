@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react"
 import { useSearchParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronLeft, ChevronRight } from "@/lib/icons"
 import type { ChannelMember, ProjectMember, User } from "@/api/types"
 import * as projectsApi from "@/api/projects"
 import { usersApi } from "@/api/users"

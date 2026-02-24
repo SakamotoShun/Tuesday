@@ -1,5 +1,5 @@
 import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { ArrowUp, Paperclip } from "lucide-react"
+import { ArrowUp, Paperclip } from "@/lib/icons"
 import type { ChannelBot, FileAttachment, User } from "@/api/types"
 import { uploadFile, deleteFile } from "@/api/files"
 import { Button } from "@/components/ui/button"

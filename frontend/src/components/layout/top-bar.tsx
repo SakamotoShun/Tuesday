@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
-import { Loader2, Search } from "lucide-react"
+import { Loader2, Search } from "@/lib/icons"
 import { Input } from "@/components/ui/input"
 import * as searchApi from "@/api/search"
 import { useDebounce } from "@/hooks/use-debounce"

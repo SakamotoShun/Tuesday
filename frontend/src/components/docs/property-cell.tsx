@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { Check, ChevronDown, ExternalLink } from "lucide-react"
+import { Check, ChevronDown, ExternalLink } from "@/lib/icons"
 import type { PropertyType, PropertyValue } from "@/api/types"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"

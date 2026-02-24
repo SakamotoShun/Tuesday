@@ -1,4 +1,4 @@
-import { FileText, Loader2, X } from "lucide-react"
+import { FileText, Loader2, X } from "@/lib/icons"
 import type { FileAttachment } from "@/api/types"
 import { Button } from "@/components/ui/button"
 

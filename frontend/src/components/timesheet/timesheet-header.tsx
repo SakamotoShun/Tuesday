@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react"
-import { ChevronLeft, ChevronRight, Download } from "lucide-react"
+import { ChevronLeft, ChevronRight, Download } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { useExportTimeEntries } from "@/hooks/use-time-entries"
 

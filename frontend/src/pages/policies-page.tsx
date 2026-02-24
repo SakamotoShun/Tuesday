@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { MoreHorizontal, Pencil, Plus, Table as TableIcon, Trash2 } from "lucide-react"
+import { MoreHorizontal, Pencil, Plus, Table as TableIcon, Trash2 } from "@/lib/icons"
 import { ApiErrorResponse } from "@/api/client"
 import type { Doc } from "@/api/types"
 import { useAuth } from "@/hooks/use-auth"

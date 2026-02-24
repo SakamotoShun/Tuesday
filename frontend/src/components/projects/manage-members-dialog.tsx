@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { Trash2 } from "lucide-react"
+import { Trash2 } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"

@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
-import { ArrowLeft, ExternalLink, FileText, Plus, Trash2, Users } from "lucide-react"
+import { ArrowLeft, ExternalLink, FileText, Plus, Trash2, Users } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { LoadingSpinner } from "@/components/common/loading-spinner"

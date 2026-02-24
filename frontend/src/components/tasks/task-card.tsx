@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import type { Task } from "@/api/types"
-import { Calendar, GripVertical, Pencil } from "lucide-react"
+import { Calendar, GripVertical, Pencil } from "@/lib/icons"
 
 interface TaskCardProps {
   task: Task

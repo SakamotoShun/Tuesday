@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react"
+import { ArrowDown, ArrowUp, Plus, Trash2 } from "@/lib/icons"
 import type { DatabaseSchema, SchemaColumn, PropertyType } from "@/api/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"

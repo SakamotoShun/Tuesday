@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Settings } from "lucide-react"
+import { Settings } from "@/lib/icons"
 import type { Channel } from "@/api/types"
 import { ApiErrorResponse } from "@/api/client"
 import { Button } from "@/components/ui/button"

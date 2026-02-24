@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { Plus, Calendar, Star, ExternalLink, Trash2, Pencil, Check, ChevronsUpDown } from "lucide-react"
+import { Plus, Calendar, Star, ExternalLink, Trash2, Pencil, Check, ChevronsUpDown } from "@/lib/icons"
 import {
   Dialog,
   DialogContent,

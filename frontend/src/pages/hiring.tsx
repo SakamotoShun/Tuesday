@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { Plus, Search, Settings2, Users, Briefcase, FileText, ExternalLink, Trash2 } from "lucide-react"
+import { Plus, Search, Settings2, Users, Briefcase, FileText, ExternalLink, Trash2 } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"

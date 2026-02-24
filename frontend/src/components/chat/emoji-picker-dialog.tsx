@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { SmilePlus } from "lucide-react"
+import { SmilePlus } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { EmojiPicker } from "@/components/chat/emoji-picker"
 import { useUIStore } from "@/store/ui-store"

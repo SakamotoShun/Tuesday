@@ -1,6 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { GripVertical, Calendar, MessageSquare, Star } from "lucide-react"
+import { GripVertical, Calendar, MessageSquare, Star } from "@/lib/icons"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import type { JobApplication } from "@/api/types"

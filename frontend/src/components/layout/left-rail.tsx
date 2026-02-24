@@ -8,7 +8,7 @@ import {
   Settings,
   Receipt,
   UserSearch,
-} from "lucide-react"
+} from "@/lib/icons"
 import { RailItem } from "./rail-item"
 import { useAuth } from "@/hooks/use-auth"
 
