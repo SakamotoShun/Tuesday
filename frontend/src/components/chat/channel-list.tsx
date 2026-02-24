@@ -16,7 +16,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { GripVertical, Lock, MoreHorizontal, Plus, Trash2 } from "lucide-react"
+import { ChevronDown, ChevronRight, GripVertical, Lock, MoreHorizontal, Plus, Trash2 } from "lucide-react"
 import type { Channel } from "@/api/types"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -31,6 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
+import { useUIStore } from "@/store/ui-store"
 
 interface ChannelListProps {
   channels: Channel[]
@@ -76,9 +77,14 @@ export function ChannelList({
   const workspaceChannels = channels.filter((channel) => channel.type === "workspace")
   const projectChannels = channels.filter((channel) => channel.type === "project")
   const dmChannels = channels.filter((channel) => channel.type === "dm")
+  const collapsedSections = useUIStore((state) => state.collapsedChannelSections)
+  const toggleChannelSection = useUIStore((state) => state.toggleChannelSection)
 
   const canDeleteDm = Boolean(onDeleteDm)
   const deleteDisplayName = deleteTarget?.otherUser?.name?.trim() || "this user"
+  const isWorkspaceCollapsed = collapsedSections.workspace ?? false
+  const isProjectCollapsed = collapsedSections.project ?? false
+  const isDmCollapsed = collapsedSections.dm ?? false
 
   const handleDeleteOpenChange = (open: boolean) => {
     setDeleteOpen(open)
@@ -124,9 +130,16 @@ export function ChannelList({
       {showWorkspaceSection && (
         <div>
           <div className="px-4 mb-2 flex items-center justify-between">
-            <div className="text-xs uppercase tracking-wider text-muted-foreground">
-              Workspace
-            </div>
+            <button
+              type="button"
+              className="flex items-center gap-1 text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground"
+              onClick={() => toggleChannelSection("workspace")}
+              aria-expanded={!isWorkspaceCollapsed}
+              aria-label={isWorkspaceCollapsed ? "Expand workspace channels" : "Collapse workspace channels"}
+            >
+              {isWorkspaceCollapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              <span>Workspace</span>
+            </button>
             {canCreateWorkspaceChannel && (
               <NewChannelDialog
                 onCreated={onChannelCreated}
@@ -143,7 +156,7 @@ export function ChannelList({
               />
             )}
           </div>
-          {workspaceChannels.length > 0 ? (
+          {!isWorkspaceCollapsed && (workspaceChannels.length > 0 ? (
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
@@ -184,16 +197,23 @@ export function ChannelList({
             </DndContext>
           ) : (
             <div className="px-4 text-xs text-muted-foreground">No workspace channels yet.</div>
-          )}
+          ))}
         </div>
       )}
 
       {showProjectSection && (
         <div>
           <div className="px-4 mb-2 flex items-center justify-between">
-            <div className="text-xs uppercase tracking-wider text-muted-foreground">
-              Projects
-            </div>
+            <button
+              type="button"
+              className="flex items-center gap-1 text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground"
+              onClick={() => toggleChannelSection("project")}
+              aria-expanded={!isProjectCollapsed}
+              aria-label={isProjectCollapsed ? "Expand project channels" : "Collapse project channels"}
+            >
+              {isProjectCollapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              <span>Projects</span>
+            </button>
             {canCreateProjectChannel && (
               <NewChannelDialog
                 projectId={projectId}
@@ -211,7 +231,7 @@ export function ChannelList({
               />
             )}
           </div>
-          {projectChannels.length > 0 ? (
+          {!isProjectCollapsed && (projectChannels.length > 0 ? (
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
@@ -252,16 +272,23 @@ export function ChannelList({
             </DndContext>
           ) : (
             <div className="px-4 text-xs text-muted-foreground">No project channels yet.</div>
-          )}
+          ))}
         </div>
       )}
 
       {showDmSection && (
         <div>
           <div className="px-4 mb-2 flex items-center justify-between">
-            <div className="text-xs uppercase tracking-wider text-muted-foreground">
-              Direct Messages
-            </div>
+            <button
+              type="button"
+              className="flex items-center gap-1 text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground"
+              onClick={() => toggleChannelSection("dm")}
+              aria-expanded={!isDmCollapsed}
+              aria-label={isDmCollapsed ? "Expand direct messages" : "Collapse direct messages"}
+            >
+              {isDmCollapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              <span>Direct Messages</span>
+            </button>
             {canCreateDm && (
               <NewDmDialog
                 onCreated={onDmCreated}
@@ -278,7 +305,7 @@ export function ChannelList({
               />
             )}
           </div>
-          {dmChannels.length > 0 ? (
+          {!isDmCollapsed && (dmChannels.length > 0 ? (
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
@@ -359,7 +386,7 @@ export function ChannelList({
             </DndContext>
           ) : (
             <div className="px-4 text-xs text-muted-foreground">No direct messages yet.</div>
-          )}
+          ))}
         </div>
       )}
       <DeleteDmDialog

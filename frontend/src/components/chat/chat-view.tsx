@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react"
 import { useSearchParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 import type { ChannelMember, ProjectMember, User } from "@/api/types"
 import * as projectsApi from "@/api/projects"
 import { usersApi } from "@/api/users"
@@ -17,6 +18,8 @@ import { MessageList } from "@/components/chat/message-list"
 import { MessageInput } from "@/components/chat/message-input"
 import { TypingIndicator } from "@/components/chat/typing-indicator"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { useUIStore } from "@/store/ui-store"
 
 interface ChatViewProps {
   projectId?: string
@@ -37,6 +40,8 @@ const mapChannelMembers = (members?: ChannelMember[]): User[] =>
 export function ChatView({ projectId, title, variant = "page" }: ChatViewProps) {
   const isPanel = variant === "panel"
   const { user } = useAuth()
+  const isSidebarCollapsed = useUIStore((state) => state.chatSidebarCollapsed)
+  const toggleSidebar = useUIStore((state) => state.toggleChatSidebar)
   const { isConnected } = useWebSocket()
   const [searchParams] = useSearchParams()
   const { activeChannelId, setActiveChannelId } = useChatStore()
@@ -141,79 +146,107 @@ export function ChatView({ projectId, title, variant = "page" }: ChatViewProps) 
         ? "flex flex-col h-full min-h-0 overflow-hidden bg-card"
         : "flex flex-col md:flex-row flex-1 min-h-0 border border-border rounded-lg overflow-hidden bg-card"
     }>
-      <aside className={
-        isPanel
-          ? "border-b border-border bg-background flex-shrink-0"
-          : "w-full md:w-72 border-b md:border-b-0 md:border-r border-border bg-background min-h-0"
-      }>
-        <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-          <div className="text-sm font-semibold">{title ?? "Channels"}</div>
-          <div className="flex items-center gap-2">
-            <Badge variant={isConnected ? "secondary" : "outline"}>
-              {isConnected ? "Online" : "Offline"}
-            </Badge>
-          </div>
-        </div>
-        <div className={
+      {!isSidebarCollapsed && (
+        <aside className={
           isPanel
-            ? "py-2 overflow-y-auto max-h-[120px]"
-            : "py-3 overflow-y-auto max-h-[240px] md:max-h-none md:h-full"
+            ? "border-b border-border bg-background flex-shrink-0"
+            : "w-full md:w-72 border-b md:border-b-0 md:border-r border-border bg-background min-h-0"
         }>
-          <ChannelList
-            channels={filteredChannels}
-            activeChannelId={activeChannel?.id ?? null}
-            onSelect={(channelId) => setActiveChannelId(channelId)}
-            projectId={projectId}
-            canCreateWorkspaceChannel={canCreateWorkspaceChannel}
-            canCreateProjectChannel={canCreateProjectChannel}
-            canCreateDm={canCreateDm}
-            onChannelCreated={(channelId) => setActiveChannelId(channelId)}
-            onDmCreated={(channelId) => setActiveChannelId(channelId)}
-            onDeleteDm={(channelId) => deleteChannel.mutateAsync(channelId)}
-            onReorderChannels={(channelIds) => reorderChannels.mutate(channelIds)}
-          />
-        </div>
-      </aside>
+          <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+            <div className="text-sm font-semibold">{title ?? "Channels"}</div>
+            <div className="flex items-center gap-2">
+              <Badge variant={isConnected ? "secondary" : "outline"}>
+                {isConnected ? "Online" : "Offline"}
+              </Badge>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={toggleSidebar}
+                aria-label="Collapse channel panel"
+                title="Collapse channel panel"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          <div className={
+            isPanel
+              ? "py-2 overflow-y-auto max-h-[120px]"
+              : "py-3 overflow-y-auto max-h-[240px] md:max-h-none md:h-full"
+          }>
+            <ChannelList
+              channels={filteredChannels}
+              activeChannelId={activeChannel?.id ?? null}
+              onSelect={(channelId) => setActiveChannelId(channelId)}
+              projectId={projectId}
+              canCreateWorkspaceChannel={canCreateWorkspaceChannel}
+              canCreateProjectChannel={canCreateProjectChannel}
+              canCreateDm={canCreateDm}
+              onChannelCreated={(channelId) => setActiveChannelId(channelId)}
+              onDmCreated={(channelId) => setActiveChannelId(channelId)}
+              onDeleteDm={(channelId) => deleteChannel.mutateAsync(channelId)}
+              onReorderChannels={(channelIds) => reorderChannels.mutate(channelIds)}
+            />
+          </div>
+        </aside>
+      )}
 
       <main className="flex-1 flex flex-col min-h-0">
         <div className="border-b border-border px-4 py-3 flex-shrink-0">
           <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="text-sm font-semibold">
-                {activeChannel
-                  ? isDm
-                    ? `@ ${activeChannel.otherUser?.name ?? "Direct Message"}`
-                    : `# ${activeChannel.name}`
-                  : "Select a channel"}
+            <div className="flex items-start gap-2">
+              {isSidebarCollapsed && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={toggleSidebar}
+                  aria-label="Expand channel panel"
+                  title="Expand channel panel"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              )}
+              <div>
+                <div className="text-sm font-semibold">
+                  {activeChannel
+                    ? isDm
+                      ? `@ ${activeChannel.otherUser?.name ?? "Direct Message"}`
+                      : `# ${activeChannel.name}`
+                    : "Select a channel"}
+                </div>
+                {activeChannel?.project && !isPanel && !isDm && (
+                  <div className="text-xs text-muted-foreground">{activeChannel.project.name}</div>
+                )}
+                {isDm && activeChannel?.otherUser?.email && (
+                  <div className="text-xs text-muted-foreground">{activeChannel.otherUser.email}</div>
+                )}
+                {isPrivateChannel && !isDm && (
+                  <div className="text-xs text-muted-foreground">Private channel</div>
+                )}
+                {activeChannel?.description && !isDm && (
+                  <div className="text-xs text-muted-foreground mt-1">{activeChannel.description}</div>
+                )}
               </div>
-              {activeChannel?.project && !isPanel && !isDm && (
-                <div className="text-xs text-muted-foreground">{activeChannel.project.name}</div>
+            </div>
+            <div className="flex items-center gap-2">
+              {activeChannel && !isDm && isPrivateChannel && (
+                <ChannelMembersDialog
+                  channel={activeChannel}
+                  canManage={canManageChannel}
+                  currentUserId={user?.id}
+                />
               )}
-              {isDm && activeChannel?.otherUser?.email && (
-                <div className="text-xs text-muted-foreground">{activeChannel.otherUser.email}</div>
-              )}
-              {isPrivateChannel && !isDm && (
-                <div className="text-xs text-muted-foreground">Private channel</div>
-              )}
-              {activeChannel?.description && !isDm && (
-                <div className="text-xs text-muted-foreground mt-1">{activeChannel.description}</div>
+              {activeChannel && canManageChannel && (
+                <ChannelSettingsDialog
+                  channel={activeChannel}
+                  canManage={canManageChannel}
+                  onUpdate={(input) => updateChannel.mutateAsync({ channelId: activeChannel.id, data: input })}
+                  onArchive={() => archiveChannel.mutateAsync(activeChannel.id)}
+                />
               )}
             </div>
-            {activeChannel && !isDm && isPrivateChannel && (
-              <ChannelMembersDialog
-                channel={activeChannel}
-                canManage={canManageChannel}
-                currentUserId={user?.id}
-              />
-            )}
-            {activeChannel && canManageChannel && (
-              <ChannelSettingsDialog
-                channel={activeChannel}
-                canManage={canManageChannel}
-                onUpdate={(input) => updateChannel.mutateAsync({ channelId: activeChannel.id, data: input })}
-                onArchive={() => archiveChannel.mutateAsync(activeChannel.id)}
-              />
-            )}
           </div>
         </div>
         <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-4">

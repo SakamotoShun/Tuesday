@@ -2,6 +2,7 @@ import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
 type Theme = "light" | "dark" | "system"
+type ChatSection = "workspace" | "project" | "dm"
 
 interface UIState {
   sidebarCollapsed: boolean
@@ -12,6 +13,10 @@ interface UIState {
   setChatPanelWidth: (width: number) => void
   docSidebarWidth: number
   setDocSidebarWidth: (width: number) => void
+  chatSidebarCollapsed: boolean
+  toggleChatSidebar: () => void
+  collapsedChannelSections: Partial<Record<ChatSection, boolean>>
+  toggleChannelSection: (section: ChatSection) => void
 }
 
 export const useUIStore = create<UIState>()(
@@ -26,6 +31,17 @@ export const useUIStore = create<UIState>()(
       setChatPanelWidth: (width) => set({ chatPanelWidth: width }),
       docSidebarWidth: 260,
       setDocSidebarWidth: (width) => set({ docSidebarWidth: width }),
+      chatSidebarCollapsed: false,
+      toggleChatSidebar: () =>
+        set((state) => ({ chatSidebarCollapsed: !state.chatSidebarCollapsed })),
+      collapsedChannelSections: {},
+      toggleChannelSection: (section) =>
+        set((state) => ({
+          collapsedChannelSections: {
+            ...state.collapsedChannelSections,
+            [section]: !state.collapsedChannelSections[section],
+          },
+        })),
     }),
     {
       name: "ui-storage",
