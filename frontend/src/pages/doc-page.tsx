@@ -19,6 +19,23 @@ import { useUIStore } from "@/store/ui-store"
 import type { PropertyValue } from "@/api/types"
 import { ApiErrorResponse } from "@/api/client"
 
+type PendingDocContent = {
+  docId: string
+  content: Block[]
+}
+
+export function shouldPersistDocContent({
+  activeDocId,
+  renderedDocId,
+  targetDocId,
+}: {
+  activeDocId: string | null
+  renderedDocId: string | null | undefined
+  targetDocId: string
+}) {
+  return Boolean(renderedDocId && activeDocId === targetDocId && renderedDocId === targetDocId)
+}
+
 export function DocPage() {
   const { id: routeProjectId, docId } = useParams<{ id?: string; docId: string }>()
   const [searchParams] = useSearchParams()
@@ -33,13 +50,13 @@ export function DocPage() {
   const [saveState, setSaveState] = useState<"saved" | "saving" | "error">("saved")
   const [isChatOpen, setIsChatOpen] = useState(false)
   const [isResizingSidebar, setIsResizingSidebar] = useState(false)
-  const [pendingContent, setPendingContent] = useState<{ docId: string; content: Block[] } | null>(null)
+  const [pendingContent, setPendingContent] = useState<PendingDocContent | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const activeDocIdRef = useRef<string | null>(null)
-  const pendingContentRef = useRef<{ docId: string; content: Block[] } | null>(null)
+  const pendingContentRef = useRef<PendingDocContent | null>(null)
   const lastSavedContentRef = useRef("[]")
   const isPersistingContentRef = useRef(false)
-  const queuedContentRef = useRef<{ docId: string; content: Block[] } | null>(null)
+  const queuedContentRef = useRef<PendingDocContent | null>(null)
   const chatPanelWidth = useUIStore((state) => state.chatPanelWidth)
   const setChatPanelWidth = useUIStore((state) => state.setChatPanelWidth)
   const docSidebarWidth = useUIStore((state) => state.docSidebarWidth)
@@ -96,7 +113,9 @@ export function DocPage() {
   }, [doc?.id])
 
   const persistContent = useCallback(async (targetDocId: string, nextContent: Block[]) => {
-    if (!doc || activeDocIdRef.current !== targetDocId || doc.id !== targetDocId) return
+    if (!shouldPersistDocContent({ activeDocId: activeDocIdRef.current, renderedDocId: doc?.id, targetDocId })) {
+      return
+    }
 
     const serialized = JSON.stringify(nextContent)
     if (serialized === lastSavedContentRef.current) {
@@ -137,8 +156,10 @@ export function DocPage() {
   }, [doc, updateDoc])
 
   useEffect(() => {
-    if (!debouncedContent || !doc) return
-    if (debouncedContent.docId !== doc.id) return
+    if (!debouncedContent) return
+    if (!shouldPersistDocContent({ activeDocId: activeDocIdRef.current, renderedDocId: doc?.id, targetDocId: debouncedContent.docId })) {
+      return
+    }
     void persistContent(debouncedContent.docId, debouncedContent.content)
   }, [debouncedContent, doc?.id, persistContent])
 
