@@ -33,12 +33,13 @@ export function DocPage() {
   const [saveState, setSaveState] = useState<"saved" | "saving" | "error">("saved")
   const [isChatOpen, setIsChatOpen] = useState(false)
   const [isResizingSidebar, setIsResizingSidebar] = useState(false)
-  const [pendingContent, setPendingContent] = useState<Block[] | null>(null)
+  const [pendingContent, setPendingContent] = useState<{ docId: string; content: Block[] } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const pendingContentRef = useRef<Block[] | null>(null)
+  const activeDocIdRef = useRef<string | null>(null)
+  const pendingContentRef = useRef<{ docId: string; content: Block[] } | null>(null)
   const lastSavedContentRef = useRef("[]")
   const isPersistingContentRef = useRef(false)
-  const queuedContentRef = useRef<Block[] | null>(null)
+  const queuedContentRef = useRef<{ docId: string; content: Block[] } | null>(null)
   const chatPanelWidth = useUIStore((state) => state.chatPanelWidth)
   const setChatPanelWidth = useUIStore((state) => state.setChatPanelWidth)
   const docSidebarWidth = useUIStore((state) => state.docSidebarWidth)
@@ -77,6 +78,7 @@ export function DocPage() {
 
   useEffect(() => {
     if (doc) {
+      activeDocIdRef.current = doc.id
       setTitleDraft(doc.title)
       setSaveState("saved")
       setTitleError(null)
@@ -84,12 +86,17 @@ export function DocPage() {
       setPendingContent(null)
       pendingContentRef.current = null
       queuedContentRef.current = null
+      isPersistingContentRef.current = false
       lastSavedContentRef.current = JSON.stringify(doc.content ?? [])
+      return
     }
+
+    activeDocIdRef.current = null
+    isPersistingContentRef.current = false
   }, [doc?.id])
 
-  const persistContent = useCallback(async (nextContent: Block[]) => {
-    if (!doc) return
+  const persistContent = useCallback(async (targetDocId: string, nextContent: Block[]) => {
+    if (!doc || activeDocIdRef.current !== targetDocId || doc.id !== targetDocId) return
 
     const serialized = JSON.stringify(nextContent)
     if (serialized === lastSavedContentRef.current) {
@@ -97,7 +104,7 @@ export function DocPage() {
     }
 
     if (isPersistingContentRef.current) {
-      queuedContentRef.current = nextContent
+      queuedContentRef.current = { docId: targetDocId, content: nextContent }
       return
     }
 
@@ -106,13 +113,17 @@ export function DocPage() {
 
     try {
       await updateDoc.mutateAsync({
-        docId: doc.id,
+        docId: targetDocId,
         data: { content: nextContent },
       })
-      lastSavedContentRef.current = serialized
-      setSaveState("saved")
+      if (activeDocIdRef.current === targetDocId) {
+        lastSavedContentRef.current = serialized
+        setSaveState("saved")
+      }
     } catch {
-      setSaveState("error")
+      if (activeDocIdRef.current === targetDocId) {
+        setSaveState("error")
+      }
     } finally {
       isPersistingContentRef.current = false
 
@@ -120,24 +131,28 @@ export function DocPage() {
       queuedContentRef.current = null
 
       if (queuedContent) {
-        void persistContent(queuedContent)
+        void persistContent(queuedContent.docId, queuedContent.content)
       }
     }
   }, [doc, updateDoc])
 
   useEffect(() => {
-    if (!debouncedContent) return
-    void persistContent(debouncedContent)
-  }, [debouncedContent, persistContent])
+    if (!debouncedContent || !doc) return
+    if (debouncedContent.docId !== doc.id) return
+    void persistContent(debouncedContent.docId, debouncedContent.content)
+  }, [debouncedContent, doc?.id, persistContent])
 
   const handleContentChange = useCallback((nextContent: Block[]) => {
-    pendingContentRef.current = nextContent
-    setPendingContent(nextContent)
-  }, [])
+    if (!doc) return
+    const contentState = { docId: doc.id, content: nextContent }
+    pendingContentRef.current = contentState
+    setPendingContent(contentState)
+  }, [doc])
 
   const handleContentBlur = useCallback(() => {
-    if (!pendingContentRef.current) return
-    void persistContent(pendingContentRef.current)
+    const pendingContentState = pendingContentRef.current
+    if (!pendingContentState) return
+    void persistContent(pendingContentState.docId, pendingContentState.content)
   }, [persistContent])
 
   const handleTitleSave = async () => {
