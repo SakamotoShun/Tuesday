@@ -18,7 +18,7 @@ import {
 import { CSS } from "@dnd-kit/utilities"
 import { GripVertical, Lock, MoreHorizontal, Plus, Trash2 } from "lucide-react"
 import type { Channel } from "@/api/types"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { NewChannelDialog } from "@/components/chat/new-channel-dialog"
@@ -309,6 +309,7 @@ export function ChannelList({
                           >
                             <span className="truncate flex items-center gap-2">
                               <Avatar className="h-6 w-6">
+                                <AvatarImage src={channel.otherUser?.avatarUrl ?? undefined} alt={displayName} />
                                 <AvatarFallback className="text-[10px] bg-muted">
                                   {getInitials(displayName)}
                                 </AvatarFallback>
