@@ -377,7 +377,10 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
   )
 
   return (
-    <div className="flex flex-col flex-1 min-h-0">
+    <div
+      className="min-h-0 overflow-hidden bg-background"
+      style={{ height: "calc(100vh - 72px)" }}
+    >
       <ResizableSplit
         sidePanel={chatPanel}
         sidePanelOpen={isChatOpen}
