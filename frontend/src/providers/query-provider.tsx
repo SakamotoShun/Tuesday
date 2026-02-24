@@ -4,7 +4,8 @@ import type { ReactNode } from "react"
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
+      // Keep queries immediately stale so route navigation triggers background refetches.
+      staleTime: 0,
       retry: 1,
       refetchOnWindowFocus: true,
     },
