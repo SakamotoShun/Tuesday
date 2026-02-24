@@ -78,7 +78,7 @@ export class FileService {
       if (!file) {
         throw new Error('File not found');
       }
-      if (user.role !== 'admin' && file.uploadedBy !== user.id) {
+      if (file.status !== 'avatar' && user.role !== 'admin' && file.uploadedBy !== user.id) {
         throw new Error('Access denied');
       }
       return { file, response: this.toResponse(file) };

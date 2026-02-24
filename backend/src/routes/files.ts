@@ -46,6 +46,9 @@ files.get('/:id', async (c) => {
     });
   } catch (error) {
     if (error instanceof Error) {
+      if (error.message === 'Access denied') {
+        return errors.forbidden(c, error.message);
+      }
       return errors.badRequest(c, error.message);
     }
     console.error('Error downloading file:', error);
