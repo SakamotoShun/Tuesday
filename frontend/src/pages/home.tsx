@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { useMyMeetings } from "@/hooks/use-meetings"
 import { useProjects } from "@/hooks/use-projects"
 import { useMyTasks } from "@/hooks/use-tasks"
+import { isCompletedStatus } from "@/lib/task-status"
 import type { Task } from "@/api/types"
 
 function formatDayHeader() {
@@ -91,6 +92,9 @@ export function HomePage() {
 
     return (tasks ?? [])
       .filter((task) => {
+        if (isCompletedStatus(task.status?.name)) {
+          return false
+        }
         const dueDate = parseDateOnly(task.dueDate)
         return dueDate !== null && dueDate < today
       })
@@ -106,6 +110,9 @@ export function HomePage() {
 
     return (tasks ?? [])
       .filter((task) => {
+        if (isCompletedStatus(task.status?.name)) {
+          return false
+        }
         const dueDate = parseDateOnly(task.dueDate)
         return dueDate !== null && dueDate >= today && dueDate <= weekEnd
       })

@@ -10,6 +10,7 @@ import { LoadingSpinner } from "@/components/common/loading-spinner"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { TimesheetHeader, TimesheetGrid, MonthlyOverview } from "@/components/timesheet"
+import { isCompletedStatus } from "@/lib/task-status"
 
 function getMonday(date: Date): Date {
   const d = new Date(date)
@@ -50,6 +51,7 @@ export function MyWorkPage() {
     return tasks.filter((task) => {
       if (selectedProjectId && task.projectId !== selectedProjectId) return false
       if (selectedStatusId && task.statusId !== selectedStatusId) return false
+      if (!selectedStatusId && isCompletedStatus(task.status?.name)) return false
       return true
     })
   }, [tasks, selectedProjectId, selectedStatusId])
