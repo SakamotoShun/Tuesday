@@ -38,6 +38,7 @@ let findTeamsByProjectId: (...args: any[]) => Promise<any> = async () => [];
 let findTeamIdsForUserProject: (...args: any[]) => Promise<any> = async () => [];
 
 let cleanupProjectFiles: (...args: any[]) => Promise<any> = async () => 0;
+let recordActivity: (...args: any[]) => Promise<any> = async () => {};
 
 mock.module('../repositories/project', () => ({
   ProjectRepository: class {},
@@ -88,10 +89,16 @@ mock.module('./file', () => ({
   },
 }));
 
+mock.module('./activity', () => ({
+  activityService: {
+    record: (input: any) => recordActivity(input),
+  },
+}));
+
 const { projectService } = await import('./project');
 
 const memberUser = {
-  id: 'user-1',
+  id: '11111111-1111-4111-8111-111111111111',
   email: 'user@example.com',
   name: 'User',
   role: UserRole.MEMBER,
@@ -126,6 +133,7 @@ describe('ProjectService', () => {
     findTeamsByProjectId = async () => [];
     findTeamIdsForUserProject = async () => [];
     cleanupProjectFiles = async () => 0;
+    recordActivity = async () => {};
   });
 
   it('returns all projects for admin', async () => {

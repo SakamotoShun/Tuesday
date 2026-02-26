@@ -12,6 +12,7 @@ let deleteTask: (...args: any[]) => Promise<any> = async () => true;
 let setAssignees: (...args: any[]) => Promise<any> = async () => {};
 let findDefaultStatus: (...args: any[]) => Promise<any> = async () => ({ id: 'status-default' });
 let findStatusById: (...args: any[]) => Promise<any> = async (id) => ({ id, name: 'Status' });
+let recordActivity: (...args: any[]) => Promise<any> = async () => {};
 
 
 mock.module('../repositories/task', () => ({
@@ -43,10 +44,16 @@ mock.module('../repositories/taskStatus', () => ({
   },
 }));
 
+mock.module('./activity', () => ({
+  activityService: {
+    record: (input: any) => recordActivity(input),
+  },
+}));
+
 const { taskService } = await import('./task');
 
 const memberUser = {
-  id: 'user-1',
+  id: '11111111-1111-4111-8111-111111111111',
   email: 'user@example.com',
   name: 'User',
   role: 'member' as const,
@@ -74,6 +81,7 @@ describe('TaskService', () => {
     setAssignees = async () => {};
     findDefaultStatus = async () => ({ id: 'status-default' });
     findStatusById = async (id) => ({ id, name: 'Status' });
+    recordActivity = async () => {};
   });
 
   it('rejects viewing other users tasks when not admin', async () => {

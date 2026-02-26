@@ -12,6 +12,7 @@ let findUserById: (...args: any[]) => Promise<any> = async () => null;
 let createDoc: (...args: any[]) => Promise<any> = async (data) => ({ id: 'doc-1', ...data });
 let updateDoc: (...args: any[]) => Promise<any> = async (_id, data) => ({ id: 'doc-1', ...data });
 let deleteDoc: (...args: any[]) => Promise<any> = async () => true;
+let recordActivity: (...args: any[]) => Promise<any> = async () => {};
 
 mock.module('../repositories/doc', () => ({
   DocRepository: class {},
@@ -43,10 +44,16 @@ mock.module('../repositories/user', () => ({
   },
 }));
 
+mock.module('./activity', () => ({
+  activityService: {
+    record: (input: any) => recordActivity(input),
+  },
+}));
+
 const { docService } = await import('./doc');
 
 const memberUser = {
-  id: 'user-1',
+  id: '11111111-1111-4111-8111-111111111111',
   email: 'user@example.com',
   name: 'User',
   role: 'member' as const,
@@ -75,6 +82,7 @@ describe('DocService', () => {
     createDoc = async (data) => ({ id: 'doc-1', ...data });
     updateDoc = async (_id, data) => ({ id: 'doc-1', ...data });
     deleteDoc = async () => true;
+    recordActivity = async () => {};
   });
 
   it('returns doc with children', async () => {

@@ -9,6 +9,7 @@ let deleteMeeting: (...args: any[]) => Promise<any> = async () => true;
 
 let setAttendees: (...args: any[]) => Promise<any> = async () => {};
 let findAttendees: (...args: any[]) => Promise<any> = async () => [];
+let recordActivity: (...args: any[]) => Promise<any> = async () => {};
 
 
 mock.module('../repositories/meeting', () => ({
@@ -31,10 +32,16 @@ mock.module('../repositories/meetingAttendee', () => ({
   },
 }));
 
+mock.module('./activity', () => ({
+  activityService: {
+    record: (input: any) => recordActivity(input),
+  },
+}));
+
 const { meetingService } = await import('./meeting');
 
 const memberUser = {
-  id: 'user-1',
+  id: '11111111-1111-4111-8111-111111111111',
   email: 'user@example.com',
   name: 'User',
   role: 'member' as const,
@@ -59,6 +66,7 @@ describe('MeetingService', () => {
     deleteMeeting = async () => true;
     setAttendees = async () => {};
     findAttendees = async () => [];
+    recordActivity = async () => {};
   });
 
   it('rejects creating meeting without title', async () => {
@@ -85,7 +93,7 @@ describe('MeetingService', () => {
       adminUser
     );
 
-    expect(attendees).toEqual(expect.arrayContaining(['user-1']));
+    expect(attendees).toEqual(expect.arrayContaining([adminUser.id]));
   });
 
   it('rejects viewing other users meetings for non-admin', async () => {

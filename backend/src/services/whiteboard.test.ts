@@ -5,6 +5,7 @@ let findById: (...args: any[]) => Promise<any> = async () => null;
 let createWhiteboard: (...args: any[]) => Promise<any> = async (data) => ({ id: 'whiteboard-1', ...data });
 let updateWhiteboard: (...args: any[]) => Promise<any> = async (_id, data) => ({ id: 'whiteboard-1', ...data });
 let deleteWhiteboard: (...args: any[]) => Promise<any> = async () => true;
+let recordActivity: (...args: any[]) => Promise<any> = async () => {};
 
 mock.module('../repositories/whiteboard', () => ({
   WhiteboardRepository: class {},
@@ -17,10 +18,16 @@ mock.module('../repositories/whiteboard', () => ({
   },
 }));
 
+mock.module('./activity', () => ({
+  activityService: {
+    record: (input: any) => recordActivity(input),
+  },
+}));
+
 const { whiteboardService } = await import('./whiteboard');
 
 const memberUser = {
-  id: 'user-1',
+  id: '11111111-1111-4111-8111-111111111111',
   email: 'user@example.com',
   name: 'User',
   role: 'member' as const,
@@ -42,6 +49,7 @@ describe('WhiteboardService', () => {
     createWhiteboard = async (data) => ({ id: 'whiteboard-1', ...data });
     updateWhiteboard = async (_id, data) => ({ id: 'whiteboard-1', ...data });
     deleteWhiteboard = async () => true;
+    recordActivity = async () => {};
   });
 
   it('rejects creating whiteboard without name', async () => {

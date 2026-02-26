@@ -9,7 +9,7 @@ if (typeof globalThis.document === "undefined") {
   globalThis.navigator = window.navigator as unknown as Navigator
 }
 
-const { render } = await import("@testing-library/react")
+const { render, within } = await import("@testing-library/react")
 import { TaskCard } from "./task-card"
 import type { Task } from "@/api/types"
 
@@ -34,7 +34,7 @@ describe("TaskCard", () => {
   })
 
   it("should display due date badge", () => {
-    const { getByText } = render(<TaskCard task={mockTask} />)
-    expect(getByText(/Dec/)).toBeDefined()
+    const { container } = render(<TaskCard task={mockTask} />)
+    expect(within(container).getByText(/Dec/)).toBeDefined()
   })
 })
