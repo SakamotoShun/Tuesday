@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, mock } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test';
 import { ProjectMemberRole, ProjectMemberSource, UserRole } from '../db/schema';
 
 let findAll: (...args: any[]) => Promise<any> = async () => [];
@@ -38,7 +38,6 @@ let findTeamsByProjectId: (...args: any[]) => Promise<any> = async () => [];
 let findTeamIdsForUserProject: (...args: any[]) => Promise<any> = async () => [];
 
 let cleanupProjectFiles: (...args: any[]) => Promise<any> = async () => 0;
-let recordActivity: (...args: any[]) => Promise<any> = async () => {};
 
 mock.module('../repositories/project', () => ({
   ProjectRepository: class {},
@@ -89,13 +88,9 @@ mock.module('./file', () => ({
   },
 }));
 
-mock.module('./activity', () => ({
-  activityService: {
-    record: (input: any) => recordActivity(input),
-  },
-}));
-
 const { projectService } = await import('./project');
+const { activityService } = await import('./activity');
+const originalRecord = activityService.record.bind(activityService);
 
 const memberUser = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -133,7 +128,11 @@ describe('ProjectService', () => {
     findTeamsByProjectId = async () => [];
     findTeamIdsForUserProject = async () => [];
     cleanupProjectFiles = async () => 0;
-    recordActivity = async () => {};
+    activityService.record = async () => {};
+  });
+
+  afterEach(() => {
+    activityService.record = originalRecord;
   });
 
   it('returns all projects for admin', async () => {

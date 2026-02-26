@@ -1,11 +1,10 @@
-import { describe, it, expect, beforeEach, mock } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test';
 
 let findByProjectId: (...args: any[]) => Promise<any> = async () => [];
 let findById: (...args: any[]) => Promise<any> = async () => null;
 let createWhiteboard: (...args: any[]) => Promise<any> = async (data) => ({ id: 'whiteboard-1', ...data });
 let updateWhiteboard: (...args: any[]) => Promise<any> = async (_id, data) => ({ id: 'whiteboard-1', ...data });
 let deleteWhiteboard: (...args: any[]) => Promise<any> = async () => true;
-let recordActivity: (...args: any[]) => Promise<any> = async () => {};
 
 mock.module('../repositories/whiteboard', () => ({
   WhiteboardRepository: class {},
@@ -18,13 +17,9 @@ mock.module('../repositories/whiteboard', () => ({
   },
 }));
 
-mock.module('./activity', () => ({
-  activityService: {
-    record: (input: any) => recordActivity(input),
-  },
-}));
-
 const { whiteboardService } = await import('./whiteboard');
+const { activityService } = await import('./activity');
+const originalRecord = activityService.record.bind(activityService);
 
 const memberUser = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -49,7 +44,11 @@ describe('WhiteboardService', () => {
     createWhiteboard = async (data) => ({ id: 'whiteboard-1', ...data });
     updateWhiteboard = async (_id, data) => ({ id: 'whiteboard-1', ...data });
     deleteWhiteboard = async () => true;
-    recordActivity = async () => {};
+    activityService.record = async () => {};
+  });
+
+  afterEach(() => {
+    activityService.record = originalRecord;
   });
 
   it('rejects creating whiteboard without name', async () => {

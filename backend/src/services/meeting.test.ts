@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, mock } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test';
 
 let findByProjectId: (...args: any[]) => Promise<any> = async () => [];
 let findById: (...args: any[]) => Promise<any> = async () => null;
@@ -9,7 +9,6 @@ let deleteMeeting: (...args: any[]) => Promise<any> = async () => true;
 
 let setAttendees: (...args: any[]) => Promise<any> = async () => {};
 let findAttendees: (...args: any[]) => Promise<any> = async () => [];
-let recordActivity: (...args: any[]) => Promise<any> = async () => {};
 
 
 mock.module('../repositories/meeting', () => ({
@@ -32,13 +31,9 @@ mock.module('../repositories/meetingAttendee', () => ({
   },
 }));
 
-mock.module('./activity', () => ({
-  activityService: {
-    record: (input: any) => recordActivity(input),
-  },
-}));
-
 const { meetingService } = await import('./meeting');
+const { activityService } = await import('./activity');
+const originalRecord = activityService.record.bind(activityService);
 
 const memberUser = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -66,7 +61,11 @@ describe('MeetingService', () => {
     deleteMeeting = async () => true;
     setAttendees = async () => {};
     findAttendees = async () => [];
-    recordActivity = async () => {};
+    activityService.record = async () => {};
+  });
+
+  afterEach(() => {
+    activityService.record = originalRecord;
   });
 
   it('rejects creating meeting without title', async () => {

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, mock } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test';
 
 let countUsers: () => Promise<number> = async () => 0;
 let setSetting: (key: string, value: unknown) => Promise<void> = async () => {};
@@ -18,19 +18,20 @@ mock.module('../repositories/settings', () => ({
   },
 }));
 
-mock.module('./auth', () => ({
-  authService: {
-    register: (input: any) => registerUser(input),
-  },
-}));
-
 const { setupService } = await import('./setup');
+const { authService } = await import('./auth');
+const originalRegister = authService.register.bind(authService);
 
 describe('SetupService', () => {
   beforeEach(() => {
     countUsers = async () => 0;
     setSetting = async () => {};
     registerUser = async () => ({ id: 'admin-1' });
+    authService.register = async (input) => registerUser(input);
+  });
+
+  afterEach(() => {
+    authService.register = originalRegister;
   });
 
   it('returns false when no users exist', async () => {

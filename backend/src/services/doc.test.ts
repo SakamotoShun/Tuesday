@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, mock } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test';
 
 let findByProjectId: (...args: any[]) => Promise<any> = async () => [];
 let findPersonalDocs: (...args: any[]) => Promise<any> = async () => [];
@@ -12,7 +12,6 @@ let findUserById: (...args: any[]) => Promise<any> = async () => null;
 let createDoc: (...args: any[]) => Promise<any> = async (data) => ({ id: 'doc-1', ...data });
 let updateDoc: (...args: any[]) => Promise<any> = async (_id, data) => ({ id: 'doc-1', ...data });
 let deleteDoc: (...args: any[]) => Promise<any> = async () => true;
-let recordActivity: (...args: any[]) => Promise<any> = async () => {};
 
 mock.module('../repositories/doc', () => ({
   DocRepository: class {},
@@ -44,13 +43,9 @@ mock.module('../repositories/user', () => ({
   },
 }));
 
-mock.module('./activity', () => ({
-  activityService: {
-    record: (input: any) => recordActivity(input),
-  },
-}));
-
 const { docService } = await import('./doc');
+const { activityService } = await import('./activity');
+const originalRecord = activityService.record.bind(activityService);
 
 const memberUser = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -82,7 +77,11 @@ describe('DocService', () => {
     createDoc = async (data) => ({ id: 'doc-1', ...data });
     updateDoc = async (_id, data) => ({ id: 'doc-1', ...data });
     deleteDoc = async () => true;
-    recordActivity = async () => {};
+    activityService.record = async () => {};
+  });
+
+  afterEach(() => {
+    activityService.record = originalRecord;
   });
 
   it('returns doc with children', async () => {
