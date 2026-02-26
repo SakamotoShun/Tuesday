@@ -27,6 +27,7 @@ import { useTeams } from "@/hooks/use-teams"
 import { useAuth } from "@/hooks/use-auth"
 import * as teamsApi from "@/api/teams"
 import { ApiErrorResponse } from "@/api/client"
+import { PROJECT_TYPE_OPTIONS } from "@/lib/project-types"
 import type { ProjectTemplate } from "@/api/types"
 
 const projectSchema = z.object({
@@ -264,14 +265,25 @@ export function NewProjectDialog() {
 
               <div className="space-y-2">
                 <Label htmlFor="type">Type</Label>
-                <Input
-                  id="type"
-                  placeholder="Client Project"
-                  {...register("type")}
-                  value={watch("type") || ""}
+                <Select
+                  value={watch("type") || "none"}
+                  onValueChange={(value) =>
+                    setValue("type", value === "none" ? null : value)
+                  }
                   disabled={!!createdProjectId}
-                  onChange={(e) => setValue("type", e.target.value || null)}
-                />
+                >
+                  <SelectTrigger id="type">
+                    <SelectValue placeholder="Select a type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Type</SelectItem>
+                    {PROJECT_TYPE_OPTIONS.map((typeOption) => (
+                      <SelectItem key={typeOption.value} value={typeOption.value}>
+                        {typeOption.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 

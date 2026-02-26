@@ -25,6 +25,7 @@ import { ApiErrorResponse } from "@/api/client"
 import { useAuth } from "@/hooks/use-auth"
 import { useTeams } from "@/hooks/use-teams"
 import { useProjectTeams } from "@/hooks/use-projects"
+import { PROJECT_TYPE_OPTIONS } from "@/lib/project-types"
 
 const projectSchema = z.object({
   name: z.string().min(1, "Project name is required").max(255),
@@ -174,13 +175,24 @@ export function EditProjectDialog({
 
           <div className="space-y-2">
             <Label htmlFor="type">Type</Label>
-            <Input
-              id="type"
-              placeholder="Client Project"
-              {...register("type")}
-              value={watch("type") || ""}
-              onChange={(e) => setValue("type", e.target.value || null)}
-            />
+            <Select
+              value={watch("type") || "none"}
+              onValueChange={(value) =>
+                setValue("type", value === "none" ? null : value)
+              }
+            >
+              <SelectTrigger id="type">
+                <SelectValue placeholder="Select a type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No Type</SelectItem>
+                {PROJECT_TYPE_OPTIONS.map((typeOption) => (
+                  <SelectItem key={typeOption.value} value={typeOption.value}>
+                    {typeOption.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">

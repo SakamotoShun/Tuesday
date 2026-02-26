@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useProjects, useProjectStatuses } from "@/hooks/use-projects"
+import { PROJECT_TYPE_OPTIONS, normalizeProjectType } from "@/lib/project-types"
 import type { Project, UpdateProjectInput } from "@/api/types"
 
 export function ProjectsPage() {
@@ -31,7 +32,10 @@ export function ProjectsPage() {
     if (statusFilter !== "all" && project.status?.name !== statusFilter) {
       return false
     }
-    if (typeFilter !== "all" && project.type !== typeFilter) {
+    if (
+      typeFilter !== "all" &&
+      normalizeProjectType(project.type) !== typeFilter
+    ) {
       return false
     }
     return true
@@ -100,9 +104,14 @@ export function ProjectsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="Client Project">Client Project</SelectItem>
-            <SelectItem value="Internal">Internal</SelectItem>
-            <SelectItem value="Research">Research</SelectItem>
+            {PROJECT_TYPE_OPTIONS.map((typeOption) => (
+              <SelectItem
+                key={typeOption.value}
+                value={normalizeProjectType(typeOption.value)}
+              >
+                {typeOption.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
