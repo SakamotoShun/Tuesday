@@ -1,4 +1,4 @@
-import { docRepository } from '../repositories';
+import { docRepository, docShareRepository, userRepository, type DocShareWithUser } from '../repositories';
 import { projectService } from './project';
 import { activityService } from './activity';
 import { type Doc, type NewDoc } from '../db/schema';
@@ -28,7 +28,39 @@ export interface DocWithChildren extends Doc {
   parent?: Doc | null;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
 export class DocService {
+  private isShareableHiringInterviewNote(doc: Doc): boolean {
+    if (doc.projectId) {
+      return false;
+    }
+
+    if (!isRecord(doc.properties)) {
+      return false;
+    }
+
+    return doc.properties.source === 'hiring' && doc.properties.hiringType === 'interview_note';
+  }
+
+  private canManageShares(doc: Doc, user: User): boolean {
+    return user.role === 'admin' || doc.createdBy === user.id;
+  }
+
+  private async canAccessDoc(doc: Doc, user: User): Promise<boolean> {
+    if (doc.projectId) {
+      return projectService.hasAccess(doc.projectId, user);
+    }
+
+    if (doc.createdBy === user.id || user.role === 'admin') {
+      return true;
+    }
+
+    return docShareRepository.hasUserAccess(doc.id, user.id);
+  }
+
   /**
    * Get all docs in a project
    */
@@ -45,8 +77,8 @@ export class DocService {
   /**
    * Get personal docs for a user
    */
-  async getPersonalDocs(userId: string): Promise<Doc[]> {
-    return docRepository.findPersonalDocs(userId);
+  async getPersonalDocs(user: User): Promise<Doc[]> {
+    return docRepository.findPersonalDocs(user.id);
   }
 
   /**
@@ -59,17 +91,9 @@ export class DocService {
       return null;
     }
 
-    // Check access for project docs
-    if (doc.projectId) {
-      const hasAccess = await projectService.hasAccess(doc.projectId, user);
-      if (!hasAccess) {
-        throw new Error('Access denied to this doc');
-      }
-    } else {
-      // Personal docs: only creator or admin can access
-      if (doc.createdBy !== user.id && user.role !== 'admin') {
-        throw new Error('Access denied to this doc');
-      }
+    const hasAccess = await this.canAccessDoc(doc, user);
+    if (!hasAccess) {
+      throw new Error('Access denied to this doc');
     }
 
     return doc;
@@ -156,17 +180,9 @@ export class DocService {
       return null;
     }
 
-    // Check access for project docs
-    if (doc.projectId) {
-      const hasAccess = await projectService.hasAccess(doc.projectId, user);
-      if (!hasAccess) {
-        throw new Error('Access denied to this doc');
-      }
-    } else {
-      // Personal docs: only creator or admin can update
-      if (doc.createdBy !== user.id && user.role !== 'admin') {
-        throw new Error('Access denied to this doc');
-      }
+    const hasAccess = await this.canAccessDoc(doc, user);
+    if (!hasAccess) {
+      throw new Error('Access denied to this doc');
     }
 
     // Validate parent doc if provided
@@ -266,6 +282,50 @@ export class DocService {
     }
 
     return deleted;
+  }
+
+  async listDocShares(docId: string, user: User): Promise<DocShareWithUser[] | null> {
+    const doc = await docRepository.findById(docId);
+    if (!doc) {
+      return null;
+    }
+
+    if (!this.isShareableHiringInterviewNote(doc)) {
+      throw new Error('Doc sharing is only available for hiring interview notes');
+    }
+
+    if (!this.canManageShares(doc, user)) {
+      throw new Error('Access denied to manage doc shares');
+    }
+
+    return docShareRepository.findByDocId(doc.id);
+  }
+
+  async updateDocShares(docId: string, userIds: string[], user: User): Promise<DocShareWithUser[] | null> {
+    const doc = await docRepository.findById(docId);
+    if (!doc) {
+      return null;
+    }
+
+    if (!this.isShareableHiringInterviewNote(doc)) {
+      throw new Error('Doc sharing is only available for hiring interview notes');
+    }
+
+    if (!this.canManageShares(doc, user)) {
+      throw new Error('Access denied to manage doc shares');
+    }
+
+    const dedupedUserIds = Array.from(new Set(userIds.filter((candidateId) => candidateId !== doc.createdBy)));
+
+    if (dedupedUserIds.length > 0) {
+      const recipients = await Promise.all(dedupedUserIds.map((recipientId) => userRepository.findById(recipientId)));
+      const invalidRecipient = recipients.find((recipient) => !recipient || recipient.isDisabled);
+      if (invalidRecipient) {
+        throw new Error('One or more selected users cannot be shared with');
+      }
+    }
+
+    return docShareRepository.replaceShares(doc.id, dedupedUserIds, user.id);
   }
 }
 

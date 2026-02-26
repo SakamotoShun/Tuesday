@@ -5,6 +5,10 @@ let findPersonalDocs: (...args: any[]) => Promise<any> = async () => [];
 let findByIdWithParent: (...args: any[]) => Promise<any> = async () => null;
 let findChildren: (...args: any[]) => Promise<any> = async () => [];
 let findById: (...args: any[]) => Promise<any> = async () => null;
+let hasUserAccessToDoc: (...args: any[]) => Promise<any> = async () => false;
+let listDocShares: (...args: any[]) => Promise<any> = async () => [];
+let replaceDocShares: (...args: any[]) => Promise<any> = async () => [];
+let findUserById: (...args: any[]) => Promise<any> = async () => null;
 let createDoc: (...args: any[]) => Promise<any> = async (data) => ({ id: 'doc-1', ...data });
 let updateDoc: (...args: any[]) => Promise<any> = async (_id, data) => ({ id: 'doc-1', ...data });
 let deleteDoc: (...args: any[]) => Promise<any> = async () => true;
@@ -20,6 +24,22 @@ mock.module('../repositories/doc', () => ({
     create: (data: any) => createDoc(data),
     update: (docId: string, data: any) => updateDoc(docId, data),
     delete: (docId: string) => deleteDoc(docId),
+  },
+}));
+
+mock.module('../repositories/docShare', () => ({
+  DocShareRepository: class {},
+  docShareRepository: {
+    hasUserAccess: (docId: string, userId: string) => hasUserAccessToDoc(docId, userId),
+    findByDocId: (docId: string) => listDocShares(docId),
+    replaceShares: (docId: string, userIds: string[], sharedBy: string) => replaceDocShares(docId, userIds, sharedBy),
+  },
+}));
+
+mock.module('../repositories/user', () => ({
+  UserRepository: class {},
+  userRepository: {
+    findById: (userId: string) => findUserById(userId),
   },
 }));
 
@@ -48,6 +68,10 @@ describe('DocService', () => {
     findByIdWithParent = async () => null;
     findChildren = async () => [];
     findById = async () => null;
+    hasUserAccessToDoc = async () => false;
+    listDocShares = async () => [];
+    replaceDocShares = async () => [];
+    findUserById = async () => null;
     createDoc = async (data) => ({ id: 'doc-1', ...data });
     updateDoc = async (_id, data) => ({ id: 'doc-1', ...data });
     deleteDoc = async () => true;
@@ -63,6 +87,13 @@ describe('DocService', () => {
   it('rejects access to personal doc for non-owner', async () => {
     findByIdWithParent = async () => ({ id: 'doc-1', projectId: null, createdBy: 'user-2' });
     await expect(docService.getDoc('doc-1', memberUser)).rejects.toThrow('Access denied to this doc');
+  });
+
+  it('allows shared access to personal doc', async () => {
+    findByIdWithParent = async () => ({ id: 'doc-1', projectId: null, createdBy: 'user-2' });
+    hasUserAccessToDoc = async () => true;
+    const doc = await docService.getDoc('doc-1', memberUser);
+    expect(doc?.id).toBe('doc-1');
   });
 
   it('creates project doc with access', async () => {

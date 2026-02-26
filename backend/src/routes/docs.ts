@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { docService } from '../services';
 import { auth, requireProjectAccess } from '../middleware';
 import { success, errors } from '../utils/response';
-import { validateBody, formatValidationErrors, createDocSchema, updateDocSchema } from '../utils/validation';
+import { validateBody, formatValidationErrors, createDocSchema, updateDocSchema, updateDocSharesSchema } from '../utils/validation';
 
 const docs = new Hono();
 
@@ -55,7 +55,7 @@ docs.post('/projects/:id/docs', requireProjectAccess, async (c) => {
 docs.get('/personal', async (c) => {
   try {
     const user = c.get('user');
-    const personalDocs = await docService.getPersonalDocs(user.id);
+    const personalDocs = await docService.getPersonalDocs(user);
     return success(c, personalDocs);
   } catch (error) {
     console.error('Error fetching personal docs:', error);
@@ -130,6 +130,60 @@ docs.get('/:id', async (c) => {
     }
     console.error('Error fetching doc:', error);
     return errors.internal(c, 'Failed to fetch doc');
+  }
+});
+
+// GET /api/v1/docs/:id/shares - List doc shares
+docs.get('/:id/shares', async (c) => {
+  try {
+    const user = c.get('user');
+    const docId = c.req.param('id');
+
+    const shares = await docService.listDocShares(docId, user);
+    if (!shares) {
+      return errors.notFound(c, 'Doc not found');
+    }
+
+    return success(c, shares);
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'Access denied to manage doc shares') {
+        return errors.forbidden(c, error.message);
+      }
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error fetching doc shares:', error);
+    return errors.internal(c, 'Failed to fetch doc shares');
+  }
+});
+
+// PUT /api/v1/docs/:id/shares - Replace doc shares
+docs.put('/:id/shares', async (c) => {
+  try {
+    const user = c.get('user');
+    const docId = c.req.param('id');
+    const body = await c.req.json();
+
+    const validation = validateBody(updateDocSharesSchema, body);
+    if (!validation.success) {
+      return errors.validation(c, formatValidationErrors(validation.errors));
+    }
+
+    const shares = await docService.updateDocShares(docId, validation.data.userIds, user);
+    if (!shares) {
+      return errors.notFound(c, 'Doc not found');
+    }
+
+    return success(c, shares);
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'Access denied to manage doc shares') {
+        return errors.forbidden(c, error.message);
+      }
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error updating doc shares:', error);
+    return errors.internal(c, 'Failed to update doc shares');
   }
 });
 

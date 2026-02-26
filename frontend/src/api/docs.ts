@@ -1,5 +1,5 @@
 import { api } from "./client"
-import type { Doc, DocWithChildren, CreateDocInput, UpdateDocInput } from "./types"
+import type { Doc, DocShare, DocWithChildren, CreateDocInput, UpdateDocInput, UpdateDocSharesInput } from "./types"
 
 export const docsApi = {
   list: (projectId: string): Promise<Doc[]> => {
@@ -28,6 +28,14 @@ export const docsApi = {
 
   update: (docId: string, input: UpdateDocInput): Promise<Doc> => {
     return api.patch<Doc>(`/docs/${docId}`, input)
+  },
+
+  listShares: (docId: string): Promise<DocShare[]> => {
+    return api.get<DocShare[]>(`/docs/${docId}/shares`)
+  },
+
+  updateShares: (docId: string, input: UpdateDocSharesInput): Promise<DocShare[]> => {
+    return api.put<DocShare[]>(`/docs/${docId}/shares`, input)
   },
 
   delete: (docId: string): Promise<void> => {

@@ -1,4 +1,4 @@
-import { docRepository, favoriteRepository, projectRepository, taskRepository } from '../repositories';
+import { docRepository, docShareRepository, favoriteRepository, projectRepository, taskRepository } from '../repositories';
 import { FavoriteEntityType } from '../db/schema';
 import { projectService } from './project';
 import type { User } from '../types';
@@ -111,7 +111,10 @@ export class FavoriteService {
           throw new Error('Access denied to this doc');
         }
       } else if (doc.createdBy !== user.id && user.role !== 'admin') {
-        throw new Error('Access denied to this doc');
+        const hasShareAccess = await docShareRepository.hasUserAccess(doc.id, user.id);
+        if (!hasShareAccess) {
+          throw new Error('Access denied to this doc');
+        }
       }
       return;
     }
@@ -188,7 +191,10 @@ export class FavoriteService {
           return null;
         }
       } else if (doc.createdBy !== user.id && user.role !== 'admin') {
-        return null;
+        const hasShareAccess = await docShareRepository.hasUserAccess(doc.id, user.id);
+        if (!hasShareAccess) {
+          return null;
+        }
       }
 
       return {

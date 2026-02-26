@@ -1,6 +1,6 @@
-import { eq, and, isNull, desc } from 'drizzle-orm';
+import { eq, and, isNull, desc, exists, or } from 'drizzle-orm';
 import { db } from '../db/client';
-import { docs, type Doc, type NewDoc } from '../db/schema';
+import { docs, docShares, type Doc, type NewDoc } from '../db/schema';
 
 export class DocRepository {
   async findById(id: string): Promise<Doc | null> {
@@ -71,9 +71,17 @@ export class DocRepository {
   async findPersonalDocs(userId: string): Promise<Doc[]> {
     return db.query.docs.findMany({
       where: and(
-        eq(docs.createdBy, userId),
         isNull(docs.projectId),
-        eq(docs.isPolicy, false)
+        eq(docs.isPolicy, false),
+        or(
+          eq(docs.createdBy, userId),
+          exists(
+            db
+              .select({ docId: docShares.docId })
+              .from(docShares)
+              .where(and(eq(docShares.docId, docs.id), eq(docShares.userId, userId)))
+          )
+        )
       ),
       orderBy: [desc(docs.updatedAt)],
     });

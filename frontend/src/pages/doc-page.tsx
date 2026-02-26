@@ -1,11 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ArrowLeft, FileText, Pencil, Table, X } from "@/lib/icons"
 import type { Block } from "@blocknote/core"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { BlockNoteEditor } from "@/components/docs/block-note-editor"
 import { DatabaseView } from "@/components/docs/database-view"
 import { PropertiesPanel } from "@/components/docs/properties-panel"
@@ -13,10 +22,14 @@ import { DocToolbar } from "@/components/docs/doc-toolbar"
 import { DocSidebar } from "@/components/docs/doc-sidebar"
 import { ResizableSplit } from "@/components/layout/resizable-split"
 import { ChatView } from "@/components/chat/chat-view"
+import { UserCombobox } from "@/components/ui/user-combobox"
 import { useDocWithChildren, useDocs } from "@/hooks/use-docs"
+import { useAuth } from "@/hooks/use-auth"
 import { useDebounce } from "@/hooks/use-debounce"
 import { useUIStore } from "@/store/ui-store"
 import type { PropertyValue } from "@/api/types"
+import { docsApi } from "@/api/docs"
+import { usersApi } from "@/api/users"
 import { ApiErrorResponse } from "@/api/client"
 
 type PendingDocContent = {
@@ -37,10 +50,12 @@ export function shouldPersistDocContent({
 }
 
 export function DocPage() {
+  const queryClient = useQueryClient()
   const { id: routeProjectId, docId } = useParams<{ id?: string; docId: string }>()
   const [searchParams] = useSearchParams()
+  const { user } = useAuth()
   const projectId = routeProjectId ?? null
-  const fromHiring = searchParams.get("from") === "hiring"
+  const fromHiring = searchParams.get("from") === "hiring" && user?.role === "admin"
   const navigate = useNavigate()
   const { data: doc, isLoading, error } = useDocWithChildren(docId || "")
   const { createDoc, updateDoc, deleteDoc } = useDocs(projectId)
@@ -50,6 +65,9 @@ export function DocPage() {
   const [saveState, setSaveState] = useState<"saved" | "saving" | "error">("saved")
   const [isChatOpen, setIsChatOpen] = useState(false)
   const [isResizingSidebar, setIsResizingSidebar] = useState(false)
+  const [shareDialogOpen, setShareDialogOpen] = useState(false)
+  const [selectedShareUserIds, setSelectedShareUserIds] = useState<string[]>([])
+  const [shareError, setShareError] = useState<string | null>(null)
   const [pendingContent, setPendingContent] = useState<PendingDocContent | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const activeDocIdRef = useRef<string | null>(null)
@@ -62,6 +80,27 @@ export function DocPage() {
   const docSidebarWidth = useUIStore((state) => state.docSidebarWidth)
   const setDocSidebarWidth = useUIStore((state) => state.setDocSidebarWidth)
   const debouncedContent = useDebounce(pendingContent, 900)
+
+  const mentionableUsersQuery = useQuery({
+    queryKey: ["users", "mentionable"],
+    queryFn: usersApi.listMentionable,
+    enabled: shareDialogOpen,
+  })
+
+  const docSharesQuery = useQuery({
+    queryKey: ["docs", doc?.id, "shares"],
+    queryFn: () => docsApi.listShares(doc?.id ?? ""),
+    enabled: shareDialogOpen && !!doc?.id,
+  })
+
+  const updateShares = useMutation({
+    mutationFn: ({ targetDocId, userIds }: { targetDocId: string; userIds: string[] }) =>
+      docsApi.updateShares(targetDocId, { userIds }),
+    onSuccess: (shares, variables) => {
+      queryClient.setQueryData(["docs", variables.targetDocId, "shares"], shares)
+      queryClient.invalidateQueries({ queryKey: ["docs", "personal"] })
+    },
+  })
 
   const handleSidebarResizeStart = useCallback((event: React.MouseEvent) => {
     event.preventDefault()
@@ -105,12 +144,32 @@ export function DocPage() {
       queuedContentRef.current = null
       isPersistingContentRef.current = false
       lastSavedContentRef.current = JSON.stringify(doc.content ?? [])
+      setShareDialogOpen(false)
+      setSelectedShareUserIds([])
+      setShareError(null)
       return
     }
 
     activeDocIdRef.current = null
     isPersistingContentRef.current = false
   }, [doc?.id])
+
+  useEffect(() => {
+    if (!shareDialogOpen) {
+      return
+    }
+
+    setShareError(null)
+  }, [shareDialogOpen])
+
+  useEffect(() => {
+    if (!shareDialogOpen) {
+      return
+    }
+
+    const nextUserIds = (docSharesQuery.data ?? []).map((share) => share.userId)
+    setSelectedShareUserIds(nextUserIds)
+  }, [shareDialogOpen, docSharesQuery.data])
 
   const persistContent = useCallback(async (targetDocId: string, nextContent: Block[]) => {
     if (!shouldPersistDocContent({ activeDocId: activeDocIdRef.current, renderedDocId: doc?.id, targetDocId })) {
@@ -212,6 +271,25 @@ export function DocPage() {
     navigate(projectId ? `/projects/${projectId}` : fromHiring ? "/hiring" : "/")
   }
 
+  const handleSaveShares = async () => {
+    if (!doc || !canManageShares) return
+
+    try {
+      setShareError(null)
+      await updateShares.mutateAsync({
+        targetDocId: doc.id,
+        userIds: selectedShareUserIds,
+      })
+      setShareDialogOpen(false)
+    } catch (err) {
+      if (err instanceof ApiErrorResponse) {
+        setShareError(err.message)
+      } else {
+        setShareError("Failed to update sharing settings")
+      }
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -265,6 +343,21 @@ export function DocPage() {
     }
   }
 
+  const isHiringInterviewNote = Boolean(
+    !projectId &&
+      doc.properties &&
+      doc.properties.source === "hiring" &&
+      doc.properties.hiringType === "interview_note",
+  )
+
+  const canManageShares = Boolean(
+    user && isHiringInterviewNote && (user.role === "admin" || user.id === doc.createdBy),
+  )
+
+  const canDeleteDoc = projectId
+    ? true
+    : Boolean(user && (user.role === "admin" || user.id === doc.createdBy))
+
   const chatPanel = (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
@@ -290,6 +383,8 @@ export function DocPage() {
         title={doc.title}
         saveState={saveState}
         onDelete={handleDelete}
+        canDelete={canDeleteDoc}
+        onOpenShare={canManageShares ? () => setShareDialogOpen(true) : undefined}
         onOpenChat={projectId ? () => setIsChatOpen(true) : undefined}
       />
 
@@ -380,45 +475,101 @@ export function DocPage() {
     </div>
   )
 
+  const shareDialog = canManageShares ? (
+    <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
+      <DialogContent className="sm:max-w-[560px]">
+        <DialogHeader>
+          <DialogTitle>Share Candidate Note</DialogTitle>
+          <DialogDescription>
+            Select users who can edit this candidate note.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3 py-2">
+          {shareError && (
+            <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {shareError}
+            </div>
+          )}
+
+          <UserCombobox
+            users={mentionableUsersQuery.data ?? []}
+            selectedIds={selectedShareUserIds}
+            onChange={setSelectedShareUserIds}
+            mode="multiple"
+            placeholder="Select users..."
+            searchPlaceholder="Search users..."
+            emptyLabel="No users found"
+            disabled={
+              mentionableUsersQuery.isLoading ||
+              docSharesQuery.isLoading ||
+              updateShares.isPending
+            }
+            contentClassName="w-[360px]"
+          />
+        </div>
+
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => setShareDialogOpen(false)}
+            disabled={updateShares.isPending}
+          >
+            Cancel
+          </Button>
+          <Button onClick={() => void handleSaveShares()} disabled={updateShares.isPending}>
+            {updateShares.isPending ? "Saving..." : "Save"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  ) : null
+
   if (!projectId) {
     return (
-      <div className="rounded-lg border border-border bg-background p-4">
-        {docContent}
-      </div>
+      <>
+        <div className="rounded-lg border border-border bg-background p-4">
+          {docContent}
+        </div>
+        {shareDialog}
+      </>
     )
   }
 
   return (
-    <div
-      ref={containerRef}
-      className={`flex min-h-0 border border-border rounded-lg overflow-hidden bg-background ${
-        isResizingSidebar ? "select-none" : ""
-      }`}
-      style={{ height: "calc(100vh - 72px - 4rem)" }}
-    >
-      <DocSidebar projectId={projectId} activeDocId={doc.id} width={docSidebarWidth} />
+    <>
       <div
-        className={`w-1 cursor-col-resize bg-border hover:bg-primary/50 transition-colors ${
-          isResizingSidebar ? "bg-primary" : ""
+        ref={containerRef}
+        className={`flex min-h-0 border border-border rounded-lg overflow-hidden bg-background ${
+          isResizingSidebar ? "select-none" : ""
         }`}
-        onMouseDown={handleSidebarResizeStart}
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="Resize docs sidebar"
-      />
-      <div className="flex-1 min-w-0">
-        <ResizableSplit
-          sidePanel={chatPanel}
-          sidePanelOpen={isChatOpen}
-          sidePanelWidth={chatPanelWidth}
-          onWidthChange={setChatPanelWidth}
-          minWidth={300}
-          maxWidth={700}
-        >
-          {docContent}
-        </ResizableSplit>
+        style={{ height: "calc(100vh - 72px - 4rem)" }}
+      >
+        <DocSidebar projectId={projectId} activeDocId={doc.id} width={docSidebarWidth} />
+        <div
+          className={`w-1 cursor-col-resize bg-border hover:bg-primary/50 transition-colors ${
+            isResizingSidebar ? "bg-primary" : ""
+          }`}
+          onMouseDown={handleSidebarResizeStart}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize docs sidebar"
+        />
+        <div className="flex-1 min-w-0">
+          <ResizableSplit
+            sidePanel={chatPanel}
+            sidePanelOpen={isChatOpen}
+            sidePanelWidth={chatPanelWidth}
+            onWidthChange={setChatPanelWidth}
+            minWidth={300}
+            maxWidth={700}
+          >
+            {docContent}
+          </ResizableSplit>
+        </div>
       </div>
-    </div>
+      {shareDialog}
+    </>
   )
 }
 

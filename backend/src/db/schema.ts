@@ -336,6 +336,20 @@ export const docs = pgTable('docs', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+// Doc shares table
+export const docShares = pgTable('doc_shares', {
+  docId: uuid('doc_id').notNull().references(() => docs.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  permission: varchar('permission', { length: 20 }).notNull().default('edit'),
+  sharedBy: uuid('shared_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.docId, table.userId] }),
+  userIdx: index('idx_doc_shares_user').on(table.userId),
+  sharedByIdx: index('idx_doc_shares_shared_by').on(table.sharedBy),
+}));
+
 // Doc collaboration snapshots
 export const docCollabSnapshots = pgTable('doc_collab_snapshots', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -411,6 +425,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   teams: many(teamMembers),
   createdProjects: many(projects, { relationName: 'createdProjects' }),
   sessions: many(sessions),
+  receivedDocShares: many(docShares, { relationName: 'docShareRecipient' }),
+  sentDocShares: many(docShares, { relationName: 'docShareSharer' }),
   activityLogs: many(activityLogs),
   favorites: many(favorites),
   createdNoticeBoardItems: many(noticeBoardItems, { relationName: 'createdNoticeBoardItems' }),
@@ -489,8 +505,26 @@ export const docsRelations = relations(docs, ({ one, many }) => ({
     fields: [docs.createdBy],
     references: [users.id],
   }),
+  shares: many(docShares),
   collabSnapshots: many(docCollabSnapshots),
   collabUpdates: many(docCollabUpdates),
+}));
+
+export const docSharesRelations = relations(docShares, ({ one }) => ({
+  doc: one(docs, {
+    fields: [docShares.docId],
+    references: [docs.id],
+  }),
+  user: one(users, {
+    fields: [docShares.userId],
+    references: [users.id],
+    relationName: 'docShareRecipient',
+  }),
+  sharedByUser: one(users, {
+    fields: [docShares.sharedBy],
+    references: [users.id],
+    relationName: 'docShareSharer',
+  }),
 }));
 
 // Chat relations
@@ -1107,6 +1141,8 @@ export type MessageReaction = typeof messageReactions.$inferSelect;
 export type NewMessageReaction = typeof messageReactions.$inferInsert;
 export type Doc = typeof docs.$inferSelect;
 export type NewDoc = typeof docs.$inferInsert;
+export type DocShare = typeof docShares.$inferSelect;
+export type NewDocShare = typeof docShares.$inferInsert;
 export type TaskStatus = typeof taskStatuses.$inferSelect;
 export type NewTaskStatus = typeof taskStatuses.$inferInsert;
 export type Task = typeof tasks.$inferSelect;

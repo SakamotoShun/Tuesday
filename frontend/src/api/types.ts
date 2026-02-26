@@ -376,6 +376,20 @@ export interface UpdateDocInput {
   properties?: Record<string, PropertyValue>
 }
 
+export interface DocShare {
+  docId: string
+  userId: string
+  permission: "edit"
+  sharedBy: string
+  createdAt: string
+  updatedAt: string
+  user: Pick<User, "id" | "name" | "email" | "avatarUrl">
+}
+
+export interface UpdateDocSharesInput {
+  userIds: string[]
+}
+
 // Admin Settings types
 export interface AdminSettings {
   allowRegistration: boolean

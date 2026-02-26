@@ -1,6 +1,6 @@
 import { and, desc, eq, exists, ilike, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { db } from '../db/client';
-import { docs, projectMembers, projects, tasks, UserRole } from '../db/schema';
+import { docs, docShares, projectMembers, projects, tasks, UserRole } from '../db/schema';
 
 export interface SearchProjectResult {
   id: string;
@@ -126,7 +126,17 @@ export class SearchRepository {
         and(
           matchCondition,
           or(
-            and(isNull(docs.projectId), eq(docs.createdBy, userId)),
+            and(isNull(docs.projectId), eq(docs.isPolicy, false), eq(docs.createdBy, userId)),
+            and(
+              isNull(docs.projectId),
+              eq(docs.isPolicy, false),
+              exists(
+                db
+                  .select({ docId: docShares.docId })
+                  .from(docShares)
+                  .where(and(eq(docShares.docId, docs.id), eq(docShares.userId, userId)))
+              )
+            ),
             and(
               isNotNull(docs.projectId),
               eq(projects.isTemplate, false),

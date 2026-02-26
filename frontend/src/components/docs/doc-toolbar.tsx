@@ -20,10 +20,21 @@ interface DocToolbarProps {
   title: string
   saveState: SaveState
   onDelete: () => Promise<void>
+  canDelete?: boolean
+  onOpenShare?: () => void
   onOpenChat?: () => void
 }
 
-export function DocToolbar({ breadcrumbHref, breadcrumbLabel, title, saveState, onDelete, onOpenChat }: DocToolbarProps) {
+export function DocToolbar({
+  breadcrumbHref,
+  breadcrumbLabel,
+  title,
+  saveState,
+  onDelete,
+  canDelete = true,
+  onOpenShare,
+  onOpenChat,
+}: DocToolbarProps) {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -73,10 +84,18 @@ export function DocToolbar({ breadcrumbHref, breadcrumbLabel, title, saveState, 
           </Button>
         )}
 
-        <Button variant="outline" size="sm" onClick={() => setConfirmOpen(true)}>
-          <Trash2 className="mr-2 h-4 w-4" />
-          Delete
-        </Button>
+        {onOpenShare && (
+          <Button variant="outline" size="sm" onClick={onOpenShare}>
+            Share
+          </Button>
+        )}
+
+        {canDelete && (
+          <Button variant="outline" size="sm" onClick={() => setConfirmOpen(true)}>
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete
+          </Button>
+        )}
       </div>
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>

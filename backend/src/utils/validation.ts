@@ -241,6 +241,12 @@ export const updateDocSchema = z.object({
 
 export type UpdateDocInput = z.infer<typeof updateDocSchema>;
 
+export const updateDocSharesSchema = z.object({
+  userIds: z.array(uuidSchema).max(100),
+});
+
+export type UpdateDocSharesInput = z.infer<typeof updateDocSharesSchema>;
+
 // Task validation schemas
 export const createTaskSchema = z.object({
   title: z.string().min(1, 'Task title is required').max(255),
