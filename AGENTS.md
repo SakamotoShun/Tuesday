@@ -517,6 +517,7 @@ DELETED_MESSAGE_FILE_RETENTION_DAYS=30   # Days to keep deleted message files
 - Mock database in unit tests (use test containers or in-memory)
 - Use test fixtures for consistent test data
 - Test error cases, not just happy paths
+- Before creating any commit, run the full test suites for both backend and frontend (`cd backend && bun test` and `cd frontend && bun test`) and fix any failing tests first
 
 ## Commit Messages
 

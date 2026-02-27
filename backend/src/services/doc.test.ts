@@ -12,6 +12,10 @@ let findUserById: (...args: any[]) => Promise<any> = async () => null;
 let createDoc: (...args: any[]) => Promise<any> = async (data) => ({ id: 'doc-1', ...data });
 let updateDoc: (...args: any[]) => Promise<any> = async (_id, data) => ({ id: 'doc-1', ...data });
 let deleteDoc: (...args: any[]) => Promise<any> = async () => true;
+let findDocShareLink: (...args: any[]) => Promise<any> = async () => null;
+let findShareLinkByToken: (...args: any[]) => Promise<any> = async () => null;
+let upsertDocShareLink: (...args: any[]) => Promise<any> = async () => null;
+let deleteDocShareLink: (...args: any[]) => Promise<any> = async () => 0;
 
 mock.module('../repositories/doc', () => ({
   DocRepository: class {},
@@ -40,6 +44,16 @@ mock.module('../repositories/user', () => ({
   UserRepository: class {},
   userRepository: {
     findById: (userId: string) => findUserById(userId),
+  },
+}));
+
+mock.module('../repositories/sharedLink', () => ({
+  SharedLinkRepository: class {},
+  sharedLinkRepository: {
+    findDocLink: (docId: string) => findDocShareLink(docId),
+    findByToken: (token: string) => findShareLinkByToken(token),
+    upsertDocViewLink: (docId: string, token: string, createdBy: string) => upsertDocShareLink(docId, token, createdBy),
+    deleteDocLink: (docId: string) => deleteDocShareLink(docId),
   },
 }));
 
@@ -77,6 +91,10 @@ describe('DocService', () => {
     createDoc = async (data) => ({ id: 'doc-1', ...data });
     updateDoc = async (_id, data) => ({ id: 'doc-1', ...data });
     deleteDoc = async () => true;
+    findDocShareLink = async () => null;
+    findShareLinkByToken = async () => null;
+    upsertDocShareLink = async () => null;
+    deleteDocShareLink = async () => 0;
     activityService.record = async () => {};
   });
 
