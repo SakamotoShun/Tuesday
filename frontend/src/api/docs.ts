@@ -1,5 +1,14 @@
 import { api } from "./client"
-import type { Doc, DocShare, DocWithChildren, CreateDocInput, UpdateDocInput, UpdateDocSharesInput } from "./types"
+import type {
+  Doc,
+  DocShare,
+  DocWithChildren,
+  CreateDocInput,
+  UpdateDocInput,
+  UpdateDocSharesInput,
+  SharedDocShareLink,
+  SharedDocView,
+} from "./types"
 
 export const docsApi = {
   list: (projectId: string): Promise<Doc[]> => {
@@ -36,6 +45,22 @@ export const docsApi = {
 
   updateShares: (docId: string, input: UpdateDocSharesInput): Promise<DocShare[]> => {
     return api.put<DocShare[]>(`/docs/${docId}/shares`, input)
+  },
+
+  getShareLink: (docId: string): Promise<SharedDocShareLink | null> => {
+    return api.get<SharedDocShareLink | null>(`/docs/${docId}/share-link`)
+  },
+
+  createShareLink: (docId: string): Promise<SharedDocShareLink> => {
+    return api.put<SharedDocShareLink>(`/docs/${docId}/share-link`, {})
+  },
+
+  deleteShareLink: (docId: string): Promise<{ deleted: boolean }> => {
+    return api.delete<{ deleted: boolean }>(`/docs/${docId}/share-link`)
+  },
+
+  getSharedDoc: (token: string): Promise<SharedDocView> => {
+    return api.get<SharedDocView>(`/shared/docs/${token}`)
   },
 
   delete: (docId: string): Promise<void> => {

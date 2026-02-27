@@ -26,6 +26,7 @@ import { favorites } from './favorites';
 import { noticeBoard } from './notice-board';
 import { hiring } from './hiring';
 import { policies } from './policies';
+import { shared } from './shared';
 
 const routes = new Hono();
 
@@ -57,6 +58,7 @@ routes.route('/api/v1/favorites', favorites);
 routes.route('/api/v1/notice-board', noticeBoard);
 routes.route('/api/v1/hiring', hiring);
 routes.route('/api/v1/policies', policies);
+routes.route('/api/v1/shared', shared);
 
 // Health check
 routes.get('/health', (c) => {

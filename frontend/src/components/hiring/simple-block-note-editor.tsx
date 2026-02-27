@@ -33,15 +33,18 @@ interface SimpleBlockNoteEditorProps {
   initialContent?: Block[]
   onChange?: (content: Block[]) => void
   onBlur?: () => void
+  editable?: boolean
 }
 
 export function SimpleBlockNoteEditor({
   initialContent,
   onChange,
   onBlur,
+  editable = true,
 }: SimpleBlockNoteEditorProps) {
   const editor = useCreateBlockNote({
     schema,
+    editable,
     initialContent: initialContent && initialContent.length > 0 ? initialContent : undefined,
   })
 
@@ -71,10 +74,12 @@ export function SimpleBlockNoteEditor({
       className="rounded-lg border border-border bg-card px-4 py-6"
       onBlur={onBlur}
     >
-      <BlockNoteView editor={editor} onChange={handleChange} theme={editorTheme} sideMenu={false}>
-        <SideMenuController
-          sideMenu={(props) => <SideMenu {...props} dragHandleMenu={CustomDragHandleMenu} />}
-        />
+      <BlockNoteView editor={editor} onChange={handleChange} theme={editorTheme} sideMenu={false} editable={editable}>
+        {editable && (
+          <SideMenuController
+            sideMenu={(props) => <SideMenu {...props} dragHandleMenu={CustomDragHandleMenu} />}
+          />
+        )}
       </BlockNoteView>
     </div>
   )

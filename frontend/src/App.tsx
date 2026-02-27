@@ -43,6 +43,9 @@ const PolicyDatabasePage = lazy(() =>
 const PolicyDocPage = lazy(() =>
   import("@/pages/policy-doc-page").then((m) => ({ default: m.PolicyDocPage }))
 )
+const SharedDocPage = lazy(() =>
+  import("@/pages/shared-doc-page").then((m) => ({ default: m.SharedDocPage }))
+)
 
 function AppRoutes() {
   const { isInitialized, isLoading } = useSetup()
@@ -77,6 +80,20 @@ function AppRoutes() {
         {/* Auth routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route
+          path="/shared/docs/:token"
+          element={
+            <Suspense
+              fallback={
+                <div className="min-h-screen bg-background flex items-center justify-center">
+                  <LoadingSpinner />
+                </div>
+              }
+            >
+              <SharedDocPage />
+            </Suspense>
+          }
+        />
 
         {/* Protected routes - require authentication */}
         <Route

@@ -68,6 +68,8 @@ export function DocPage() {
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
   const [selectedShareUserIds, setSelectedShareUserIds] = useState<string[]>([])
   const [shareError, setShareError] = useState<string | null>(null)
+  const [publicShareError, setPublicShareError] = useState<string | null>(null)
+  const [copiedPublicLink, setCopiedPublicLink] = useState(false)
   const [pendingContent, setPendingContent] = useState<PendingDocContent | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const activeDocIdRef = useRef<string | null>(null)
@@ -93,12 +95,34 @@ export function DocPage() {
     enabled: shareDialogOpen && !!doc?.id,
   })
 
+  const docShareLinkQuery = useQuery({
+    queryKey: ["docs", doc?.id, "share-link"],
+    queryFn: () => docsApi.getShareLink(doc?.id ?? ""),
+    enabled: shareDialogOpen && !!doc?.id,
+  })
+
   const updateShares = useMutation({
     mutationFn: ({ targetDocId, userIds }: { targetDocId: string; userIds: string[] }) =>
       docsApi.updateShares(targetDocId, { userIds }),
     onSuccess: (shares, variables) => {
       queryClient.setQueryData(["docs", variables.targetDocId, "shares"], shares)
       queryClient.invalidateQueries({ queryKey: ["docs", "personal"] })
+    },
+  })
+
+  const createShareLink = useMutation({
+    mutationFn: (targetDocId: string) => docsApi.createShareLink(targetDocId),
+    onSuccess: (shareLink, targetDocId) => {
+      queryClient.setQueryData(["docs", targetDocId, "share-link"], shareLink)
+      setCopiedPublicLink(false)
+    },
+  })
+
+  const deleteShareLink = useMutation({
+    mutationFn: (targetDocId: string) => docsApi.deleteShareLink(targetDocId),
+    onSuccess: (_, targetDocId) => {
+      queryClient.setQueryData(["docs", targetDocId, "share-link"], null)
+      setCopiedPublicLink(false)
     },
   })
 
@@ -147,6 +171,8 @@ export function DocPage() {
       setShareDialogOpen(false)
       setSelectedShareUserIds([])
       setShareError(null)
+      setPublicShareError(null)
+      setCopiedPublicLink(false)
       return
     }
 
@@ -160,7 +186,12 @@ export function DocPage() {
     }
 
     setShareError(null)
+    setPublicShareError(null)
   }, [shareDialogOpen])
+
+  useEffect(() => {
+    setCopiedPublicLink(false)
+  }, [docShareLinkQuery.data?.token])
 
   useEffect(() => {
     if (!shareDialogOpen) {
@@ -290,6 +321,51 @@ export function DocPage() {
     }
   }
 
+  const handleCreateShareLink = async () => {
+    if (!doc || !canManageShares) return
+
+    try {
+      setPublicShareError(null)
+      await createShareLink.mutateAsync(doc.id)
+    } catch (err) {
+      if (err instanceof ApiErrorResponse) {
+        setPublicShareError(err.message)
+      } else {
+        setPublicShareError("Failed to create public link")
+      }
+    }
+  }
+
+  const handleDeleteShareLink = async () => {
+    if (!doc || !canManageShares) return
+
+    try {
+      setPublicShareError(null)
+      await deleteShareLink.mutateAsync(doc.id)
+    } catch (err) {
+      if (err instanceof ApiErrorResponse) {
+        setPublicShareError(err.message)
+      } else {
+        setPublicShareError("Failed to disable public link")
+      }
+    }
+  }
+
+  const handleCopyShareLink = async (url: string) => {
+    if (!navigator.clipboard) {
+      setPublicShareError("Clipboard is not available in this browser")
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopiedPublicLink(true)
+      setPublicShareError(null)
+    } catch {
+      setPublicShareError("Failed to copy link")
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -343,16 +419,13 @@ export function DocPage() {
     }
   }
 
-  const isHiringInterviewNote = Boolean(
-    !projectId &&
-      doc.properties &&
-      doc.properties.source === "hiring" &&
-      doc.properties.hiringType === "interview_note",
-  )
+  const canManageShares = projectId
+    ? Boolean(user)
+    : Boolean(user && (user.role === "admin" || user.id === doc.createdBy))
 
-  const canManageShares = Boolean(
-    user && isHiringInterviewNote && (user.role === "admin" || user.id === doc.createdBy),
-  )
+  const shareLinkUrl = docShareLinkQuery.data
+    ? `${window.location.origin}/shared/docs/${docShareLinkQuery.data.token}`
+    : ""
 
   const canDeleteDoc = projectId
     ? true
@@ -479,45 +552,104 @@ export function DocPage() {
     <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
       <DialogContent className="sm:max-w-[560px]">
         <DialogHeader>
-          <DialogTitle>Share Candidate Note</DialogTitle>
+          <DialogTitle>Share Doc</DialogTitle>
           <DialogDescription>
-            Select users who can edit this candidate note.
+            Invite workspace members and optionally create a public view-only link.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3 py-2">
+        <div className="space-y-5 py-2">
           {shareError && (
             <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {shareError}
             </div>
           )}
 
-          <UserCombobox
-            users={mentionableUsersQuery.data ?? []}
-            selectedIds={selectedShareUserIds}
-            onChange={setSelectedShareUserIds}
-            mode="multiple"
-            placeholder="Select users..."
-            searchPlaceholder="Search users..."
-            emptyLabel="No users found"
-            disabled={
-              mentionableUsersQuery.isLoading ||
-              docSharesQuery.isLoading ||
-              updateShares.isPending
-            }
-            contentClassName="w-[360px]"
-          />
+          {publicShareError && (
+            <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {publicShareError}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Workspace access</p>
+            <p className="text-xs text-muted-foreground">Selected users can edit this doc.</p>
+
+            <UserCombobox
+              users={mentionableUsersQuery.data ?? []}
+              selectedIds={selectedShareUserIds}
+              onChange={setSelectedShareUserIds}
+              mode="multiple"
+              placeholder="Select users..."
+              searchPlaceholder="Search users..."
+              emptyLabel="No users found"
+              disabled={
+                mentionableUsersQuery.isLoading ||
+                docSharesQuery.isLoading ||
+                updateShares.isPending
+              }
+              contentClassName="w-[360px]"
+            />
+          </div>
+
+          <div className="space-y-3 border-t border-border pt-4">
+            <p className="text-sm font-medium">Public link (view only)</p>
+            <p className="text-xs text-muted-foreground">
+              Anyone with this link can view this doc without signing in.
+            </p>
+
+            {docShareLinkQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground">Loading public link...</p>
+            ) : docShareLinkQuery.data ? (
+              <div className="space-y-2">
+                <Input readOnly value={shareLinkUrl} className="text-sm" />
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleCopyShareLink(shareLinkUrl)}
+                    disabled={deleteShareLink.isPending}
+                  >
+                    {copiedPublicLink ? "Copied" : "Copy link"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleDeleteShareLink()}
+                    disabled={deleteShareLink.isPending}
+                  >
+                    {deleteShareLink.isPending ? "Disabling..." : "Disable link"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void handleCreateShareLink()}
+                disabled={createShareLink.isPending}
+              >
+                {createShareLink.isPending ? "Creating..." : "Create public link"}
+              </Button>
+            )}
+          </div>
         </div>
 
         <DialogFooter>
           <Button
             variant="outline"
             onClick={() => setShareDialogOpen(false)}
-            disabled={updateShares.isPending}
+            disabled={updateShares.isPending || createShareLink.isPending || deleteShareLink.isPending}
           >
             Cancel
           </Button>
-          <Button onClick={() => void handleSaveShares()} disabled={updateShares.isPending}>
+          <Button
+            onClick={() => void handleSaveShares()}
+            disabled={updateShares.isPending || createShareLink.isPending || deleteShareLink.isPending}
+          >
             {updateShares.isPending ? "Saving..." : "Save"}
           </Button>
         </DialogFooter>

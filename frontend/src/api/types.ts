@@ -390,6 +390,22 @@ export interface UpdateDocSharesInput {
   userIds: string[]
 }
 
+export interface SharedDocShareLink {
+  id: string
+  token: string
+  permission: "view"
+  createdAt: string
+}
+
+export interface SharedDocView {
+  doc: {
+    id: string
+    title: string
+    content: Block[]
+  }
+  permission: "view"
+}
+
 // Admin Settings types
 export interface AdminSettings {
   allowRegistration: boolean

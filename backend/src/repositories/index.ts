@@ -37,4 +37,5 @@ export { interviewRepository, InterviewRepository } from './interview';
 export { interviewNoteRepository, InterviewNoteRepository } from './interviewNote';
 export { positionDocRepository, PositionDocRepository } from './positionDoc';
 export { docShareRepository, DocShareRepository, type DocShareWithUser } from './docShare';
+export { sharedLinkRepository, SharedLinkRepository } from './sharedLink';
 export { policyRepository, PolicyRepository } from './policy';

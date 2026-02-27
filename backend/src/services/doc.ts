@@ -1,7 +1,8 @@
-import { docRepository, docShareRepository, userRepository, type DocShareWithUser } from '../repositories';
+import { randomBytes } from 'node:crypto';
+import { docRepository, docShareRepository, sharedLinkRepository, userRepository, type DocShareWithUser } from '../repositories';
 import { projectService } from './project';
 import { activityService } from './activity';
-import { type Doc, type NewDoc } from '../db/schema';
+import { type Doc, type NewDoc, type SharedLink } from '../db/schema';
 import type { User } from '../types';
 import { extractSearchTextFromDocContent } from '../utils/doc-search';
 
@@ -28,25 +29,46 @@ export interface DocWithChildren extends Doc {
   parent?: Doc | null;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
+export interface DocPublicShareLink {
+  id: string;
+  token: string;
+  permission: 'view';
+  createdAt: Date;
+}
+
+export interface SharedDocView {
+  doc: {
+    id: string;
+    title: string;
+    content: Array<Record<string, unknown>>;
+  };
+  permission: 'view';
 }
 
 export class DocService {
-  private isShareableHiringInterviewNote(doc: Doc): boolean {
+  private async canManageShares(doc: Doc, user: User): Promise<boolean> {
+    if (user.role === 'admin' || doc.createdBy === user.id) {
+      return true;
+    }
+
     if (doc.projectId) {
-      return false;
+      return projectService.hasAccess(doc.projectId, user);
     }
 
-    if (!isRecord(doc.properties)) {
-      return false;
-    }
-
-    return doc.properties.source === 'hiring' && doc.properties.hiringType === 'interview_note';
+    return false;
   }
 
-  private canManageShares(doc: Doc, user: User): boolean {
-    return user.role === 'admin' || doc.createdBy === user.id;
+  private toPublicShareLink(link: SharedLink): DocPublicShareLink {
+    return {
+      id: link.id,
+      token: link.token,
+      permission: 'view',
+      createdAt: link.createdAt,
+    };
+  }
+
+  private generateShareToken(): string {
+    return randomBytes(32).toString('hex');
   }
 
   private async canAccessDoc(doc: Doc, user: User): Promise<boolean> {
@@ -269,6 +291,8 @@ export class DocService {
       }
     }
 
+    await sharedLinkRepository.deleteDocLink(docId);
+
     const deleted = await docRepository.delete(docId);
     if (deleted) {
       await activityService.record({
@@ -290,11 +314,7 @@ export class DocService {
       return null;
     }
 
-    if (!this.isShareableHiringInterviewNote(doc)) {
-      throw new Error('Doc sharing is only available for hiring interview notes');
-    }
-
-    if (!this.canManageShares(doc, user)) {
+    if (!await this.canManageShares(doc, user)) {
       throw new Error('Access denied to manage doc shares');
     }
 
@@ -307,11 +327,7 @@ export class DocService {
       return null;
     }
 
-    if (!this.isShareableHiringInterviewNote(doc)) {
-      throw new Error('Doc sharing is only available for hiring interview notes');
-    }
-
-    if (!this.canManageShares(doc, user)) {
+    if (!await this.canManageShares(doc, user)) {
       throw new Error('Access denied to manage doc shares');
     }
 
@@ -326,6 +342,70 @@ export class DocService {
     }
 
     return docShareRepository.replaceShares(doc.id, dedupedUserIds, user.id);
+  }
+
+  async getDocPublicShareLink(docId: string, user: User): Promise<DocPublicShareLink | null> {
+    const doc = await docRepository.findById(docId);
+    if (!doc) {
+      throw new Error('Doc not found');
+    }
+
+    if (!await this.canManageShares(doc, user)) {
+      throw new Error('Access denied to manage doc shares');
+    }
+
+    const link = await sharedLinkRepository.findDocLink(doc.id);
+    return link ? this.toPublicShareLink(link) : null;
+  }
+
+  async createDocPublicShareLink(docId: string, user: User): Promise<DocPublicShareLink> {
+    const doc = await docRepository.findById(docId);
+    if (!doc) {
+      throw new Error('Doc not found');
+    }
+
+    if (!await this.canManageShares(doc, user)) {
+      throw new Error('Access denied to manage doc shares');
+    }
+
+    const token = this.generateShareToken();
+    const link = await sharedLinkRepository.upsertDocViewLink(doc.id, token, user.id);
+    return this.toPublicShareLink(link);
+  }
+
+  async deleteDocPublicShareLink(docId: string, user: User): Promise<boolean> {
+    const doc = await docRepository.findById(docId);
+    if (!doc) {
+      throw new Error('Doc not found');
+    }
+
+    if (!await this.canManageShares(doc, user)) {
+      throw new Error('Access denied to manage doc shares');
+    }
+
+    const deletedCount = await sharedLinkRepository.deleteDocLink(doc.id);
+    return deletedCount > 0;
+  }
+
+  async getSharedDocByToken(token: string): Promise<SharedDocView | null> {
+    const link = await sharedLinkRepository.findByToken(token);
+    if (!link) {
+      return null;
+    }
+
+    const doc = await docRepository.findById(link.docId);
+    if (!doc) {
+      return null;
+    }
+
+    return {
+      doc: {
+        id: doc.id,
+        title: doc.title,
+        content: doc.content as Array<Record<string, unknown>>,
+      },
+      permission: 'view',
+    };
   }
 }
 

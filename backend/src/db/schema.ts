@@ -350,6 +350,19 @@ export const docShares = pgTable('doc_shares', {
   sharedByIdx: index('idx_doc_shares_shared_by').on(table.sharedBy),
 }));
 
+// Shared links table
+export const sharedLinks = pgTable('shared_links', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  token: varchar('token', { length: 64 }).notNull(),
+  docId: uuid('doc_id').notNull().references(() => docs.id, { onDelete: 'cascade' }),
+  permission: varchar('permission', { length: 20 }).notNull().default('view'),
+  createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  tokenUniqueIdx: uniqueIndex('idx_shared_links_token').on(table.token),
+  docUniqueIdx: uniqueIndex('idx_shared_links_doc_unique').on(table.docId),
+}));
+
 // Doc collaboration snapshots
 export const docCollabSnapshots = pgTable('doc_collab_snapshots', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -427,6 +440,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(sessions),
   receivedDocShares: many(docShares, { relationName: 'docShareRecipient' }),
   sentDocShares: many(docShares, { relationName: 'docShareSharer' }),
+  createdSharedLinks: many(sharedLinks),
   activityLogs: many(activityLogs),
   favorites: many(favorites),
   createdNoticeBoardItems: many(noticeBoardItems, { relationName: 'createdNoticeBoardItems' }),
@@ -506,6 +520,7 @@ export const docsRelations = relations(docs, ({ one, many }) => ({
     references: [users.id],
   }),
   shares: many(docShares),
+  sharedLinks: many(sharedLinks),
   collabSnapshots: many(docCollabSnapshots),
   collabUpdates: many(docCollabUpdates),
 }));
@@ -524,6 +539,17 @@ export const docSharesRelations = relations(docShares, ({ one }) => ({
     fields: [docShares.sharedBy],
     references: [users.id],
     relationName: 'docShareSharer',
+  }),
+}));
+
+export const sharedLinksRelations = relations(sharedLinks, ({ one }) => ({
+  doc: one(docs, {
+    fields: [sharedLinks.docId],
+    references: [docs.id],
+  }),
+  createdByUser: one(users, {
+    fields: [sharedLinks.createdBy],
+    references: [users.id],
   }),
 }));
 
@@ -1143,6 +1169,8 @@ export type Doc = typeof docs.$inferSelect;
 export type NewDoc = typeof docs.$inferInsert;
 export type DocShare = typeof docShares.$inferSelect;
 export type NewDocShare = typeof docShares.$inferInsert;
+export type SharedLink = typeof sharedLinks.$inferSelect;
+export type NewSharedLink = typeof sharedLinks.$inferInsert;
 export type TaskStatus = typeof taskStatuses.$inferSelect;
 export type NewTaskStatus = typeof taskStatuses.$inferInsert;
 export type Task = typeof tasks.$inferSelect;

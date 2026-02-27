@@ -187,6 +187,72 @@ docs.put('/:id/shares', async (c) => {
   }
 });
 
+// GET /api/v1/docs/:id/share-link - Get public share link
+docs.get('/:id/share-link', async (c) => {
+  try {
+    const user = c.get('user');
+    const docId = c.req.param('id');
+    const shareLink = await docService.getDocPublicShareLink(docId, user);
+    return success(c, shareLink);
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'Access denied to manage doc shares') {
+        return errors.forbidden(c, error.message);
+      }
+      if (error.message === 'Doc not found') {
+        return errors.notFound(c, 'Doc');
+      }
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error fetching doc public share link:', error);
+    return errors.internal(c, 'Failed to fetch doc public share link');
+  }
+});
+
+// PUT /api/v1/docs/:id/share-link - Create or refresh public share link
+docs.put('/:id/share-link', async (c) => {
+  try {
+    const user = c.get('user');
+    const docId = c.req.param('id');
+    const shareLink = await docService.createDocPublicShareLink(docId, user);
+    return success(c, shareLink);
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'Access denied to manage doc shares') {
+        return errors.forbidden(c, error.message);
+      }
+      if (error.message === 'Doc not found') {
+        return errors.notFound(c, 'Doc');
+      }
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error creating doc public share link:', error);
+    return errors.internal(c, 'Failed to create doc public share link');
+  }
+});
+
+// DELETE /api/v1/docs/:id/share-link - Revoke public share link
+docs.delete('/:id/share-link', async (c) => {
+  try {
+    const user = c.get('user');
+    const docId = c.req.param('id');
+    const deleted = await docService.deleteDocPublicShareLink(docId, user);
+    return success(c, { deleted });
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'Access denied to manage doc shares') {
+        return errors.forbidden(c, error.message);
+      }
+      if (error.message === 'Doc not found') {
+        return errors.notFound(c, 'Doc');
+      }
+      return errors.badRequest(c, error.message);
+    }
+    console.error('Error deleting doc public share link:', error);
+    return errors.internal(c, 'Failed to delete doc public share link');
+  }
+});
+
 // PATCH /api/v1/docs/:id - Update doc
 docs.patch('/:id', async (c) => {
   try {
