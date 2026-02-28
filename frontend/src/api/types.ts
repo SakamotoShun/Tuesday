@@ -413,6 +413,8 @@ export interface AdminSettings {
   siteUrl: string
   openaiApiKey: string
   openrouterApiKey: string
+  zoomJwtToken?: string
+  zoomJoinBeforeHost?: boolean
 }
 
 export interface UpdateAdminSettingsInput {
@@ -421,6 +423,8 @@ export interface UpdateAdminSettingsInput {
   siteUrl?: string
   openaiApiKey?: string
   openrouterApiKey?: string
+  zoomJwtToken?: string
+  zoomJoinBeforeHost?: boolean
 }
 
 export interface AdminCreateUserInput {

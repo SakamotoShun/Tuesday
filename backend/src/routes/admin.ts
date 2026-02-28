@@ -44,6 +44,8 @@ const updateSettingsSchema = z.object({
   siteUrl: z.union([z.string().url('Invalid site URL').max(2000), z.literal('')]).optional(),
   openaiApiKey: z.union([z.string().max(500), z.literal('')]).optional(),
   openrouterApiKey: z.union([z.string().max(500), z.literal('')]).optional(),
+  zoomJwtToken: z.union([z.string().max(2000), z.literal('')]).optional(),
+  zoomJoinBeforeHost: z.boolean().optional(),
 });
 
 interface OpenRouterModel {
@@ -165,6 +167,8 @@ admin.get('/settings', async (c) => {
     const siteUrl = await settingsRepository.get<string>('site_url');
     const openaiApiKey = await settingsRepository.get<string>('openai_api_key');
     const openrouterApiKey = await settingsRepository.get<string>('openrouter_api_key');
+    const zoomJwtToken = await settingsRepository.get<string>('zoom_jwt_token');
+    const zoomJoinBeforeHost = await settingsRepository.get<boolean>('zoom_join_before_host');
 
     return success(c, {
       allowRegistration: allowRegistration ?? false,
@@ -172,6 +176,8 @@ admin.get('/settings', async (c) => {
       siteUrl: siteUrl ?? '',
       openaiApiKey: maskApiKey(openaiApiKey),
       openrouterApiKey: maskApiKey(openrouterApiKey),
+      zoomJwtToken: maskApiKey(zoomJwtToken),
+      zoomJoinBeforeHost: zoomJoinBeforeHost ?? false,
     });
   } catch (error) {
     console.error('Error fetching admin settings:', error);
@@ -225,6 +231,19 @@ admin.patch('/settings', async (c) => {
       } else {
         await settingsRepository.set('openrouter_api_key', trimmedKey);
       }
+
+        if (validation.data.zoomJwtToken !== undefined) {
+          const trimmed = validation.data.zoomJwtToken.trim();
+          if (trimmed.length === 0) {
+            await settingsRepository.delete('zoom_jwt_token');
+          } else {
+            await settingsRepository.set('zoom_jwt_token', trimmed);
+          }
+        }
+
+        if (validation.data.zoomJoinBeforeHost !== undefined) {
+          await settingsRepository.set('zoom_join_before_host', validation.data.zoomJoinBeforeHost);
+        }
       openRouterModelsCache = null;
     }
 
@@ -234,6 +253,8 @@ admin.patch('/settings', async (c) => {
     const updatedSiteUrl = await settingsRepository.get<string>('site_url');
     const updatedOpenaiApiKey = await settingsRepository.get<string>('openai_api_key');
     const updatedOpenrouterApiKey = await settingsRepository.get<string>('openrouter_api_key');
+    const updatedZoomJwtToken = await settingsRepository.get<string>('zoom_jwt_token');
+    const updatedZoomJoinBeforeHost = await settingsRepository.get<boolean>('zoom_join_before_host');
 
     return success(c, {
       allowRegistration: updatedAllowRegistration ?? false,
@@ -241,6 +262,8 @@ admin.patch('/settings', async (c) => {
       siteUrl: updatedSiteUrl ?? '',
       openaiApiKey: maskApiKey(updatedOpenaiApiKey),
       openrouterApiKey: maskApiKey(updatedOpenrouterApiKey),
+      zoomJwtToken: maskApiKey(updatedZoomJwtToken),
+      zoomJoinBeforeHost: updatedZoomJoinBeforeHost ?? false,
     });
   } catch (error) {
     console.error('Error updating admin settings:', error);

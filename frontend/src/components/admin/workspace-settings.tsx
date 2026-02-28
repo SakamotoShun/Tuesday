@@ -11,6 +11,8 @@ export function WorkspaceSettings() {
   const [siteUrl, setSiteUrl] = useState(settings?.siteUrl ?? "")
   const [openaiApiKey, setOpenaiApiKey] = useState("")
   const [openrouterApiKey, setOpenrouterApiKey] = useState("")
+  const [zoomJwtToken, setZoomJwtToken] = useState("")
+  const [zoomJoinBeforeHost, setZoomJoinBeforeHost] = useState(false)
 
   useEffect(() => {
     setWorkspaceName(settings?.workspaceName ?? "")
@@ -19,6 +21,11 @@ export function WorkspaceSettings() {
   useEffect(() => {
     setSiteUrl(settings?.siteUrl ?? "")
   }, [settings?.siteUrl])
+
+  useEffect(() => {
+    setZoomJwtToken("")
+    setZoomJoinBeforeHost(settings?.zoomJoinBeforeHost ?? false)
+  }, [settings?.zoomJoinBeforeHost])
 
   if (isLoading) {
     return <div className="text-sm text-muted-foreground">Loading settings...</div>
@@ -149,6 +156,57 @@ export function WorkspaceSettings() {
             </Button>
           )}
         </div>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="zoom-jwt-token">Zoom JWT Token</Label>
+        <div className="text-sm text-muted-foreground">
+          Used to create scheduled Zoom meetings from the server. Paste the JWT token here (keeps masked after saving).
+        </div>
+        <div className="flex flex-col md:flex-row gap-2">
+          <Input
+            id="zoom-jwt-token"
+            type="password"
+            value={zoomJwtToken}
+            onChange={(e) => setZoomJwtToken(e.target.value)}
+            placeholder={settings?.zoomJwtToken ? "Enter new token to replace" : "JWT token..."}
+          />
+          <Button
+            onClick={() => {
+              updateSettings.mutate({ zoomJwtToken: zoomJwtToken.trim() })
+              setZoomJwtToken("")
+            }}
+            disabled={updateSettings.isPending || !zoomJwtToken.trim()}
+          >
+            Save
+          </Button>
+          {settings?.zoomJwtToken && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                updateSettings.mutate({ zoomJwtToken: "" })
+                setZoomJwtToken("")
+              }}
+              disabled={updateSettings.isPending}
+            >
+              Remove
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between border border-border rounded-lg p-3">
+        <Label htmlFor="zoom-join-before-host" className="flex flex-col gap-1">
+          <span>Allow participants to join before host (Zoom)</span>
+          <span className="font-normal text-sm text-muted-foreground">
+            When enabled, participants can enter scheduled meetings without the host.
+          </span>
+        </Label>
+        <Switch
+          id="zoom-join-before-host"
+          checked={settings?.zoomJoinBeforeHost ?? false}
+          onCheckedChange={(checked) => updateSettings.mutate({ zoomJoinBeforeHost: checked })}
+          disabled={updateSettings.isPending}
+        />
       </div>
       <div className="flex items-center justify-between border border-border rounded-lg p-3">
         <Label htmlFor="allow-registration" className="flex flex-col gap-1">

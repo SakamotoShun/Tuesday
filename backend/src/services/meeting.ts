@@ -1,4 +1,4 @@
-import { meetingRepository, meetingAttendeeRepository, teamMemberRepository } from '../repositories';
+import { meetingRepository, meetingAttendeeRepository, teamMemberRepository, settingsRepository } from '../repositories';
 import { projectService } from './project';
 import { activityService } from './activity';
 import { type Meeting, type NewMeeting } from '../db/schema';
@@ -82,16 +82,39 @@ export class MeetingService {
       throw new Error('Meeting end time must be after start time');
     }
 
+    // If admin configured Zoom credentials and caller didn't supply a link,
+    // attempt to create a Zoom meeting and store its join URL.
+    let linkValue: string | null = input.link?.trim() || null;
+    try {
+      const zoomToken = await settingsRepository.get<string>('zoom_jwt_token');
+      const joinBeforeHost = (await settingsRepository.get<boolean>('zoom_join_before_host')) ?? true;
+      if (!linkValue && zoomToken) {
+        const { createZoomMeetingFromSettings } = await import('../utils/zoom');
+        const duration = Math.ceil((endTime.getTime() - startTime.getTime()) / 60000);
+        const zoomResp = await createZoomMeetingFromSettings({
+          topic: input.title.trim(),
+          startTime: startTime.toISOString(),
+          duration,
+          settings: { join_before_host: joinBeforeHost },
+        });
+        linkValue = zoomResp.join_url ?? null;
+      }
+    } catch (err) {
+      // don't fail meeting creation on Zoom errors; log and continue
+      console.error('Zoom creation failed:', err);
+    }
+
     const meeting = await meetingRepository.create({
       projectId: projectId ?? null,
       title: input.title.trim(),
       startTime,
       endTime,
       location: input.location?.trim() || null,
-      link: input.link?.trim() || null,
+      link: linkValue,
       notesMd: input.notesMd ?? '',
       createdBy: user.id,
     } as NewMeeting);
+
 
     const resolvedAttendeeIds = await this.resolveAttendeeIds(input.attendeeIds ?? [], input.teamIds ?? [], user);
     const attendeeIds = new Set(resolvedAttendeeIds);
