@@ -23,13 +23,14 @@ import { KanbanBoard } from "@/components/tasks/kanban-board"
 import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog"
 import { ProjectDocsPage } from "@/pages/project-docs"
 import { ProjectSchedulePage } from "@/pages/project-schedule"
+import { ProjectMeetingPage } from "@/pages/project-meeting"
 import { ProjectWhiteboardsPage } from "@/pages/project-whiteboards"
 import { ChatView } from "@/components/chat/chat-view"
 import { ProjectTimeReport } from "@/components/timesheet"
 import type { Task, UpdateProjectInput, UpdateTaskInput, User } from "@/api/types"
 import { useAuth } from "@/hooks/use-auth"
 
-const PROJECT_TABS = new Set(["docs", "tasks", "schedule", "whiteboards", "chat", "time"])
+const PROJECT_TABS = new Set(["docs", "tasks", "schedule", "meeting", "whiteboards", "chat", "time"])
 
 export function ProjectDetailPage() {
   const { id, "*": tabPath } = useParams<{ id: string; "*"?: string }>()
@@ -247,6 +248,7 @@ export function ProjectDetailPage() {
           <TabsTrigger value="docs">Docs</TabsTrigger>
           <TabsTrigger value="tasks">Tasks</TabsTrigger>
           <TabsTrigger value="schedule">Schedule</TabsTrigger>
+          <TabsTrigger value="meeting">Meeting</TabsTrigger>
           <TabsTrigger value="whiteboards">Whiteboards</TabsTrigger>
           <TabsTrigger value="chat">Chat</TabsTrigger>
           {canManageMembers && <TabsTrigger value="time">Time</TabsTrigger>}
@@ -274,6 +276,10 @@ export function ProjectDetailPage() {
 
         <TabsContent value="schedule" className="mt-6">
           <ProjectSchedulePage projectId={project.id} />
+        </TabsContent>
+
+        <TabsContent value="meeting" className="mt-6 flex flex-col flex-1 min-h-0">
+          <ProjectMeetingPage projectId={project.id} />
         </TabsContent>
 
         <TabsContent value="whiteboards" className="mt-6">
