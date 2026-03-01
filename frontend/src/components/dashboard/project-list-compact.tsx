@@ -42,12 +42,12 @@ export function ProjectListCompact({ projects }: ProjectListCompactProps) {
   }
 
   return (
-    <div className="divide-y divide-border/60">
+    <div className="space-y-2">
       {projects.map((project) => {
         const isExpanded = expandedProjectIds.has(project.id)
 
         return (
-          <div key={project.id} className="py-3 first:pt-0 last:pb-0">
+          <div key={project.id} className="rounded-lg border border-border bg-background px-3 py-3 transition-all hover:-translate-y-0.5 hover:shadow-sm">
             <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-2 md:grid-cols-[auto_minmax(0,1fr)_auto_auto] md:items-center md:gap-4">
               <button
                 type="button"
@@ -69,10 +69,14 @@ export function ProjectListCompact({ projects }: ProjectListCompactProps) {
                 <StatusBadge status={project.statusName} />
               </div>
               <span className="col-start-2 text-xs text-muted-foreground md:col-start-4 md:justify-self-end md:text-sm">
-                {formatUpdated(project.updatedAt)}
+                Updated {formatUpdated(project.updatedAt)}
               </span>
             </div>
-            {isExpanded && <ProjectDocsDropdown projectId={project.id} />}
+            {isExpanded && (
+              <div className="mt-2 border-t border-border/70 pt-2">
+                <ProjectDocsDropdown projectId={project.id} />
+              </div>
+            )}
           </div>
         )
       })}
