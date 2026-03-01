@@ -8,24 +8,14 @@ import { useAdminSettings } from "@/hooks/use-admin"
 export function WorkspaceSettings() {
   const { settings, isLoading, updateSettings } = useAdminSettings()
   const [workspaceName, setWorkspaceName] = useState(settings?.workspaceName ?? "")
-  const [siteUrl, setSiteUrl] = useState(settings?.siteUrl ?? "")
-  const [openaiApiKey, setOpenaiApiKey] = useState("")
-  const [openrouterApiKey, setOpenrouterApiKey] = useState("")
 
   useEffect(() => {
     setWorkspaceName(settings?.workspaceName ?? "")
   }, [settings?.workspaceName])
 
-  useEffect(() => {
-    setSiteUrl(settings?.siteUrl ?? "")
-  }, [settings?.siteUrl])
-
   if (isLoading) {
     return <div className="text-sm text-muted-foreground">Loading settings...</div>
   }
-
-  const hasOpenAiApiKey = Boolean(settings?.openaiApiKey)
-  const hasOpenRouterApiKey = Boolean(settings?.openrouterApiKey)
 
   return (
     <div className="space-y-4">
@@ -46,108 +36,6 @@ export function WorkspaceSettings() {
           >
             Save
           </Button>
-        </div>
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="site-url">Site URL</Label>
-        <div className="text-sm text-muted-foreground">
-          The public URL used to access this instance. Used for generating webhook URLs.
-        </div>
-        <div className="flex flex-col md:flex-row gap-2">
-          <Input
-            id="site-url"
-            value={siteUrl}
-            onChange={(event) => setSiteUrl(event.target.value)}
-            placeholder="https://workhub.example.com"
-          />
-          <Button
-            onClick={() => updateSettings.mutate({ siteUrl: siteUrl.trim().replace(/\/+$/, "") })}
-            disabled={updateSettings.isPending}
-          >
-            Save
-          </Button>
-        </div>
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="openai-api-key">OpenAI API Key</Label>
-        <div className="text-sm text-muted-foreground">
-          Required for AI bots. Get your API key from platform.openai.com.
-          {hasOpenAiApiKey && (
-            <span className="ml-1 font-medium text-foreground">
-              Current key: {settings?.openaiApiKey}
-            </span>
-          )}
-        </div>
-        <div className="flex flex-col md:flex-row gap-2">
-          <Input
-            id="openai-api-key"
-            type="password"
-            value={openaiApiKey}
-            onChange={(event) => setOpenaiApiKey(event.target.value)}
-            placeholder={hasOpenAiApiKey ? "Enter new key to replace" : "sk-..."}
-          />
-          <Button
-            onClick={() => {
-              updateSettings.mutate({ openaiApiKey: openaiApiKey.trim() })
-              setOpenaiApiKey("")
-            }}
-            disabled={updateSettings.isPending || !openaiApiKey.trim()}
-          >
-            Save
-          </Button>
-          {hasOpenAiApiKey && (
-            <Button
-              variant="outline"
-              onClick={() => {
-                updateSettings.mutate({ openaiApiKey: "" })
-                setOpenaiApiKey("")
-              }}
-              disabled={updateSettings.isPending}
-            >
-              Remove
-            </Button>
-          )}
-        </div>
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="openrouter-api-key">OpenRouter API Key</Label>
-        <div className="text-sm text-muted-foreground">
-          Required for AI bots using OpenRouter. Get your API key from openrouter.ai/keys.
-          {hasOpenRouterApiKey && (
-            <span className="ml-1 font-medium text-foreground">
-              Current key: {settings?.openrouterApiKey}
-            </span>
-          )}
-        </div>
-        <div className="flex flex-col md:flex-row gap-2">
-          <Input
-            id="openrouter-api-key"
-            type="password"
-            value={openrouterApiKey}
-            onChange={(event) => setOpenrouterApiKey(event.target.value)}
-            placeholder={hasOpenRouterApiKey ? "Enter new key to replace" : "sk-or-..."}
-          />
-          <Button
-            onClick={() => {
-              updateSettings.mutate({ openrouterApiKey: openrouterApiKey.trim() })
-              setOpenrouterApiKey("")
-            }}
-            disabled={updateSettings.isPending || !openrouterApiKey.trim()}
-          >
-            Save
-          </Button>
-          {hasOpenRouterApiKey && (
-            <Button
-              variant="outline"
-              onClick={() => {
-                updateSettings.mutate({ openrouterApiKey: "" })
-                setOpenrouterApiKey("")
-              }}
-              disabled={updateSettings.isPending}
-            >
-              Remove
-            </Button>
-          )}
         </div>
       </div>
       <div className="flex items-center justify-between border border-border rounded-lg p-3">

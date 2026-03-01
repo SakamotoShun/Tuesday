@@ -1,5 +1,11 @@
 import { api } from "./client"
-import type { User, LoginInput, RegisterInput } from "./types"
+import type {
+  ForgotPasswordInput,
+  LoginInput,
+  RegisterInput,
+  ResetPasswordInput,
+  User,
+} from "./types"
 
 type BackendUser = Omit<User, "hourlyRate"> & { hourlyRate: string | number | null }
 
@@ -27,4 +33,12 @@ export async function register(data: RegisterInput): Promise<User> {
 export async function getCurrentUser(): Promise<User> {
   const response = await api.get<{ user: BackendUser }>("/auth/me")
   return normalizeUser(response.user)
+}
+
+export async function forgotPassword(data: ForgotPasswordInput): Promise<{ message: string }> {
+  return api.post<{ message: string }>("/auth/forgot-password", data)
+}
+
+export async function resetPassword(data: ResetPasswordInput): Promise<{ reset: boolean }> {
+  return api.post<{ reset: boolean }>("/auth/reset-password", data)
 }

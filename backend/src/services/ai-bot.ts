@@ -23,7 +23,7 @@ export class AiBotService {
       const apiKey = await settingsRepository.get<string>(apiKeySetting);
       if (!apiKey) {
         const providerLabel = provider === AiProvider.OPENROUTER ? 'OpenRouter' : 'OpenAI';
-        await this.postBotMessage(bot, channel, `AI features are not configured. An admin needs to set the ${providerLabel} API key in Workspace Settings.`);
+        await this.postBotMessage(bot, channel, `AI features are not configured. An admin needs to set the ${providerLabel} API key in Developer Settings.`);
         return;
       }
 

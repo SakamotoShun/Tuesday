@@ -1,5 +1,6 @@
 export { userRepository, UserRepository } from './user';
 export { sessionRepository, SessionRepository } from './session';
+export { tokenRepository, TokenRepository } from './token';
 export { settingsRepository, SettingsRepository } from './settings';
 export { projectRepository, ProjectRepository } from './project';
 export { projectMemberRepository, ProjectMemberRepository } from './projectMember';

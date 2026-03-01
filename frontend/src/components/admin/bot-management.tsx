@@ -332,8 +332,8 @@ export function BotManagement() {
                     </Select>
                     <div className="text-xs text-muted-foreground">
                       {newProvider === "openai"
-                        ? "Uses the OpenAI API key from Workspace Settings."
-                        : "Uses the OpenRouter API key from Workspace Settings."}
+                        ? "Uses the OpenAI API key from Developer Settings."
+                        : "Uses the OpenRouter API key from Developer Settings."}
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -565,8 +565,8 @@ export function BotManagement() {
                     </Select>
                     <div className="text-xs text-muted-foreground">
                       {editProvider === "openai"
-                        ? "Uses the OpenAI API key from Workspace Settings."
-                        : "Uses the OpenRouter API key from Workspace Settings."}
+                        ? "Uses the OpenAI API key from Developer Settings."
+                        : "Uses the OpenRouter API key from Developer Settings."}
                     </div>
                   </div>
                   <div className="space-y-2">

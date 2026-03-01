@@ -6,7 +6,6 @@ import { UserManagement } from "@/components/admin/user-management"
 import { StatusManager } from "@/components/admin/status-manager"
 import { TeamManagement } from "@/components/admin/team-management"
 import { TemplateManagement } from "@/components/admin/template-management"
-import { BotManagement } from "@/components/admin/bot-management"
 import { GlobalTimeReport } from "@/components/admin/global-time-report"
 
 export function AdminPage() {
@@ -61,15 +60,6 @@ export function AdminPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Bots</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <BotManagement />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
           <CardTitle>Global Timesheet</CardTitle>
         </CardHeader>
         <CardContent>
@@ -85,6 +75,18 @@ export function AdminPage() {
           <p className="text-sm text-muted-foreground">Use the dedicated payroll page for HR and salary tabulation.</p>
           <Button asChild>
             <Link to="/admin/payroll">Open Payroll</Link>
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Developer Settings</CardTitle>
+        </CardHeader>
+        <CardContent className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">Manage API keys and SMTP email configuration.</p>
+          <Button asChild>
+            <Link to="/admin/developer">Open Developer Settings</Link>
           </Button>
         </CardContent>
       </Card>

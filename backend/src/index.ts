@@ -44,6 +44,19 @@ async function startServer() {
       }
     }, 60 * 60 * 1000); // Every hour
 
+    // Clean up expired and consumed auth tokens periodically
+    setInterval(async () => {
+      try {
+        const { authService } = await import('./services/auth');
+        const deleted = await authService.cleanupExpiredTokens();
+        if (deleted > 0) {
+          console.log(`🧹 Cleaned up ${deleted} expired auth tokens`);
+        }
+      } catch (error) {
+        console.error('Error cleaning up auth tokens:', error);
+      }
+    }, 60 * 60 * 1000); // Every hour
+
     // Clean up expired pending files periodically
     setInterval(async () => {
       try {

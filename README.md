@@ -116,7 +116,7 @@ tuesday.example.com {
 }
 ```
 
-See [docs/deployment.md](docs/deployment.md) for Nginx configuration with WebSocket support.
+See the [HTTPS & TLS Setup wiki page](https://github.com/SakamotoShun/Tuesday/wiki/HTTPS-and-TLS-Setup) for Nginx configuration with WebSocket support.
 
 ---
 
@@ -124,10 +124,11 @@ See [docs/deployment.md](docs/deployment.md) for Nginx configuration with WebSoc
 
 | Document | Description |
 |----------|-------------|
-| [Deployment Guide](docs/deployment.md) | Docker deployment, reverse proxy setup |
-| [Configuration](docs/configuration.md) | All environment variables |
-| [Backup & Restore](docs/backup.md) | Backup and restore procedures |
-| [Upgrade Guide](docs/upgrade.md) | Version upgrades and rollback |
+| [Wiki Home](https://github.com/SakamotoShun/Tuesday/wiki) | Start here for all deployment and admin docs |
+| [Deployment Guide](https://github.com/SakamotoShun/Tuesday/wiki/Deployment-Guide) | Docker deployment, reverse proxy setup |
+| [Configuration](https://github.com/SakamotoShun/Tuesday/wiki/Configuration-Reference) | All environment variables |
+| [Backup & Restore](https://github.com/SakamotoShun/Tuesday/wiki/Backup-and-Restore) | Backup and restore procedures |
+| [Upgrade Guide](https://github.com/SakamotoShun/Tuesday/wiki/Upgrade-Guide) | Version upgrades and rollback |
 | [Changelog](CHANGELOG.md) | Release history |
 
 ---
@@ -230,7 +231,7 @@ All settings are optional with sensible defaults.
 | `RATE_LIMIT_ENABLED` | `true` | Enable rate limiting |
 | `CORS_ORIGIN` | `http://localhost:5173` | CORS origin (dev only) |
 
-See [docs/configuration.md](docs/configuration.md) for the full reference.
+See the [Configuration Reference wiki page](https://github.com/SakamotoShun/Tuesday/wiki/Configuration-Reference) for the full reference.
 
 </details>
 
@@ -384,7 +385,7 @@ docker compose -f docker-compose.dev.yml up -d
 
 **WebSocket not connecting through reverse proxy**
 
-Ensure your proxy passes `Upgrade` and `Connection` headers. See [docs/deployment.md](docs/deployment.md).
+Ensure your proxy passes `Upgrade` and `Connection` headers. See the [HTTPS & TLS Setup wiki page](https://github.com/SakamotoShun/Tuesday/wiki/HTTPS-and-TLS-Setup).
 
 **Reset to fresh state**
 ```bash
@@ -409,7 +410,7 @@ docker compose up -d
 
 <div align="center">
 
-**[Documentation](docs/deployment.md)** &middot; **[GHCR Package](https://github.com/SakamotoShun/Tuesday/pkgs/container/tuesday)** &middot; **[Changelog](CHANGELOG.md)** &middot; **[Support on Ko-fi](https://ko-fi.com/sakamotoshun)**
+**[Wiki Documentation](https://github.com/SakamotoShun/Tuesday/wiki)** &middot; **[GHCR Package](https://github.com/SakamotoShun/Tuesday/pkgs/container/tuesday)** &middot; **[Changelog](CHANGELOG.md)** &middot; **[Support on Ko-fi](https://ko-fi.com/sakamotoshun)**
 
 MIT License &copy; 2026 UltreonAI
 

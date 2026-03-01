@@ -23,7 +23,10 @@ export function LoginPage() {
   const { login } = useAuth()
   const [error, setError] = useState<string | null>(null)
 
-  const from = (location.state as { from?: { pathname?: string } })?.from?.pathname || "/"
+  const locationState = location.state as { from?: { pathname?: string }; registered?: boolean; passwordReset?: boolean } | null
+  const from = locationState?.from?.pathname || "/"
+  const showRegisteredMessage = Boolean(locationState?.registered)
+  const showPasswordResetMessage = Boolean(locationState?.passwordReset)
 
   const {
     register,
@@ -74,6 +77,16 @@ export function LoginPage() {
                 {error}
               </div>
             )}
+            {showRegisteredMessage && (
+              <div className="p-3 rounded-md bg-emerald-500/10 text-emerald-700 text-sm">
+                Account created. You can now sign in.
+              </div>
+            )}
+            {showPasswordResetMessage && (
+              <div className="p-3 rounded-md bg-emerald-500/10 text-emerald-700 text-sm">
+                Password reset successful. Please sign in with your new password.
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -90,7 +103,12 @@ export function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <Link to="/forgot-password" className="text-xs text-primary hover:underline">
+                  Forgot password?
+                </Link>
+              </div>
               <Input
                 id="password"
                 type="password"

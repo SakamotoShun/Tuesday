@@ -1,7 +1,13 @@
 import { Hono } from 'hono';
 import { authService } from '../services/auth';
 import { settingsRepository } from '../repositories';
-import { loginSchema, registerSchema, formatValidationErrors } from '../utils/validation';
+import {
+  forgotPasswordSchema,
+  formatValidationErrors,
+  loginSchema,
+  registerSchema,
+  resetPasswordSchema,
+} from '../utils/validation';
 import { success, errors } from '../utils/response';
 import { auth, authRateLimit } from '../middleware';
 import { config } from '../config';
@@ -90,6 +96,60 @@ authRouter.post('/login', authRateLimit, async (c) => {
       }
     }
     throw error;
+  }
+});
+
+/**
+ * POST /api/v1/auth/forgot-password
+ * Request a password reset email
+ */
+authRouter.post('/forgot-password', authRateLimit, async (c) => {
+  try {
+    const body = await c.req.json();
+    const validation = forgotPasswordSchema.safeParse(body);
+    if (!validation.success) {
+      return errors.validation(c, formatValidationErrors(validation.error));
+    }
+
+    await authService.requestPasswordReset(validation.data.email);
+
+    return success(c, {
+      message: 'If an account exists with this email, a password reset link has been sent.',
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Too many password reset requests') {
+      return errors.tooManyRequests(c, 'Too many password reset requests. Please try again later.');
+    }
+
+    console.error('Forgot password request failed:', error);
+    return success(c, {
+      message: 'If an account exists with this email, a password reset link has been sent.',
+    });
+  }
+});
+
+/**
+ * POST /api/v1/auth/reset-password
+ * Reset password with a valid token
+ */
+authRouter.post('/reset-password', authRateLimit, async (c) => {
+  try {
+    const body = await c.req.json();
+    const validation = resetPasswordSchema.safeParse(body);
+    if (!validation.success) {
+      return errors.validation(c, formatValidationErrors(validation.error));
+    }
+
+    await authService.resetPassword(validation.data.token, validation.data.password);
+
+    return success(c, { reset: true });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Invalid or expired reset token') {
+      return errors.badRequest(c, 'Invalid or expired reset token');
+    }
+
+    console.error('Reset password request failed:', error);
+    return errors.internal(c, 'Failed to reset password');
   }
 });
 

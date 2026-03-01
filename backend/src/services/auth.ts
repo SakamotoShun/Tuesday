@@ -1,9 +1,20 @@
-import { randomBytes } from 'crypto';
-import { UserRole } from '../db/schema';
-import { userRepository, sessionRepository } from '../repositories';
+import { createHash, randomBytes } from 'crypto';
+import { TokenType, UserRole } from '../db/schema';
+import { sessionRepository, settingsRepository, tokenRepository, userRepository } from '../repositories';
 import { hashPassword, verifyPassword } from '../utils/password';
 import { config } from '../config';
+import { emailService } from './email';
 import type { User } from '../types';
+
+const PASSWORD_RESET_TOKEN_BYTES = 32;
+const PASSWORD_RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
+const PASSWORD_RESET_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+const PASSWORD_RESET_RATE_LIMIT_MAX = 5;
+
+interface PasswordResetRateEntry {
+  count: number;
+  resetAt: number;
+}
 
 export interface RegisterInput {
   email: string;
@@ -26,11 +37,47 @@ export interface SessionResult {
 }
 
 export class AuthService {
+  private passwordResetRateLimits = new Map<string, PasswordResetRateEntry>();
+
   /**
    * Generate a cryptographically secure session ID
    */
   private generateSessionId(): string {
     return randomBytes(32).toString('hex');
+  }
+
+  private generatePasswordResetToken(): string {
+    return randomBytes(PASSWORD_RESET_TOKEN_BYTES).toString('hex');
+  }
+
+  private hashResetToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
+  }
+
+  private getWorkspaceName(value: string | null): string {
+    return value?.trim() || 'Tuesday';
+  }
+
+  private getPublicSiteUrl(value: string | null): string {
+    const candidate = value?.trim() || config.corsOrigin;
+    return candidate.replace(/\/+$/, '');
+  }
+
+  private isPasswordResetRateLimited(email: string): boolean {
+    const key = email.trim().toLowerCase();
+    const now = Date.now();
+    const entry = this.passwordResetRateLimits.get(key);
+
+    if (!entry || now > entry.resetAt) {
+      this.passwordResetRateLimits.set(key, {
+        count: 1,
+        resetAt: now + PASSWORD_RESET_RATE_LIMIT_WINDOW_MS,
+      });
+      return false;
+    }
+
+    entry.count += 1;
+    return entry.count > PASSWORD_RESET_RATE_LIMIT_MAX;
   }
 
   /**
@@ -183,6 +230,80 @@ export class AuthService {
    */
   async getCurrentUser(sessionId: string): Promise<User | null> {
     return this.validateSession(sessionId);
+  }
+
+  async requestPasswordReset(email: string): Promise<void> {
+    if (this.isPasswordResetRateLimited(email)) {
+      throw new Error('Too many password reset requests');
+    }
+
+    const normalizedEmail = email.trim();
+    const user = await userRepository.findByEmail(normalizedEmail);
+    if (!user || user.isDisabled) {
+      return;
+    }
+
+    const token = this.generatePasswordResetToken();
+    const tokenHash = this.hashResetToken(token);
+    const expiresAt = new Date(Date.now() + PASSWORD_RESET_TOKEN_TTL_MS);
+
+    await tokenRepository.deleteByUserAndType(user.id, TokenType.PASSWORD_RESET);
+    await tokenRepository.create({
+      userId: user.id,
+      tokenHash,
+      type: TokenType.PASSWORD_RESET,
+      expiresAt,
+      extra: {},
+    });
+
+    const [workspaceNameSetting, siteUrlSetting] = await Promise.all([
+      settingsRepository.get<string>('workspace_name'),
+      settingsRepository.get<string>('site_url'),
+    ]);
+
+    const workspaceName = this.getWorkspaceName(workspaceNameSetting);
+    const siteUrl = this.getPublicSiteUrl(siteUrlSetting);
+    const resetUrl = `${siteUrl}/reset-password?token=${encodeURIComponent(token)}`;
+
+    void emailService.sendPasswordResetEmail({
+      to: user.email,
+      name: user.name,
+      resetUrl,
+      workspaceName,
+    });
+  }
+
+  async resetPassword(token: string, password: string): Promise<void> {
+    const tokenHash = this.hashResetToken(token);
+    const resetToken = await tokenRepository.findActiveByTokenHash(tokenHash, TokenType.PASSWORD_RESET);
+    if (!resetToken) {
+      throw new Error('Invalid or expired reset token');
+    }
+
+    const markedUsed = await tokenRepository.markUsed(resetToken.id);
+    if (!markedUsed) {
+      throw new Error('Invalid or expired reset token');
+    }
+
+    const user = await userRepository.findById(resetToken.userId);
+    if (!user || user.isDisabled) {
+      throw new Error('Invalid or expired reset token');
+    }
+
+    const passwordHash = await hashPassword(password);
+    await userRepository.update(user.id, { passwordHash });
+    await sessionRepository.deleteByUserId(user.id);
+
+    const workspaceName = this.getWorkspaceName(await settingsRepository.get<string>('workspace_name'));
+    void emailService.sendPasswordChangedEmail({
+      to: user.email,
+      name: user.name,
+      workspaceName,
+    });
+  }
+
+  async cleanupExpiredTokens(): Promise<number> {
+    return tokenRepository.deleteExpiredOrUsed();
   }
 }
 

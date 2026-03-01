@@ -109,6 +109,15 @@ export interface RegisterInput {
   name: string
 }
 
+export interface ForgotPasswordInput {
+  email: string
+}
+
+export interface ResetPasswordInput {
+  token: string
+  password: string
+}
+
 // API Response types
 export interface ApiResponse<T> {
   data: T
@@ -413,6 +422,12 @@ export interface AdminSettings {
   siteUrl: string
   openaiApiKey: string
   openrouterApiKey: string
+  smtpHost: string
+  smtpPort: number
+  smtpUser: string
+  smtpPass: string
+  smtpFrom: string
+  smtpSecure: boolean
 }
 
 export interface UpdateAdminSettingsInput {
@@ -421,6 +436,12 @@ export interface UpdateAdminSettingsInput {
   siteUrl?: string
   openaiApiKey?: string
   openrouterApiKey?: string
+  smtpHost?: string
+  smtpPort?: number
+  smtpUser?: string
+  smtpPass?: string
+  smtpFrom?: string
+  smtpSecure?: boolean
 }
 
 export interface AdminCreateUserInput {

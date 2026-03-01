@@ -41,6 +41,10 @@ export async function updateSettings(data: UpdateAdminSettingsInput): Promise<Ad
   return api.patch<AdminSettings>("/admin/settings", data)
 }
 
+export async function sendTestEmail(): Promise<{ sent: boolean }> {
+  return api.post<{ sent: boolean }>("/admin/email/test", {})
+}
+
 export async function getOpenRouterModels(): Promise<OpenRouterModel[]> {
   return api.get<OpenRouterModel[]>("/admin/openrouter-models")
 }

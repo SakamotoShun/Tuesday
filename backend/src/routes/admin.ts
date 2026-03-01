@@ -34,6 +34,7 @@ import {
 } from '../utils/validation';
 import { projectService } from '../services/project';
 import { timeEntryService } from '../services';
+import { emailService } from '../services/email';
 import { z } from 'zod';
 import { hashPassword } from '../utils/password';
 
@@ -44,6 +45,12 @@ const updateSettingsSchema = z.object({
   siteUrl: z.union([z.string().url('Invalid site URL').max(2000), z.literal('')]).optional(),
   openaiApiKey: z.union([z.string().max(500), z.literal('')]).optional(),
   openrouterApiKey: z.union([z.string().max(500), z.literal('')]).optional(),
+  smtpHost: z.union([z.string().max(255), z.literal('')]).optional(),
+  smtpPort: z.number().int().min(1).max(65535).optional(),
+  smtpUser: z.union([z.string().max(255), z.literal('')]).optional(),
+  smtpPass: z.union([z.string().max(500), z.literal('')]).optional(),
+  smtpFrom: z.union([z.string().max(500), z.literal('')]).optional(),
+  smtpSecure: z.boolean().optional(),
 });
 
 interface OpenRouterModel {
@@ -73,6 +80,14 @@ function maskApiKey(apiKey: string | null | undefined): string {
   }
 
   return '****';
+}
+
+function maskSecret(value: string | null | undefined): string {
+  if (!value) {
+    return '';
+  }
+
+  return '********';
 }
 
 const createUserSchema = z.object({
@@ -165,6 +180,12 @@ admin.get('/settings', async (c) => {
     const siteUrl = await settingsRepository.get<string>('site_url');
     const openaiApiKey = await settingsRepository.get<string>('openai_api_key');
     const openrouterApiKey = await settingsRepository.get<string>('openrouter_api_key');
+    const smtpHost = await settingsRepository.get<string>('smtp_host');
+    const smtpPort = await settingsRepository.get<number>('smtp_port');
+    const smtpUser = await settingsRepository.get<string>('smtp_user');
+    const smtpPass = await settingsRepository.get<string>('smtp_pass');
+    const smtpFrom = await settingsRepository.get<string>('smtp_from');
+    const smtpSecure = await settingsRepository.get<boolean>('smtp_secure');
 
     return success(c, {
       allowRegistration: allowRegistration ?? false,
@@ -172,6 +193,12 @@ admin.get('/settings', async (c) => {
       siteUrl: siteUrl ?? '',
       openaiApiKey: maskApiKey(openaiApiKey),
       openrouterApiKey: maskApiKey(openrouterApiKey),
+      smtpHost: smtpHost ?? '',
+      smtpPort: smtpPort ?? 587,
+      smtpUser: smtpUser ?? '',
+      smtpPass: maskSecret(smtpPass),
+      smtpFrom: smtpFrom ?? '',
+      smtpSecure: smtpSecure ?? false,
     });
   } catch (error) {
     console.error('Error fetching admin settings:', error);
@@ -228,12 +255,62 @@ admin.patch('/settings', async (c) => {
       openRouterModelsCache = null;
     }
 
+    if (validation.data.smtpHost !== undefined) {
+      const trimmedHost = validation.data.smtpHost.trim();
+      if (trimmedHost.length === 0) {
+        await settingsRepository.delete('smtp_host');
+      } else {
+        await settingsRepository.set('smtp_host', trimmedHost);
+      }
+    }
+
+    if (validation.data.smtpPort !== undefined) {
+      await settingsRepository.set('smtp_port', validation.data.smtpPort);
+    }
+
+    if (validation.data.smtpUser !== undefined) {
+      const trimmedUser = validation.data.smtpUser.trim();
+      if (trimmedUser.length === 0) {
+        await settingsRepository.delete('smtp_user');
+      } else {
+        await settingsRepository.set('smtp_user', trimmedUser);
+      }
+    }
+
+    if (validation.data.smtpPass !== undefined) {
+      const trimmedPass = validation.data.smtpPass.trim();
+      if (trimmedPass.length === 0) {
+        await settingsRepository.delete('smtp_pass');
+      } else {
+        await settingsRepository.set('smtp_pass', trimmedPass);
+      }
+    }
+
+    if (validation.data.smtpFrom !== undefined) {
+      const trimmedFrom = validation.data.smtpFrom.trim();
+      if (trimmedFrom.length === 0) {
+        await settingsRepository.delete('smtp_from');
+      } else {
+        await settingsRepository.set('smtp_from', trimmedFrom);
+      }
+    }
+
+    if (validation.data.smtpSecure !== undefined) {
+      await settingsRepository.set('smtp_secure', validation.data.smtpSecure);
+    }
+
     // Return updated settings
     const updatedAllowRegistration = await settingsRepository.get<boolean>('allow_registration');
     const updatedWorkspaceName = await settingsRepository.get<string>('workspace_name');
     const updatedSiteUrl = await settingsRepository.get<string>('site_url');
     const updatedOpenaiApiKey = await settingsRepository.get<string>('openai_api_key');
     const updatedOpenrouterApiKey = await settingsRepository.get<string>('openrouter_api_key');
+    const updatedSmtpHost = await settingsRepository.get<string>('smtp_host');
+    const updatedSmtpPort = await settingsRepository.get<number>('smtp_port');
+    const updatedSmtpUser = await settingsRepository.get<string>('smtp_user');
+    const updatedSmtpPass = await settingsRepository.get<string>('smtp_pass');
+    const updatedSmtpFrom = await settingsRepository.get<string>('smtp_from');
+    const updatedSmtpSecure = await settingsRepository.get<boolean>('smtp_secure');
 
     return success(c, {
       allowRegistration: updatedAllowRegistration ?? false,
@@ -241,10 +318,40 @@ admin.patch('/settings', async (c) => {
       siteUrl: updatedSiteUrl ?? '',
       openaiApiKey: maskApiKey(updatedOpenaiApiKey),
       openrouterApiKey: maskApiKey(updatedOpenrouterApiKey),
+      smtpHost: updatedSmtpHost ?? '',
+      smtpPort: updatedSmtpPort ?? 587,
+      smtpUser: updatedSmtpUser ?? '',
+      smtpPass: maskSecret(updatedSmtpPass),
+      smtpFrom: updatedSmtpFrom ?? '',
+      smtpSecure: updatedSmtpSecure ?? false,
     });
   } catch (error) {
     console.error('Error updating admin settings:', error);
     return errors.internal(c, 'Failed to update settings');
+  }
+});
+
+// POST /api/v1/admin/email/test - Send a test email to current admin
+admin.post('/email/test', async (c) => {
+  try {
+    const currentUser = c.get('user');
+    const workspaceName = (await settingsRepository.get<string>('workspace_name'))?.trim() || 'Tuesday';
+
+    await emailService.verifyConnection();
+    const sent = await emailService.sendTestEmail(currentUser.email, workspaceName);
+
+    if (!sent) {
+      return errors.badRequest(c, 'Failed to send test email');
+    }
+
+    return success(c, { sent: true });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'SMTP is not configured') {
+      return errors.badRequest(c, 'SMTP is not configured');
+    }
+
+    console.error('Error sending test email:', error);
+    return errors.badRequest(c, 'Failed to connect to SMTP server');
   }
 });
 

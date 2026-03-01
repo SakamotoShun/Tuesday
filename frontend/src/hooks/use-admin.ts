@@ -54,7 +54,17 @@ export function useAdminSettings() {
     onSuccess: (data) => queryClient.setQueryData(["admin", "settings"], data),
   })
 
-  return { settings: settingsQuery.data, isLoading: settingsQuery.isLoading, error: settingsQuery.error, updateSettings }
+  const sendTestEmail = useMutation({
+    mutationFn: () => adminApi.sendTestEmail(),
+  })
+
+  return {
+    settings: settingsQuery.data,
+    isLoading: settingsQuery.isLoading,
+    error: settingsQuery.error,
+    updateSettings,
+    sendTestEmail,
+  }
 }
 
 export function useOpenRouterModels(enabled = true) {

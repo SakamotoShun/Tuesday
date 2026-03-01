@@ -9,12 +9,15 @@ import { LoadingSpinner } from "@/components/common/loading-spinner"
 import { SetupPage } from "@/pages/setup"
 import { LoginPage } from "@/pages/login"
 import { RegisterPage } from "@/pages/register"
+import { ForgotPasswordPage } from "@/pages/forgot-password"
+import { ResetPasswordPage } from "@/pages/reset-password"
 import { HomePage } from "@/pages/home"
 import { ProjectsPage } from "@/pages/projects"
 import { ProjectDetailPage } from "@/pages/project-detail"
 import { NotFoundPage } from "@/pages/not-found"
 import { AdminPage } from "@/pages/admin"
 import { AdminPayrollPage } from "@/pages/admin-payroll"
+import { AdminDeveloperPage } from "@/pages/admin-developer"
 import { MyWorkPage } from "@/pages/my-work"
 import { NotificationsPage } from "@/pages/notifications"
 import { ProfilePage } from "@/pages/profile"
@@ -80,6 +83,8 @@ function AppRoutes() {
         {/* Auth routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route
           path="/shared/docs/:token"
           element={
@@ -131,6 +136,7 @@ function AppRoutes() {
           <Route path="hiring/positions/:id" element={<PositionDetailPage />} />
           <Route path="admin" element={<AdminPage />} />
           <Route path="admin/payroll" element={<AdminPayrollPage />} />
+          <Route path="admin/developer" element={<AdminDeveloperPage />} />
         </Route>
 
         {/* 404 */}

@@ -136,6 +136,28 @@ export const sessions = pgTable('sessions', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const TokenType = {
+  PASSWORD_RESET: 'password_reset',
+} as const;
+
+export type TokenType = typeof TokenType[keyof typeof TokenType];
+
+// Tokens table (password reset, email verification, etc.)
+export const tokens = pgTable('tokens', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  tokenHash: varchar('token_hash', { length: 128 }).notNull(),
+  type: varchar('type', { length: 30 }).notNull(),
+  extra: jsonb('extra').notNull().default({}),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  usedAt: timestamp('used_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  tokenHashUnique: uniqueIndex('tokens_token_hash_unique').on(table.tokenHash),
+  userTypeIdx: index('tokens_user_type_idx').on(table.userId, table.type),
+  expiresAtIdx: index('tokens_expires_at_idx').on(table.expiresAt),
+}));
+
 // Bot types
 export const BotType = {
   WEBHOOK: 'webhook',
@@ -438,6 +460,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   teams: many(teamMembers),
   createdProjects: many(projects, { relationName: 'createdProjects' }),
   sessions: many(sessions),
+  tokens: many(tokens),
   receivedDocShares: many(docShares, { relationName: 'docShareRecipient' }),
   sentDocShares: many(docShares, { relationName: 'docShareSharer' }),
   createdSharedLinks: many(sharedLinks),
@@ -460,6 +483,13 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   }),
   members: many(projectMembers),
   activityLogs: many(activityLogs),
+}));
+
+export const tokensRelations = relations(tokens, ({ one }) => ({
+  user: one(users, {
+    fields: [tokens.userId],
+    references: [users.id],
+  }),
 }));
 
 export const teamsRelations = relations(teams, ({ many }) => ({
@@ -1135,6 +1165,8 @@ export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Session = typeof sessions.$inferSelect;
 export type NewSession = typeof sessions.$inferInsert;
+export type Token = typeof tokens.$inferSelect;
+export type NewToken = typeof tokens.$inferInsert;
 export type Bot = typeof bots.$inferSelect;
 export type NewBot = typeof bots.$inferInsert;
 export type Setting = typeof settings.$inferSelect;
