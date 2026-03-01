@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { setupService } from '../services/setup';
+import { emailService } from '../services/email';
 import { setupSchema, formatValidationErrors } from '../utils/validation';
 import { success, errors } from '../utils/response';
 import { setupRateLimit } from '../middleware';
@@ -12,7 +13,8 @@ const setupRouter = new Hono();
  */
 setupRouter.get('/status', async (c) => {
   const initialized = await setupService.isInitialized();
-  return success(c, { initialized });
+  const passwordResetEnabled = await emailService.hasConfiguration();
+  return success(c, { initialized, passwordResetEnabled });
 });
 
 /**

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ApiErrorResponse } from "@/api/client"
 import { forgotPassword } from "@/api/auth"
+import { useSetup } from "@/hooks/use-setup"
 
 const forgotPasswordSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -17,6 +18,7 @@ const forgotPasswordSchema = z.object({
 type ForgotPasswordForm = z.infer<typeof forgotPasswordSchema>
 
 export function ForgotPasswordPage() {
+  const { passwordResetEnabled, isLoading } = useSetup()
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -40,6 +42,34 @@ export function ForgotPasswordPage() {
         setError("An unexpected error occurred")
       }
     }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <div className="text-sm text-muted-foreground">Loading...</div>
+      </div>
+    )
+  }
+
+  if (!passwordResetEnabled) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <Card className="w-full max-w-[420px] p-12 text-center rounded-[20px] shadow-lg border-border">
+          <CardHeader className="p-0 mb-6">
+            <CardTitle className="font-serif text-[28px] font-bold mb-2">Password reset unavailable</CardTitle>
+            <CardDescription className="text-muted-foreground">
+              Password reset has not been configured by your administrator.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Button asChild className="w-full">
+              <Link to="/login">Back to sign in</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (

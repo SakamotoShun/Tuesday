@@ -88,6 +88,7 @@ export interface TeamProject {
 // Setup types
 export interface SetupStatus {
   initialized: boolean
+  passwordResetEnabled: boolean
 }
 
 export interface SetupInput {

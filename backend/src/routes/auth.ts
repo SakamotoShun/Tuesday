@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { authService } from '../services/auth';
+import { emailService } from '../services/email';
 import { settingsRepository } from '../repositories';
 import {
   forgotPasswordSchema,
@@ -105,6 +106,11 @@ authRouter.post('/login', authRateLimit, async (c) => {
  */
 authRouter.post('/forgot-password', authRateLimit, async (c) => {
   try {
+    const passwordResetEnabled = await emailService.hasConfiguration();
+    if (!passwordResetEnabled) {
+      return errors.forbidden(c, 'Password reset is not configured');
+    }
+
     const body = await c.req.json();
     const validation = forgotPasswordSchema.safeParse(body);
     if (!validation.success) {

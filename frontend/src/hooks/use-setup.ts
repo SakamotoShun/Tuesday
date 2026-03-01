@@ -19,6 +19,7 @@ export function useSetup() {
 
   return {
     isInitialized: status.data?.initialized ?? false,
+    passwordResetEnabled: status.data?.passwordResetEnabled ?? false,
     isLoading: status.isLoading,
     complete,
   }
