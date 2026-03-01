@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
-import { Download, ChevronDown, ChevronRight } from "@/lib/icons"
+import { Download, ChevronDown, ChevronLeft, ChevronRight } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -17,7 +17,31 @@ import { useTeams } from "@/hooks/use-teams"
 import { useAuth } from "@/hooks/use-auth"
 
 function isoDate(date: Date) {
-  return date.toISOString().slice(0, 10)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+function monthInputValue(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  return `${year}-${month}`
+}
+
+function parseMonthInput(value: string) {
+  const [yearPart, monthPart] = value.split("-")
+  if (!yearPart || !monthPart) {
+    return null
+  }
+
+  const year = Number(yearPart)
+  const month = Number(monthPart)
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+    return null
+  }
+
+  return new Date(year, month - 1, 1)
 }
 
 function formatMoney(value: number | null) {
@@ -35,8 +59,9 @@ function formatWeekLabel(weekStart: string, weekEnd: string) {
 
 export function AdminPayrollPage() {
   const { user } = useAuth()
-  const [start, setStart] = useState(() => isoDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1)))
-  const [end, setEnd] = useState(() => isoDate(new Date()))
+  const [selectedMonth, setSelectedMonth] = useState(
+    () => new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+  )
   const [employeeId, setEmployeeId] = useState<string>("")
   const [projectId, setProjectId] = useState<string>("")
   const [teamId, setTeamId] = useState<string>("")
@@ -50,6 +75,35 @@ export function AdminPayrollPage() {
   const { users } = useAdminUsers()
   const { projects } = useProjects()
   const { teams } = useTeams()
+
+  const { start, end } = useMemo(() => {
+    const monthStart = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1)
+    const monthEnd = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0)
+
+    return {
+      start: isoDate(monthStart),
+      end: isoDate(monthEnd),
+    }
+  }, [selectedMonth])
+
+  const monthLabel = useMemo(() => {
+    return selectedMonth.toLocaleDateString("en-US", {
+      month: "long",
+      year: "numeric",
+    })
+  }, [selectedMonth])
+
+  const handleChangeMonth = (delta: number) => {
+    setSelectedMonth((current) => new Date(current.getFullYear(), current.getMonth() + delta, 1))
+    setPage(1)
+  }
+
+  const handleMonthInputChange = (value: string) => {
+    const parsedMonth = parseMonthInput(value)
+    if (!parsedMonth) return
+    setSelectedMonth(parsedMonth)
+    setPage(1)
+  }
 
   const query = useMemo(() => ({
     start,
@@ -110,9 +164,37 @@ export function AdminPayrollPage() {
         <CardHeader>
           <CardTitle>Filters</CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-4 lg:grid-cols-8">
-          <Input type="date" value={start} onChange={(e) => { setStart(e.target.value); setPage(1) }} />
-          <Input type="date" value={end} onChange={(e) => { setEnd(e.target.value); setPage(1) }} />
+        <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-3 lg:grid-cols-7">
+          <div className="space-y-2 md:col-span-2 lg:col-span-1">
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => handleChangeMonth(-1)}
+                aria-label="Go to previous month"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Input
+                type="month"
+                value={monthInputValue(selectedMonth)}
+                onChange={(event) => handleMonthInputChange(event.target.value)}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => handleChangeMonth(1)}
+                aria-label="Go to next month"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {monthLabel}: {start} to {end}
+            </p>
+          </div>
           <Select value={employeeId || "all"} onValueChange={(value) => { setEmployeeId(value === "all" ? "" : value); setPage(1) }}>
             <SelectTrigger><SelectValue placeholder="Employee" /></SelectTrigger>
             <SelectContent>
@@ -143,7 +225,7 @@ export function AdminPayrollPage() {
             </SelectContent>
           </Select>
           <Input
-            className="lg:col-span-2"
+            className="md:col-span-3 lg:col-span-2"
             placeholder="Search employee/project"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1) }}

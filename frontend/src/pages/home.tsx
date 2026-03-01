@@ -126,6 +126,7 @@ interface PulseCard {
   hint: string
   icon: ComponentType<{ className?: string }>
   className: string
+  href?: string
 }
 
 const WIDGET_TITLES: Record<HomeWidgetId, string> = {
@@ -238,6 +239,7 @@ export function HomePage() {
       hint: "Current scope",
       icon: FolderKanban,
       className: "border-border bg-card text-foreground",
+      href: "/projects",
     },
   ]
 
@@ -399,9 +401,23 @@ export function HomePage() {
                       </p>
                       <p className="mt-1 text-2xl font-semibold leading-none">{card.value}</p>
                     </div>
-                    <div className={cn("rounded-lg border px-2 py-2", card.className)}>
-                      <card.icon className="h-4 w-4" />
-                    </div>
+                    {card.href ? (
+                      <Link
+                        to={card.href}
+                        className={cn(
+                          "rounded-lg border px-2 py-2 transition-colors hover:border-primary/35 hover:bg-primary/10",
+                          card.className
+                        )}
+                        aria-label="Open projects"
+                        title="Open projects"
+                      >
+                        <card.icon className="h-4 w-4" />
+                      </Link>
+                    ) : (
+                      <div className={cn("rounded-lg border px-2 py-2", card.className)}>
+                        <card.icon className="h-4 w-4" />
+                      </div>
+                    )}
                   </div>
                   <p className="mt-2 text-xs text-muted-foreground">{card.hint}</p>
                 </div>

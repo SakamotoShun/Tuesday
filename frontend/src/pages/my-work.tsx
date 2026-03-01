@@ -8,9 +8,12 @@ import { TaskFilters } from "@/components/mywork/task-filters"
 import { TaskGroupList } from "@/components/mywork/task-group-list"
 import { EmptyState } from "@/components/common/empty-state"
 import { LoadingSpinner } from "@/components/common/loading-spinner"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { AlertTriangle, ArrowUpDown, Calendar, ListTodo } from "@/lib/icons"
+import { AlertTriangle, Calendar, Clock, ListTodo, Search } from "@/lib/icons"
 import { TimesheetHeader, TimesheetGrid, MonthlyOverview } from "@/components/timesheet"
 import { isCompletedStatus } from "@/lib/task-status"
 
@@ -233,7 +236,8 @@ export function MyWorkPage() {
       label: "Hours This Week",
       value: weeklyHours.toFixed(1),
       hint: "Hours you logged",
-      icon: ArrowUpDown,
+      icon: Clock,
+      tabValue: "timesheet" as const,
       className: "border-border bg-card text-foreground",
     },
   ]
@@ -283,9 +287,21 @@ export function MyWorkPage() {
                         </p>
                         <p className="mt-1 text-2xl font-semibold leading-none">{card.value}</p>
                       </div>
-                      <div className={`rounded-lg border px-2 py-2 ${card.className}`}>
-                        <card.icon className="h-4 w-4" />
-                      </div>
+                      {card.tabValue ? (
+                        <button
+                          type="button"
+                          onClick={() => handleTabChange(card.tabValue)}
+                          className={`rounded-lg border px-2 py-2 transition-colors hover:border-primary/35 hover:bg-primary/10 ${card.className}`}
+                          aria-label="Open timesheet"
+                          title="Open timesheet"
+                        >
+                          <card.icon className="h-4 w-4" />
+                        </button>
+                      ) : (
+                        <div className={`rounded-lg border px-2 py-2 ${card.className}`}>
+                          <card.icon className="h-4 w-4" />
+                        </div>
+                      )}
                     </div>
                     <p className="mt-2 text-xs text-muted-foreground">{card.hint}</p>
                   </div>
@@ -375,72 +391,98 @@ export function MyWorkPage() {
           </section>
 
           <section className="space-y-4 rounded-2xl border border-border bg-card p-4 md:p-5">
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_170px_170px]">
+            <div className="space-y-3">
               <TaskFilters
                 projects={projects}
                 statuses={statuses ?? []}
                 selectedProjectId={selectedProjectId}
                 selectedStatusId={selectedStatusId}
-                searchQuery={searchQuery}
-                showCompleted={showCompleted}
-                hasActiveFilters={hasActiveFilters}
                 onProjectChange={setSelectedProjectId}
                 onStatusChange={setSelectedStatusId}
-                onSearchQueryChange={setSearchQuery}
-                onShowCompletedChange={setShowCompleted}
-                onClearFilters={clearFilters}
               />
 
-              <Select
-                value={groupBy}
-                onValueChange={(value) => setGroupBy(value as "project" | "status")}
-              >
-                <SelectTrigger className="h-11 bg-background">
-                  <SelectValue placeholder="Group by" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="project">Group: project</SelectItem>
-                  <SelectItem value="status">Group: status</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_170px_170px]">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="my-work-search"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="Search tasks"
+                    className="h-11 bg-background pl-9"
+                  />
+                </div>
 
-              <Select
-                value={sortBy}
-                onValueChange={(value) => setSortBy(value as TaskSortMode)}
-              >
-                <SelectTrigger className="h-11 bg-background">
-                  <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="urgency">Sort: urgency</SelectItem>
-                  <SelectItem value="dueDate">Sort: due date</SelectItem>
-                  <SelectItem value="updated">Sort: recently updated</SelectItem>
-                  <SelectItem value="alphabetical">Sort: alphabetical</SelectItem>
-                </SelectContent>
-              </Select>
+                <div className="flex h-11 items-center justify-between gap-3 rounded-md border border-input bg-background px-3">
+                  <label htmlFor="my-work-include-completed" className="text-sm text-muted-foreground">
+                    Include completed
+                  </label>
+                  <Switch
+                    id="my-work-include-completed"
+                    checked={showCompleted}
+                    onCheckedChange={setShowCompleted}
+                  />
+                </div>
+
+                <Select
+                  value={groupBy}
+                  onValueChange={(value) => setGroupBy(value as "project" | "status")}
+                >
+                  <SelectTrigger className="h-11 bg-background">
+                    <SelectValue placeholder="Group by" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="project">Group: project</SelectItem>
+                    <SelectItem value="status">Group: status</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={sortBy}
+                  onValueChange={(value) => setSortBy(value as TaskSortMode)}
+                >
+                  <SelectTrigger className="h-11 bg-background">
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="urgency">Sort: urgency</SelectItem>
+                    <SelectItem value="dueDate">Sort: due date</SelectItem>
+                    <SelectItem value="updated">Sort: recently updated</SelectItem>
+                    <SelectItem value="alphabetical">Sort: alphabetical</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="rounded-full border border-border bg-background px-3 py-1 text-muted-foreground">
-                Showing {displayedTasks.length} tasks
-              </span>
-              {selectedProject && (
-                <span className="rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-primary">
-                  Project: {selectedProject.name}
-                </span>
-              )}
-              {selectedStatus && (
-                <span
-                  className="rounded-full border px-3 py-1"
-                  style={{ borderColor: `${selectedStatus.color}55`, color: selectedStatus.color }}
-                >
-                  Status: {selectedStatus.name}
-                </span>
-              )}
-              {searchQuery.trim().length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded-full border border-border bg-background px-3 py-1 text-muted-foreground">
-                  Search: {searchQuery.trim()}
+                  Showing {displayedTasks.length} tasks
                 </span>
+                {selectedProject && (
+                  <span className="rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-primary">
+                    Project: {selectedProject.name}
+                  </span>
+                )}
+                {selectedStatus && (
+                  <span
+                    className="rounded-full border px-3 py-1"
+                    style={{ borderColor: `${selectedStatus.color}55`, color: selectedStatus.color }}
+                  >
+                    Status: {selectedStatus.name}
+                  </span>
+                )}
+                {searchQuery.trim().length > 0 && (
+                  <span className="rounded-full border border-border bg-background px-3 py-1 text-muted-foreground">
+                    Search: {searchQuery.trim()}
+                  </span>
+                )}
+              </div>
+
+              {hasActiveFilters && (
+                <Button type="button" variant="ghost" size="sm" onClick={clearFilters}>
+                  Clear filters
+                </Button>
               )}
             </div>
 

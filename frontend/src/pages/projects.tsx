@@ -2,13 +2,13 @@ import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import {
   Calendar,
-  ExternalLink,
   FileText,
   FolderKanban,
   ListTodo,
   MessageSquare,
   MoreHorizontal,
   Pencil,
+  RefreshCcw,
   Search,
   Trash2,
 } from "@/lib/icons"
@@ -246,7 +246,7 @@ export function ProjectsPage() {
         label: "Updated (7d)",
         value: String(recentlyUpdatedCount),
         hint: "Recently touched",
-        icon: ExternalLink,
+        icon: RefreshCcw,
         className: "border-border bg-card text-foreground",
       },
     ]
