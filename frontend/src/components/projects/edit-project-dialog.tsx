@@ -34,9 +34,34 @@ const projectSchema = z.object({
   statusId: z.string().optional().nullable(),
   startDate: z.string().optional().nullable(),
   targetEndDate: z.string().optional().nullable(),
+  budgetHours: z
+    .string()
+    .optional()
+    .nullable()
+    .refine((value) => {
+      if (!value || value.trim() === "") {
+        return true
+      }
+
+      const parsed = Number(value)
+      return Number.isFinite(parsed) && parsed >= 0
+    }, "Budget hours must be 0 or more"),
 })
 
 type ProjectForm = z.infer<typeof projectSchema>
+
+function parseBudgetHoursInput(value: string | null | undefined): number | null {
+  if (!value || value.trim() === "") {
+    return null
+  }
+
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) {
+    return null
+  }
+
+  return Number(parsed.toFixed(2))
+}
 
 interface EditProjectDialogProps {
   project: Project | null
@@ -57,6 +82,11 @@ export function EditProjectDialog({
   const [selectedTeamId, setSelectedTeamId] = useState("")
   const { user } = useAuth()
   const isAdmin = user?.role === "admin"
+  const isProjectOwner = !!user && !!project && (
+    project.ownerId === user.id ||
+    project.members?.some((member) => member.userId === user.id && member.role === "owner")
+  )
+  const canManageBudget = isAdmin || isProjectOwner
   const { teams } = useTeams()
   const {
     teams: assignedTeams,
@@ -81,6 +111,7 @@ export function EditProjectDialog({
       statusId: null,
       startDate: null,
       targetEndDate: null,
+      budgetHours: null,
     },
   })
 
@@ -94,6 +125,7 @@ export function EditProjectDialog({
         statusId: project.statusId,
         startDate: project.startDate,
         targetEndDate: project.targetEndDate,
+        budgetHours: project.budgetHours ?? null,
       })
     }
   }, [project, open, reset])
@@ -119,6 +151,7 @@ export function EditProjectDialog({
         statusId: data.statusId,
         startDate: data.startDate,
         targetEndDate: data.targetEndDate,
+        budgetHours: canManageBudget ? parseBudgetHoursInput(data.budgetHours) : undefined,
       })
       onOpenChange(false)
     } catch (err) {
@@ -244,6 +277,26 @@ export function EditProjectDialog({
               />
             </div>
           </div>
+
+          {canManageBudget && (
+            <div className="space-y-2">
+              <Label htmlFor="budgetHours">Allocated Hours</Label>
+              <Input
+                id="budgetHours"
+                type="number"
+                min="0"
+                step="0.25"
+                placeholder="160"
+                {...register("budgetHours")}
+                value={watch("budgetHours") || ""}
+                className={errors.budgetHours ? "border-destructive" : ""}
+                onChange={(e) => setValue("budgetHours", e.target.value || null)}
+              />
+              {errors.budgetHours && (
+                <p className="text-sm text-destructive">{errors.budgetHours.message}</p>
+              )}
+            </div>
+          )}
 
           {isAdmin && (
             <div className="space-y-3">

@@ -25,12 +25,15 @@ export interface Project {
   type: string | null
   startDate: string | null
   targetEndDate: string | null
+  budgetHours?: string | null
   isTemplate: boolean
   createdAt: string
   updatedAt: string
+  totalLoggedHours?: number
   status?: ProjectStatus
   owner?: User
   members?: ProjectMember[]
+  currentUserRole?: "owner" | "member" | null
 }
 
 export interface ProjectTemplate extends Project {
@@ -171,6 +174,7 @@ export interface CreateProjectInput {
   type?: string
   startDate?: string
   targetEndDate?: string
+  budgetHours?: number | null
   templateId?: string
 }
 
@@ -181,6 +185,7 @@ export interface UpdateProjectInput {
   type?: string | null
   startDate?: string | null
   targetEndDate?: string | null
+  budgetHours?: number | null
 }
 
 // Task types

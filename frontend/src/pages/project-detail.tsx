@@ -130,6 +130,13 @@ export function ProjectDetailPage() {
     ?.find((member) => member.userId === user?.id)
     ?.role
   const canManageMembers = user?.role === "admin" || currentMemberRole === "owner"
+  const budgetHours = parseHours(project.budgetHours)
+  const loggedHours = Math.max(project.totalLoggedHours ?? 0, 0)
+  const hasBudget = canManageMembers && budgetHours !== null && budgetHours > 0
+  const usedPercent = hasBudget ? (loggedHours / budgetHours) * 100 : 0
+  const clampedPercent = Math.min(Math.max(usedPercent, 0), 100)
+  const isOverBudget = hasBudget && usedPercent > 100
+  const isNearBudget = hasBudget && usedPercent > 75 && usedPercent <= 100
 
   // Extract project members as User objects for assignee picker
   const projectMembers: User[] = project.members
@@ -239,6 +246,56 @@ export function ProjectDetailPage() {
             </div>
           </div>
         </div>
+
+        {canManageMembers && (
+          <div className="mt-6 rounded-lg border border-border/70 bg-card/70 px-4 py-3">
+            {hasBudget && budgetHours !== null ? (
+              <>
+                <div className="mb-2 flex items-center justify-between gap-2 text-xs">
+                  <span
+                    className={`font-medium ${
+                      isOverBudget
+                        ? "text-destructive"
+                        : isNearBudget
+                          ? "text-amber-600"
+                          : "text-foreground"
+                    }`}
+                  >
+                    {isOverBudget ? "Over budget" : "Hour budget"}
+                  </span>
+                  <span
+                    className={`font-medium ${
+                      isOverBudget
+                        ? "text-destructive"
+                        : isNearBudget
+                          ? "text-amber-600"
+                          : "text-muted-foreground"
+                    }`}
+                  >
+                    {formatHours(loggedHours)}h / {formatHours(budgetHours)}h
+                    {isOverBudget && ` (+${formatHours(loggedHours - budgetHours)}h)`}
+                  </span>
+                </div>
+                <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${
+                      isOverBudget
+                        ? "bg-destructive"
+                        : isNearBudget
+                          ? "bg-amber-500"
+                          : "bg-primary"
+                    }`}
+                    style={{ width: `${clampedPercent}%` }}
+                  />
+                </div>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                No allocated hours yet. Edit project to set a budget.
+              </p>
+            )}
+          </div>
+        )}
       </Card>
 
       {/* Tabs */}
@@ -348,4 +405,14 @@ function getInitials(name: string) {
     .join("")
     .toUpperCase()
     .slice(0, 2)
+}
+
+function parseHours(value: string | null | undefined) {
+  if (!value) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function formatHours(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1)
 }

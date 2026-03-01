@@ -16,6 +16,7 @@ export interface CreateProjectInput {
   type?: string;
   startDate?: string;
   targetEndDate?: string;
+  budgetHours?: number | null;
   templateId?: string;
 }
 
@@ -26,6 +27,7 @@ export interface UpdateProjectInput {
   type?: string | null;
   startDate?: string | null;
   targetEndDate?: string | null;
+  budgetHours?: number | null;
 }
 
 export interface ProjectWithMembers extends ProjectWithRelations {
@@ -37,6 +39,18 @@ export interface ProjectTemplateWithCounts extends ProjectWithRelations {
   taskCount: number;
   channelCount: number;
   whiteboardCount: number;
+}
+
+function normalizeBudgetHours(value: number | null | undefined): string | null | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null) {
+    return null;
+  }
+
+  return value.toFixed(2);
 }
 
 export class ProjectService {
@@ -122,6 +136,7 @@ export class ProjectService {
       type: input.type?.trim() || null,
       startDate: input.startDate || null,
       targetEndDate: input.targetEndDate || null,
+      budgetHours: normalizeBudgetHours(input.budgetHours) ?? null,
     });
 
     // Add creator as owner
@@ -182,6 +197,7 @@ export class ProjectService {
       type: input.type?.trim() || null,
       startDate: input.startDate || null,
       targetEndDate: input.targetEndDate || null,
+      budgetHours: normalizeBudgetHours(input.budgetHours) ?? null,
     });
 
     // Add creator as owner
@@ -412,6 +428,10 @@ export class ProjectService {
     
     if (input.targetEndDate !== undefined) {
       updateData.targetEndDate = input.targetEndDate || null;
+    }
+
+    if (input.budgetHours !== undefined) {
+      updateData.budgetHours = normalizeBudgetHours(input.budgetHours);
     }
 
     const updated = await projectRepository.update(projectId, updateData);

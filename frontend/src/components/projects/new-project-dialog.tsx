@@ -37,9 +37,34 @@ const projectSchema = z.object({
   statusId: z.string().optional().nullable(),
   startDate: z.string().optional().nullable(),
   targetEndDate: z.string().optional().nullable(),
+  budgetHours: z
+    .string()
+    .optional()
+    .nullable()
+    .refine((value) => {
+      if (!value || value.trim() === "") {
+        return true
+      }
+
+      const parsed = Number(value)
+      return Number.isFinite(parsed) && parsed >= 0
+    }, "Budget hours must be 0 or more"),
 })
 
 type ProjectForm = z.infer<typeof projectSchema>
+
+function parseBudgetHoursInput(value: string | null | undefined): number | null {
+  if (!value || value.trim() === "") {
+    return null
+  }
+
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) {
+    return null
+  }
+
+  return Number(parsed.toFixed(2))
+}
 
 export function NewProjectDialog() {
   const [open, setOpen] = useState(false)
@@ -71,6 +96,7 @@ export function NewProjectDialog() {
       statusId: null,
       startDate: null,
       targetEndDate: null,
+      budgetHours: null,
     },
   })
 
@@ -90,6 +116,7 @@ export function NewProjectDialog() {
     if (template) {
       // Pre-fill type from template if available
       setValue("type", template.type || null)
+      setValue("budgetHours", template.budgetHours || null)
     }
     setStep("form")
   }
@@ -106,6 +133,7 @@ export function NewProjectDialog() {
           statusId: data.statusId || undefined,
           startDate: data.startDate || undefined,
           targetEndDate: data.targetEndDate || undefined,
+          budgetHours: parseBudgetHoursInput(data.budgetHours),
           templateId: selectedTemplate?.id,
         })
         projectId = project.id
@@ -338,6 +366,25 @@ export function NewProjectDialog() {
                   }
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="budgetHours">Allocated Hours</Label>
+              <Input
+                id="budgetHours"
+                type="number"
+                min="0"
+                step="0.25"
+                placeholder="160"
+                {...register("budgetHours")}
+                value={watch("budgetHours") || ""}
+                disabled={!!createdProjectId}
+                className={errors.budgetHours ? "border-destructive" : ""}
+                onChange={(e) => setValue("budgetHours", e.target.value || null)}
+              />
+              {errors.budgetHours && (
+                <p className="text-sm text-destructive">{errors.budgetHours.message}</p>
+              )}
             </div>
 
             {isAdmin && (

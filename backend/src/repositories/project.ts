@@ -1,14 +1,71 @@
-import { eq, inArray, and, sql, desc } from 'drizzle-orm';
+import { eq, inArray, and, sql, desc, isNotNull } from 'drizzle-orm';
 import { db } from '../db/client';
-import { projects, projectMembers, projectStatuses, users, type Project, type NewProject } from '../db/schema';
+import {
+  projects,
+  projectMembers,
+  projectStatuses,
+  users,
+  timeEntries,
+  type Project,
+  type NewProject,
+  type ProjectMember,
+} from '../db/schema';
 
 // Type for project with relations
 export type ProjectWithRelations = Project & {
   status: typeof projectStatuses.$inferSelect | null;
   owner: typeof users.$inferSelect | null;
+  members?: ProjectMember[];
+  totalLoggedHours?: number;
 };
 
 export class ProjectRepository {
+  private async getTotalLoggedHoursByProjectIds(projectIds: string[]): Promise<Map<string, number>> {
+    if (projectIds.length === 0) {
+      return new Map();
+    }
+
+    const rows = await db
+      .select({
+        projectId: timeEntries.projectId,
+        totalHours: sql<string>`COALESCE(SUM(${timeEntries.hours}), 0)`,
+      })
+      .from(timeEntries)
+      .where(and(isNotNull(timeEntries.projectId), inArray(timeEntries.projectId, projectIds)))
+      .groupBy(timeEntries.projectId);
+
+    const totals = new Map<string, number>();
+
+    for (const row of rows) {
+      if (!row.projectId) continue;
+      const parsed = Number(row.totalHours);
+      totals.set(row.projectId, Number.isFinite(parsed) ? parsed : 0);
+    }
+
+    for (const projectId of projectIds) {
+      if (!totals.has(projectId)) {
+        totals.set(projectId, 0);
+      }
+    }
+
+    return totals;
+  }
+
+  private async attachTotalLoggedHours<T extends { id: string }>(
+    projectRows: T[]
+  ): Promise<Array<T & { totalLoggedHours: number }>> {
+    if (projectRows.length === 0) {
+      return [];
+    }
+
+    const totals = await this.getTotalLoggedHoursByProjectIds(projectRows.map((project) => project.id));
+
+    return projectRows.map((project) => ({
+      ...project,
+      totalLoggedHours: totals.get(project.id) ?? 0,
+    }));
+  }
+
   async findById(id: string): Promise<ProjectWithRelations | null> {
     const result = await db.query.projects.findFirst({
       where: eq(projects.id, id),
@@ -17,11 +74,17 @@ export class ProjectRepository {
         owner: true,
       },
     });
-    return result || null;
+
+    if (!result) {
+      return null;
+    }
+
+    const [projectWithTotals] = await this.attachTotalLoggedHours([result]);
+    return projectWithTotals || null;
   }
 
   async findByUserId(userId: string): Promise<ProjectWithRelations[]> {
-    return db.query.projects.findMany({
+    const result = await db.query.projects.findMany({
       where: (projects, { exists, and: andOp, eq: eqOp }) => andOp(
         eqOp(projects.isTemplate, false),
         exists(
@@ -35,20 +98,26 @@ export class ProjectRepository {
       with: {
         status: true,
         owner: true,
+        members: true,
       },
       orderBy: [desc(projects.updatedAt)],
     });
+
+    return this.attachTotalLoggedHours(result);
   }
 
   async findAll(): Promise<ProjectWithRelations[]> {
-    return db.query.projects.findMany({
+    const result = await db.query.projects.findMany({
       where: eq(projects.isTemplate, false),
       with: {
         status: true,
         owner: true,
+        members: true,
       },
       orderBy: [desc(projects.updatedAt)],
     });
+
+    return this.attachTotalLoggedHours(result);
   }
 
   async findAllIncludingTemplates(): Promise<ProjectWithRelations[]> {

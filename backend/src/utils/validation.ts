@@ -142,6 +142,7 @@ export const createProjectSchema = z.object({
   type: z.string().max(50).optional(),
   startDate: z.string().optional(),
   targetEndDate: z.string().optional(),
+  budgetHours: z.number().finite().min(0).optional().nullable(),
   templateId: uuidSchema.optional(),
 });
 
@@ -160,6 +161,7 @@ export const updateProjectSchema = z.object({
   type: z.string().max(50).optional().nullable(),
   startDate: z.string().optional().nullable(),
   targetEndDate: z.string().optional().nullable(),
+  budgetHours: z.number().finite().min(0).optional().nullable(),
 });
 
 export type UpdateProjectInput = z.infer<typeof updateProjectSchema>;
