@@ -1,15 +1,14 @@
 import { Hono } from 'hono';
 import { upgradeWebSocket } from '../websocket';
 import { authService, docService, whiteboardService } from '../services';
-import { docCollabRepository, docRepository, whiteboardCollabRepository, whiteboardRepository } from '../repositories';
+import { docCollabRepository, whiteboardCollabRepository, whiteboardRepository } from '../repositories';
 import { docCollabHub } from '../collab/hub';
 import { whiteboardCollabHub } from '../collab/whiteboardHub';
-import { extractSearchTextFromDocContent } from '../utils/doc-search';
 import type { User } from '../types';
 
 type CollabMessage =
   | { type: 'doc.update'; update: string }
-  | { type: 'doc.snapshot'; snapshot: string; content?: Array<Record<string, unknown>> }
+  | { type: 'doc.snapshot'; snapshot: string }
   | { type: 'presence.update'; update: string };
 
 type WhiteboardUpdatePayload = {
@@ -80,7 +79,6 @@ collab.get(
           const snapshot = await docCollabRepository.getLatestSnapshot(docId);
           const updates = await docCollabRepository.getUpdatesSince(docId, snapshot?.seq ?? 0);
           const latestSeq = await docCollabRepository.getLatestSeq(docId);
-          const hasCollabData = Boolean(snapshot) || latestSeq > 0;
 
           console.log(`[WS] Sending sync: snapshot=${!!snapshot}, updates=${updates.length}, latestSeq=${latestSeq}`);
 
@@ -90,7 +88,6 @@ collab.get(
               snapshot: snapshot ? encodeBase64(snapshot.snapshot) : null,
               updates: updates.map((update) => encodeBase64(update.update)),
               latestSeq,
-              hasCollabData,
             })
           );
         } catch (err) {
@@ -146,14 +143,6 @@ collab.get(
           const snapshot = decodeBase64(message.snapshot);
           const latestSeq = await docCollabRepository.getLatestSeq(docId);
           await docCollabRepository.createSnapshot(docId, snapshot, latestSeq);
-
-          if (Array.isArray(message.content)) {
-            const content = message.content as Array<Record<string, unknown>>;
-            await docRepository.update(docId, {
-              content,
-              searchText: extractSearchTextFromDocContent(content),
-            });
-          }
         }
       },
       onClose: (_event, ws) => {

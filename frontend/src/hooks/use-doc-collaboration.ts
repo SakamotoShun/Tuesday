@@ -51,7 +51,7 @@ const getWsUrl = (docId: string) => {
   return `${protocol}://${window.location.host}/api/v1/collab/docs/${docId}`
 }
 
-export function useDocCollaboration(docId: string, getSnapshotContent?: () => unknown[] | null) {
+export function useDocCollaboration(docId: string) {
   const user = useAuthStore((state) => state.user)
   const ydoc = useMemo(() => new Y.Doc(), [docId])
   const awareness = useMemo(() => new Awareness(ydoc), [ydoc])
@@ -62,11 +62,6 @@ export function useDocCollaboration(docId: string, getSnapshotContent?: () => un
   const pendingMessages = useRef<string[]>([])
   const isCleanedUp = useRef(false)
   const hasOpened = useRef(false)
-  const snapshotContentGetterRef = useRef<(() => unknown[] | null) | undefined>(getSnapshotContent)
-
-  useEffect(() => {
-    snapshotContentGetterRef.current = getSnapshotContent
-  }, [getSnapshotContent])
 
   useEffect(() => {
     const name = user?.name ?? "Anonymous"
@@ -77,8 +72,6 @@ export function useDocCollaboration(docId: string, getSnapshotContent?: () => un
   useEffect(() => {
     if (!docId) return undefined
     isCleanedUp.current = false
-    setHasRemoteContent(false)
-    pendingMessages.current = []
 
     const connect = () => {
       // Don't reconnect if we've been cleaned up
@@ -124,10 +117,6 @@ export function useDocCollaboration(docId: string, getSnapshotContent?: () => un
         if (message.type === "doc.sync") {
           const snapshot = typeof message.snapshot === "string" ? message.snapshot : null
           const updates = Array.isArray(message.updates) ? message.updates : []
-          const hasCollabData =
-            typeof message.hasCollabData === "boolean"
-              ? message.hasCollabData
-              : Boolean(snapshot) || updates.length > 0
           if (snapshot) {
             Y.applyUpdate(ydoc, decodeBase64(snapshot), "remote")
           }
@@ -136,7 +125,7 @@ export function useDocCollaboration(docId: string, getSnapshotContent?: () => un
               Y.applyUpdate(ydoc, decodeBase64(update), "remote")
             }
           })
-          setHasRemoteContent(hasCollabData)
+          setHasRemoteContent(Boolean(snapshot) || updates.length > 0)
           setSyncState("synced")
           return
         }
@@ -153,12 +142,7 @@ export function useDocCollaboration(docId: string, getSnapshotContent?: () => un
 
         if (message.type === "doc.snapshot.request") {
           const snapshot = encodeBase64(Y.encodeStateAsUpdate(ydoc))
-          const snapshotContent = snapshotContentGetterRef.current?.()
-          const payload = JSON.stringify({
-            type: "doc.snapshot",
-            snapshot,
-            ...(Array.isArray(snapshotContent) ? { content: snapshotContent } : {}),
-          })
+          const payload = JSON.stringify({ type: "doc.snapshot", snapshot })
           if (socket.readyState === WebSocket.OPEN) {
             socket.send(payload)
           } else {
