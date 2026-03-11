@@ -1,11 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
-import {
-  BlockNoteSchema,
-  createCodeBlockSpec,
-  defaultBlockSpecs,
-  type Block,
-} from "@blocknote/core"
-import { blocksToYXmlFragment } from "@blocknote/core/yjs"
+import { BlockNoteSchema, createCodeBlockSpec, defaultBlockSpecs, type Block } from "@blocknote/core"
 import { codeBlockOptions } from "@blocknote/code-block"
 import { SideMenuExtension } from "@blocknote/core/extensions"
 import {
@@ -143,17 +137,31 @@ export function BlockNoteEditor({
     onSyncStateChange?.(syncState)
   }, [onSyncStateChange, syncState])
 
-  useMemo(() => {
+  useEffect(() => {
     if (hasSeeded.current) return
+    if (syncState === "connecting") return
 
-    if (hasRemoteContent || fragment.length > 0 || initialContent.length === 0) {
+    if (hasRemoteContent) {
       hasSeeded.current = true
       return
     }
 
-    blocksToYXmlFragment(editor, initialContent, fragment)
+    if (fragment.length > 0) {
+      hasSeeded.current = true
+      return
+    }
+
+    if (initialContent.length === 0) {
+      hasSeeded.current = true
+      return
+    }
+
+    editor.transact((tr) => {
+      editor.replaceBlocks(editor.document, initialContent)
+      tr.setMeta("addToHistory", false)
+    })
     hasSeeded.current = true
-  }, [editor, fragment, hasRemoteContent, initialContent])
+  }, [editor, fragment, hasRemoteContent, initialContent, syncState])
 
   return (
     <div
