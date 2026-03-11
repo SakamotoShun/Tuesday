@@ -122,9 +122,6 @@ export function BlockNoteEditor({
   const editorTheme = useMemo(() => resolvedTheme, [resolvedTheme])
 
   const handleChange = () => {
-    if (typeof editor.getExtension === "function") {
-      editor.getExtension(SideMenuExtension)?.unfreezeMenu()
-    }
     onChange?.(editor.document)
   }
 

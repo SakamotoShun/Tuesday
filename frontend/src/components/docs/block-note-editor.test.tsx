@@ -12,16 +12,9 @@ if (typeof globalThis.document === "undefined") {
 
 const { render } = await import("@testing-library/react")
 
-let unfreezeMenuCallCount = 0
-
 mock.module("@blocknote/react", () => ({
   useCreateBlockNote: () => ({
     document: [{ id: "block-1", type: "paragraph", props: {}, content: [] }],
-    getExtension: () => ({
-      unfreezeMenu: () => {
-        unfreezeMenuCallCount += 1
-      },
-    }),
   }),
   SideMenuController: ({ children }: { children?: ReactNode }) => <>{children}</>,
   SideMenu: ({ children }: { children?: ReactNode }) => <>{children}</>,
@@ -83,7 +76,6 @@ describe("BlockNoteEditor", () => {
   it("should call onChange with document blocks", async () => {
     const { BlockNoteEditor } = await import("./block-note-editor")
     let received: unknown
-    unfreezeMenuCallCount = 0
 
     render(
       <BlockNoteEditor
@@ -96,15 +88,5 @@ describe("BlockNoteEditor", () => {
     )
 
     expect(received).toBeDefined()
-    expect(unfreezeMenuCallCount).toBeGreaterThan(0)
-  })
-
-  it("should unfreeze the side menu on change", async () => {
-    const { BlockNoteEditor } = await import("./block-note-editor")
-    unfreezeMenuCallCount = 0
-
-    render(<BlockNoteEditor docId="doc-1" initialContent={[]} />)
-
-    expect(unfreezeMenuCallCount).toBeGreaterThan(0)
   })
 })
