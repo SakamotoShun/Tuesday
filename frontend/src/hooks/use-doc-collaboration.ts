@@ -61,6 +61,7 @@ export function useDocCollaboration(docId: string) {
   const reconnectRef = useRef<number | null>(null)
   const pendingMessages = useRef<string[]>([])
   const isCleanedUp = useRef(false)
+  const hasOpened = useRef(false)
 
   useEffect(() => {
     const name = user?.name ?? "Anonymous"
@@ -71,12 +72,12 @@ export function useDocCollaboration(docId: string) {
   useEffect(() => {
     if (!docId) return undefined
     isCleanedUp.current = false
-    setHasRemoteContent(false)
 
     const connect = () => {
       // Don't reconnect if we've been cleaned up
       if (isCleanedUp.current) return
 
+      hasOpened.current = false
       const socket = new WebSocket(getWsUrl(docId))
       socketRef.current = socket
       setSyncState("connecting")
@@ -87,6 +88,7 @@ export function useDocCollaboration(docId: string) {
           socket.close()
           return
         }
+        hasOpened.current = true
         const queued = pendingMessages.current
         pendingMessages.current = []
         queued.forEach((message) => socket.send(message))
@@ -95,6 +97,9 @@ export function useDocCollaboration(docId: string) {
       socket.onclose = () => {
         // Don't reconnect or set error state if this was intentional cleanup
         if (isCleanedUp.current) return
+        // Don't set error or reconnect if socket never successfully opened
+        // (this happens when the component unmounts during initial connection)
+        if (!hasOpened.current) return
         setSyncState("error")
         if (reconnectRef.current) window.clearTimeout(reconnectRef.current)
         reconnectRef.current = window.setTimeout(() => connect(), 1000)
@@ -112,35 +117,21 @@ export function useDocCollaboration(docId: string) {
         if (message.type === "doc.sync") {
           const snapshot = typeof message.snapshot === "string" ? message.snapshot : null
           const updates = Array.isArray(message.updates) ? message.updates : []
-
-          try {
-            if (snapshot) {
-              Y.applyUpdate(ydoc, decodeBase64(snapshot), "remote")
-            }
-            updates.forEach((update) => {
-              if (typeof update === "string") {
-                Y.applyUpdate(ydoc, decodeBase64(update), "remote")
-              }
-            })
-          } catch (error) {
-            console.error("[docs-collab] Failed to apply sync payload", error)
-            setHasRemoteContent(false)
-            setSyncState("error")
-            return
+          if (snapshot) {
+            Y.applyUpdate(ydoc, decodeBase64(snapshot), "remote")
           }
-
+          updates.forEach((update) => {
+            if (typeof update === "string") {
+              Y.applyUpdate(ydoc, decodeBase64(update), "remote")
+            }
+          })
           setHasRemoteContent(Boolean(snapshot) || updates.length > 0)
           setSyncState("synced")
           return
         }
 
         if (message.type === "doc.update" && typeof message.update === "string") {
-          try {
-            Y.applyUpdate(ydoc, decodeBase64(message.update), "remote")
-          } catch (error) {
-            console.error("[docs-collab] Failed to apply incremental update", error)
-            setSyncState("error")
-          }
+          Y.applyUpdate(ydoc, decodeBase64(message.update), "remote")
           return
         }
 

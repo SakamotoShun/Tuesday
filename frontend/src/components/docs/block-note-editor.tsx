@@ -131,29 +131,19 @@ export function BlockNoteEditor({
 
   useEffect(() => {
     if (hasSeeded.current) return
-    if (syncState === "connecting") return
-
     if (hasRemoteContent) {
       hasSeeded.current = true
       return
     }
-
+    if (initialContent.length === 0) return
     if (fragment.length > 0) {
       hasSeeded.current = true
       return
     }
 
-    if (initialContent.length === 0) {
-      hasSeeded.current = true
-      return
-    }
-
-    editor.transact((tr) => {
-      editor.replaceBlocks(editor.document, initialContent)
-      tr.setMeta("addToHistory", false)
-    })
+    editor.replaceBlocks(editor.document, initialContent)
     hasSeeded.current = true
-  }, [editor, fragment, hasRemoteContent, initialContent, syncState])
+  }, [editor, fragment, hasRemoteContent, initialContent])
 
   return (
     <div
