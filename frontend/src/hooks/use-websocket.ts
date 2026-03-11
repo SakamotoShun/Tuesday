@@ -4,6 +4,7 @@ import { useAuthStore } from "@/store/auth-store"
 type WSMessage = Record<string, unknown>
 type MessageListener = (message: WSMessage) => void
 type StatusListener = (connected: boolean) => void
+const PING_INTERVAL_MS = 30000
 
 const messageListeners = new Set<MessageListener>()
 const statusListeners = new Set<StatusListener>()
@@ -12,6 +13,7 @@ let socket: WebSocket | null = null
 let isConnected = false
 let isConnecting = false
 let reconnectTimer: number | null = null
+let heartbeatTimer: number | null = null
 let pending: string[] = []
 let shouldReconnect = true
 
@@ -23,6 +25,13 @@ const getWsUrl = () => {
 const notifyStatus = (connected: boolean) => {
   isConnected = connected
   statusListeners.forEach((listener) => listener(connected))
+}
+
+const clearHeartbeat = () => {
+  if (heartbeatTimer) {
+    window.clearInterval(heartbeatTimer)
+    heartbeatTimer = null
+  }
 }
 
 const connect = () => {
@@ -44,11 +53,18 @@ const connect = () => {
         ws.send(JSON.stringify({ type: "subscribe", channelId }))
       })
     }
+    clearHeartbeat()
+    heartbeatTimer = window.setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "ping" }))
+      }
+    }, PING_INTERVAL_MS)
   }
 
   ws.onclose = () => {
     socket = null
     isConnecting = false
+    clearHeartbeat()
     notifyStatus(false)
     if (!shouldReconnect) return
     if (reconnectTimer) window.clearTimeout(reconnectTimer)
@@ -63,6 +79,7 @@ const connect = () => {
     } catch {
       return
     }
+    if (payload.type === "pong") return
     messageListeners.forEach((listener) => listener(payload))
   }
 }
@@ -71,6 +88,7 @@ const disconnect = () => {
   shouldReconnect = false
   if (reconnectTimer) window.clearTimeout(reconnectTimer)
   reconnectTimer = null
+  clearHeartbeat()
   subscriptions.clear()
   pending = []
   if (socket) {

@@ -9,7 +9,8 @@ type WSMessage =
   | { type: 'subscribe'; channelId: string }
   | { type: 'unsubscribe'; channelId: string }
   | { type: 'typing'; channelId: string; isTyping: boolean }
-  | { type: 'message'; channelId: string; content: string };
+  | { type: 'message'; channelId: string; content: string }
+  | { type: 'ping' };
 
 const ws = new Hono();
 
@@ -72,6 +73,11 @@ ws.get(
 
         if (message.type === 'typing') {
           await chatService.handleTyping(message.channelId, user, message.isTyping);
+          return;
+        }
+
+        if (message.type === 'ping') {
+          socket.send(JSON.stringify({ type: 'pong' }));
           return;
         }
 

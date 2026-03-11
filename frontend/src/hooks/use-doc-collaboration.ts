@@ -8,6 +8,7 @@ import {
 import { useAuthStore } from "@/store/auth-store"
 
 type SyncState = "connecting" | "synced" | "error"
+const PING_INTERVAL_MS = 30000
 
 const USER_COLORS = [
   "#0F766E",
@@ -59,6 +60,7 @@ export function useDocCollaboration(docId: string) {
   const [hasRemoteContent, setHasRemoteContent] = useState(false)
   const socketRef = useRef<WebSocket | null>(null)
   const reconnectRef = useRef<number | null>(null)
+  const heartbeatRef = useRef<number | null>(null)
   const reconnectAttemptsRef = useRef(0)
   const pendingMessages = useRef<string[]>([])
   const isCleanedUp = useRef(false)
@@ -75,10 +77,17 @@ export function useDocCollaboration(docId: string) {
     setHasRemoteContent(false)
     reconnectAttemptsRef.current = 0
 
+    const clearHeartbeat = () => {
+      if (heartbeatRef.current) {
+        window.clearInterval(heartbeatRef.current)
+        heartbeatRef.current = null
+      }
+    }
+
     const scheduleReconnect = () => {
       const attempt = reconnectAttemptsRef.current
       reconnectAttemptsRef.current += 1
-      const baseDelay = Math.min(1000 * 2 ** attempt, 10000)
+      const baseDelay = Math.min(1000 * 2 ** attempt, 3000)
       const jitter = Math.floor(Math.random() * 300)
       return baseDelay + jitter
     }
@@ -101,11 +110,18 @@ export function useDocCollaboration(docId: string) {
         pendingMessages.current = []
         queued.forEach((message) => socket.send(message))
         reconnectAttemptsRef.current = 0
+        clearHeartbeat()
+        heartbeatRef.current = window.setInterval(() => {
+          if (socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ type: "ping" }))
+          }
+        }, PING_INTERVAL_MS)
       }
 
       socket.onclose = (event) => {
         // Don't reconnect or set error state if this was intentional cleanup
         if (isCleanedUp.current) return
+        clearHeartbeat()
 
         // Session/auth failures should not trigger reconnect loops.
         if (event.code === 1008) {
@@ -167,6 +183,10 @@ export function useDocCollaboration(docId: string) {
           return
         }
 
+        if (message.type === "pong") {
+          return
+        }
+
         if (message.type === "doc.snapshot.request") {
           const snapshot = encodeBase64(Y.encodeStateAsUpdate(ydoc))
           const payload = JSON.stringify({ type: "doc.snapshot", snapshot })
@@ -185,6 +205,7 @@ export function useDocCollaboration(docId: string) {
       isCleanedUp.current = true
       if (reconnectRef.current) window.clearTimeout(reconnectRef.current)
       reconnectRef.current = null
+      clearHeartbeat()
       if (socketRef.current) {
         socketRef.current.close()
         socketRef.current = null

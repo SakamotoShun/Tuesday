@@ -9,7 +9,8 @@ import type { User } from '../types';
 type CollabMessage =
   | { type: 'doc.update'; update: string }
   | { type: 'doc.snapshot'; snapshot: string }
-  | { type: 'presence.update'; update: string };
+  | { type: 'presence.update'; update: string }
+  | { type: 'ping' };
 
 type WhiteboardUpdatePayload = {
   elements: unknown[];
@@ -30,7 +31,8 @@ type WhiteboardPresencePayload = {
 type WhiteboardCollabMessage =
   | { type: 'whiteboard.update'; update: WhiteboardUpdatePayload }
   | { type: 'whiteboard.snapshot'; snapshot: WhiteboardUpdatePayload }
-  | { type: 'whiteboard.presence'; update: WhiteboardPresencePayload };
+  | { type: 'whiteboard.presence'; update: WhiteboardPresencePayload }
+  | { type: 'ping' };
 
 const collab = new Hono();
 
@@ -141,6 +143,11 @@ collab.get(
             JSON.stringify({ type: 'presence.broadcast', update: message.update }),
             ws
           );
+          return;
+        }
+
+        if (message.type === 'ping') {
+          ws.send(JSON.stringify({ type: 'pong' }));
           return;
         }
 
@@ -270,6 +277,11 @@ collab.get(
             }),
             ws
           );
+          return;
+        }
+
+        if (message.type === 'ping') {
+          ws.send(JSON.stringify({ type: 'pong' }));
           return;
         }
 
