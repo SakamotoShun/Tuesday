@@ -65,12 +65,6 @@ type WhiteboardSnapshotRequestMessage = {
   type: "whiteboard.snapshot.request"
 }
 
-type WhiteboardPongMessage = {
-  type: "pong"
-}
-
-const PING_INTERVAL_MS = 30000
-
 type ServerMessage =
   | WhiteboardSyncMessage
   | WhiteboardUpdateMessage
@@ -78,7 +72,6 @@ type ServerMessage =
   | WhiteboardJoinMessage
   | WhiteboardLeaveMessage
   | WhiteboardSnapshotRequestMessage
-  | WhiteboardPongMessage
 
 type ClientMessage =
   | { type: "whiteboard.update"; update: WhiteboardSceneUpdate }
@@ -170,16 +163,8 @@ export function useWhiteboardCollab({
   useEffect(() => {
     if (!wsUrl) return
     const ws = new WebSocket(wsUrl)
-    let heartbeatTimer: number | null = null
     wsRef.current = ws
     setStatus("connecting")
-
-    const clearHeartbeat = () => {
-      if (heartbeatTimer) {
-        window.clearInterval(heartbeatTimer)
-        heartbeatTimer = null
-      }
-    }
 
     const send = (message: ClientMessage) => {
       if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -189,17 +174,10 @@ export function useWhiteboardCollab({
 
     ws.addEventListener("open", () => {
       setStatus("open")
-      clearHeartbeat()
-      heartbeatTimer = window.setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: "ping" }))
-        }
-      }, PING_INTERVAL_MS)
     })
 
     ws.addEventListener("close", () => {
       setStatus("closed")
-      clearHeartbeat()
     })
 
     ws.addEventListener("message", (event) => {
@@ -291,16 +269,10 @@ export function useWhiteboardCollab({
         if (snapshot) {
           send({ type: "whiteboard.snapshot", snapshot })
         }
-        return
-      }
-
-      if (message.type === "pong") {
-        return
       }
     })
 
     return () => {
-      clearHeartbeat()
       ws.close()
     }
   }, [wsUrl])

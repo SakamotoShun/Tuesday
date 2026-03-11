@@ -87,7 +87,7 @@ authRouter.post('/login', authRateLimit, async (c) => {
     });
 
     // Set session cookie
-    c.header('Set-Cookie', `session_id=${result.sessionId}; HttpOnly; Path=/; Max-Age=${config.sessionDurationHours * 3600}; SameSite=Lax${config.nodeEnv === 'production' ? '; Secure' : ''}`);
+    c.header('Set-Cookie', `session_id=${result.sessionId}; HttpOnly; Path=/; Max-Age=${config.sessionDurationHours * 3600}; SameSite=Strict${config.nodeEnv === 'production' ? '; Secure' : ''}`);
 
     return success(c, { user: toPublicUser(result.user) });
   } catch (error) {
@@ -171,7 +171,7 @@ authRouter.post('/logout', auth, async (c) => {
   }
 
   // Clear session cookie
-  c.header('Set-Cookie', `session_id=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax${config.nodeEnv === 'production' ? '; Secure' : ''}`);
+  c.header('Set-Cookie', 'session_id=; HttpOnly; Path=/; Max-Age=0; SameSite=Strict');
 
   return success(c, { message: 'Logged out successfully' });
 });
