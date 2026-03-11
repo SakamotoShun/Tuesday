@@ -90,7 +90,11 @@ export function BlockNoteEditor({
   onSyncStateChange,
   editable = true,
 }: BlockNoteEditorProps) {
-  const { ydoc, awareness, syncState, hasRemoteContent } = useDocCollaboration(docId)
+  const latestContentRef = useRef<Block[]>(initialContent)
+  const { ydoc, awareness, syncState, hasRemoteContent } = useDocCollaboration(
+    docId,
+    () => latestContentRef.current
+  )
   const fragment = useMemo(() => ydoc.getXmlFragment("prosemirror"), [ydoc])
   const editor = useCreateBlockNote({
     schema,
@@ -107,6 +111,12 @@ export function BlockNoteEditor({
   const hasSeeded = useRef(false)
 
   useEffect(() => {
+    if (!hasSeeded.current) {
+      latestContentRef.current = initialContent
+    }
+  }, [initialContent])
+
+  useEffect(() => {
     if (themePreference === "system") {
       const media = window.matchMedia("(prefers-color-scheme: dark)")
       const updateTheme = () => setResolvedTheme(media.matches ? "dark" : "light")
@@ -119,9 +129,10 @@ export function BlockNoteEditor({
     return undefined
   }, [themePreference])
 
-  const editorTheme = useMemo(() => resolvedTheme, [resolvedTheme])
+  const editorTheme = resolvedTheme
 
   const handleChange = () => {
+    latestContentRef.current = editor.document
     onChange?.(editor.document)
   }
 
@@ -131,19 +142,25 @@ export function BlockNoteEditor({
 
   useEffect(() => {
     if (hasSeeded.current) return
+    if (syncState === "connecting") return
+
     if (hasRemoteContent) {
       hasSeeded.current = true
       return
     }
-    if (initialContent.length === 0) return
+    if (initialContent.length === 0) {
+      hasSeeded.current = true
+      return
+    }
     if (fragment.length > 0) {
       hasSeeded.current = true
       return
     }
 
     editor.replaceBlocks(editor.document, initialContent)
+    latestContentRef.current = initialContent
     hasSeeded.current = true
-  }, [editor, fragment, hasRemoteContent, initialContent])
+  }, [editor, fragment, hasRemoteContent, initialContent, syncState])
 
   return (
     <div
