@@ -13,12 +13,20 @@ if (typeof globalThis.document === "undefined") {
 const { render } = await import("@testing-library/react")
 
 let unfreezeMenuCallCount = 0
+let hasInitializedSideMenuState = true
+let throwOnUnfreeze = false
 
 mock.module("@blocknote/react", () => ({
   useCreateBlockNote: () => ({
     document: [{ id: "block-1", type: "paragraph", props: {}, content: [] }],
     getExtension: () => ({
+      store: {
+        state: hasInitializedSideMenuState ? { show: true } : undefined,
+      },
       unfreezeMenu: () => {
+        if (throwOnUnfreeze) {
+          throw new Error("unfreezeMenu should not be called")
+        }
         unfreezeMenuCallCount += 1
       },
     }),
@@ -84,6 +92,8 @@ describe("BlockNoteEditor", () => {
     const { BlockNoteEditor } = await import("./block-note-editor")
     let received: unknown
     unfreezeMenuCallCount = 0
+    hasInitializedSideMenuState = true
+    throwOnUnfreeze = false
 
     render(
       <BlockNoteEditor
@@ -102,9 +112,24 @@ describe("BlockNoteEditor", () => {
   it("should unfreeze the side menu on change", async () => {
     const { BlockNoteEditor } = await import("./block-note-editor")
     unfreezeMenuCallCount = 0
+    hasInitializedSideMenuState = true
+    throwOnUnfreeze = false
 
     render(<BlockNoteEditor docId="doc-1" initialContent={[]} />)
 
     expect(unfreezeMenuCallCount).toBeGreaterThan(0)
+  })
+
+  it("should not unfreeze when side menu state is not initialized", async () => {
+    const { BlockNoteEditor } = await import("./block-note-editor")
+    unfreezeMenuCallCount = 0
+    hasInitializedSideMenuState = false
+    throwOnUnfreeze = true
+
+    expect(() => render(<BlockNoteEditor docId="doc-1" initialContent={[]} />)).not.toThrow()
+    expect(unfreezeMenuCallCount).toBe(0)
+
+    hasInitializedSideMenuState = true
+    throwOnUnfreeze = false
   })
 })

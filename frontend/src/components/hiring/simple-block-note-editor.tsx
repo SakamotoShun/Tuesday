@@ -67,9 +67,14 @@ export function SimpleBlockNoteEditor({
   const editorTheme = useMemo(() => resolvedTheme, [resolvedTheme])
 
   const handleChange = () => {
-    if (typeof editor.getExtension === "function") {
-      editor.getExtension(SideMenuExtension)?.unfreezeMenu()
+    const sideMenu = typeof editor.getExtension === "function"
+      ? editor.getExtension(SideMenuExtension)
+      : undefined
+
+    if (sideMenu?.store?.state) {
+      sideMenu.unfreezeMenu?.()
     }
+
     onChange?.(editor.document)
   }
 
