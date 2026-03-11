@@ -15,9 +15,7 @@ const { render } = await import("@testing-library/react")
 let unfreezeMenuCallCount = 0
 let hasInitializedSideMenuState = true
 let throwOnUnfreeze = false
-let replaceBlocksCallCount = 0
-let transactCallCount = 0
-let setMetaCalls: Array<{ key: string; value: unknown }> = []
+let blocksToYXmlFragmentCallCount = 0
 let collabSyncState: "connecting" | "synced" | "error" = "synced"
 let collabHasRemoteContent = true
 let collabFragmentLength = 0
@@ -26,17 +24,6 @@ const editorDocument = [{ id: "block-1", type: "paragraph", props: {}, content: 
 
 const createEditorMock = () => ({
   document: editorDocument,
-  replaceBlocks: () => {
-    replaceBlocksCallCount += 1
-  },
-  transact: (callback: (tr: { setMeta: (key: string, value: unknown) => void }) => void) => {
-    transactCallCount += 1
-    callback({
-      setMeta: (key, value) => {
-        setMetaCalls.push({ key, value })
-      },
-    })
-  },
   getExtension: () => ({
     store: {
       state: hasInitializedSideMenuState ? { show: true } : undefined,
@@ -86,6 +73,12 @@ mock.module("@blocknote/code-block", () => ({
   codeBlockOptions: {},
 }))
 
+mock.module("@blocknote/core/yjs", () => ({
+  blocksToYXmlFragment: () => {
+    blocksToYXmlFragmentCallCount += 1
+  },
+}))
+
 mock.module("@/hooks/use-doc-collaboration", () => ({
   useDocCollaboration: () => ({
     ydoc: { getXmlFragment: () => ({ length: collabFragmentLength }) },
@@ -99,9 +92,7 @@ const resetState = () => {
   unfreezeMenuCallCount = 0
   hasInitializedSideMenuState = true
   throwOnUnfreeze = false
-  replaceBlocksCallCount = 0
-  transactCallCount = 0
-  setMetaCalls = []
+  blocksToYXmlFragmentCallCount = 0
   collabSyncState = "synced"
   collabHasRemoteContent = true
   collabFragmentLength = 0
@@ -167,7 +158,7 @@ describe("BlockNoteEditor", () => {
     throwOnUnfreeze = false
   })
 
-  it("should not seed initial content while collab is connecting", async () => {
+  it("should seed initial content while collab is connecting and fragment is empty", async () => {
     resetState()
     collabSyncState = "connecting"
     collabHasRemoteContent = false
@@ -183,16 +174,14 @@ describe("BlockNoteEditor", () => {
       />
     )
 
-    expect(transactCallCount).toBe(0)
-    expect(replaceBlocksCallCount).toBe(0)
-    expect(setMetaCalls).toEqual([])
+    expect(blocksToYXmlFragmentCallCount).toBe(1)
   })
 
-  it("should seed initial content with no-history when collab is ready and empty", async () => {
+  it("should not seed when fragment already has content", async () => {
     resetState()
-    collabSyncState = "synced"
+    collabSyncState = "connecting"
     collabHasRemoteContent = false
-    collabFragmentLength = 0
+    collabFragmentLength = 2
     editorMock = createEditorMock()
 
     const { BlockNoteEditor } = await import("./block-note-editor")
@@ -204,8 +193,6 @@ describe("BlockNoteEditor", () => {
       />
     )
 
-    expect(transactCallCount).toBe(1)
-    expect(replaceBlocksCallCount).toBe(1)
-    expect(setMetaCalls).toEqual([{ key: "addToHistory", value: false }])
+    expect(blocksToYXmlFragmentCallCount).toBe(0)
   })
 })
