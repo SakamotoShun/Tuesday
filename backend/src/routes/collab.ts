@@ -76,14 +76,9 @@ collab.get(
 
           docCollabHub.join(docId, { ws, user });
 
-          const [snapshot, latestSeq] = await Promise.all([
-            docCollabRepository.getLatestSnapshot(docId),
-            docCollabRepository.getLatestSeq(docId),
-          ]);
-          const snapshotSeq = snapshot?.seq ?? 0;
-          const updates = latestSeq > snapshotSeq
-            ? await docCollabRepository.getUpdatesSince(docId, snapshotSeq)
-            : [];
+          const snapshot = await docCollabRepository.getLatestSnapshot(docId);
+          const updates = await docCollabRepository.getUpdatesSince(docId, snapshot?.seq ?? 0);
+          const latestSeq = await docCollabRepository.getLatestSeq(docId);
 
           console.log(`[WS] Sending sync: snapshot=${!!snapshot}, updates=${updates.length}, latestSeq=${latestSeq}`);
 

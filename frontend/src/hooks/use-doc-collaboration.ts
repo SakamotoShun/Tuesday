@@ -59,7 +59,6 @@ export function useDocCollaboration(docId: string) {
   const [hasRemoteContent, setHasRemoteContent] = useState(false)
   const socketRef = useRef<WebSocket | null>(null)
   const reconnectRef = useRef<number | null>(null)
-  const reconnectAttemptsRef = useRef(0)
   const pendingMessages = useRef<string[]>([])
   const isCleanedUp = useRef(false)
 
@@ -73,15 +72,6 @@ export function useDocCollaboration(docId: string) {
     if (!docId) return undefined
     isCleanedUp.current = false
     setHasRemoteContent(false)
-    reconnectAttemptsRef.current = 0
-
-    const scheduleReconnect = () => {
-      const attempt = reconnectAttemptsRef.current
-      reconnectAttemptsRef.current += 1
-      const baseDelay = Math.min(1000 * 2 ** attempt, 10000)
-      const jitter = Math.floor(Math.random() * 300)
-      return baseDelay + jitter
-    }
 
     const connect = () => {
       // Don't reconnect if we've been cleaned up
@@ -100,22 +90,14 @@ export function useDocCollaboration(docId: string) {
         const queued = pendingMessages.current
         pendingMessages.current = []
         queued.forEach((message) => socket.send(message))
-        reconnectAttemptsRef.current = 0
       }
 
-      socket.onclose = (event) => {
+      socket.onclose = () => {
         // Don't reconnect or set error state if this was intentional cleanup
         if (isCleanedUp.current) return
-
-        // Session/auth failures should not trigger reconnect loops.
-        if (event.code === 1008) {
-          setSyncState("error")
-          return
-        }
-
         setSyncState("error")
         if (reconnectRef.current) window.clearTimeout(reconnectRef.current)
-        reconnectRef.current = window.setTimeout(() => connect(), scheduleReconnect())
+        reconnectRef.current = window.setTimeout(() => connect(), 1000)
       }
 
       socket.onmessage = (event) => {
