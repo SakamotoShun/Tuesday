@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { BlockNoteSchema, createCodeBlockSpec, defaultBlockSpecs, type Block } from "@blocknote/core"
 import { codeBlockOptions } from "@blocknote/code-block"
+import { SideMenuExtension } from "@blocknote/core/extensions"
 import {
   BlockColorsItem,
   DragHandleMenu,
@@ -66,6 +67,9 @@ export function SimpleBlockNoteEditor({
   const editorTheme = useMemo(() => resolvedTheme, [resolvedTheme])
 
   const handleChange = () => {
+    if (typeof editor.getExtension === "function") {
+      editor.getExtension(SideMenuExtension)?.unfreezeMenu()
+    }
     onChange?.(editor.document)
   }
 
