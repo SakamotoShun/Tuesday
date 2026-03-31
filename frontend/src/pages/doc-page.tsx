@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ArrowLeft, FileText, Pencil, Table, X } from "@/lib/icons"
-import type { Block } from "@blocknote/core"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -25,29 +24,11 @@ import { ChatView } from "@/components/chat/chat-view"
 import { UserCombobox } from "@/components/ui/user-combobox"
 import { useDocWithChildren, useDocs } from "@/hooks/use-docs"
 import { useAuth } from "@/hooks/use-auth"
-import { useDebounce } from "@/hooks/use-debounce"
 import { useUIStore } from "@/store/ui-store"
 import type { PropertyValue } from "@/api/types"
 import { docsApi } from "@/api/docs"
 import { usersApi } from "@/api/users"
 import { ApiErrorResponse } from "@/api/client"
-
-type PendingDocContent = {
-  docId: string
-  content: Block[]
-}
-
-export function shouldPersistDocContent({
-  activeDocId,
-  renderedDocId,
-  targetDocId,
-}: {
-  activeDocId: string | null
-  renderedDocId: string | null | undefined
-  targetDocId: string
-}) {
-  return Boolean(renderedDocId && activeDocId === targetDocId && renderedDocId === targetDocId)
-}
 
 export function DocPage() {
   const queryClient = useQueryClient()
@@ -70,18 +51,11 @@ export function DocPage() {
   const [shareError, setShareError] = useState<string | null>(null)
   const [publicShareError, setPublicShareError] = useState<string | null>(null)
   const [copiedPublicLink, setCopiedPublicLink] = useState(false)
-  const [pendingContent, setPendingContent] = useState<PendingDocContent | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const activeDocIdRef = useRef<string | null>(null)
-  const pendingContentRef = useRef<PendingDocContent | null>(null)
-  const lastSavedContentRef = useRef("[]")
-  const isPersistingContentRef = useRef(false)
-  const queuedContentRef = useRef<PendingDocContent | null>(null)
   const chatPanelWidth = useUIStore((state) => state.chatPanelWidth)
   const setChatPanelWidth = useUIStore((state) => state.setChatPanelWidth)
   const docSidebarWidth = useUIStore((state) => state.docSidebarWidth)
   const setDocSidebarWidth = useUIStore((state) => state.setDocSidebarWidth)
-  const debouncedContent = useDebounce(pendingContent, 900)
 
   const mentionableUsersQuery = useQuery({
     queryKey: ["users", "mentionable"],
@@ -158,16 +132,10 @@ export function DocPage() {
 
   useEffect(() => {
     if (doc) {
-      activeDocIdRef.current = doc.id
       setTitleDraft(doc.title)
       setSaveState("saved")
       setTitleError(null)
       setIsEditingTitle(false)
-      setPendingContent(null)
-      pendingContentRef.current = null
-      queuedContentRef.current = null
-      isPersistingContentRef.current = false
-      lastSavedContentRef.current = JSON.stringify(doc.content ?? [])
       setShareDialogOpen(false)
       setSelectedShareUserIds([])
       setShareError(null)
@@ -175,9 +143,6 @@ export function DocPage() {
       setCopiedPublicLink(false)
       return
     }
-
-    activeDocIdRef.current = null
-    isPersistingContentRef.current = false
   }, [doc?.id])
 
   useEffect(() => {
@@ -201,70 +166,6 @@ export function DocPage() {
     const nextUserIds = (docSharesQuery.data ?? []).map((share) => share.userId)
     setSelectedShareUserIds(nextUserIds)
   }, [shareDialogOpen, docSharesQuery.data])
-
-  const persistContent = useCallback(async (targetDocId: string, nextContent: Block[]) => {
-    if (!shouldPersistDocContent({ activeDocId: activeDocIdRef.current, renderedDocId: doc?.id, targetDocId })) {
-      return
-    }
-
-    const serialized = JSON.stringify(nextContent)
-    if (serialized === lastSavedContentRef.current) {
-      return
-    }
-
-    if (isPersistingContentRef.current) {
-      queuedContentRef.current = { docId: targetDocId, content: nextContent }
-      return
-    }
-
-    isPersistingContentRef.current = true
-    setSaveState("saving")
-
-    try {
-      await updateDoc.mutateAsync({
-        docId: targetDocId,
-        data: { content: nextContent },
-      })
-      if (activeDocIdRef.current === targetDocId) {
-        lastSavedContentRef.current = serialized
-        setSaveState("saved")
-      }
-    } catch {
-      if (activeDocIdRef.current === targetDocId) {
-        setSaveState("error")
-      }
-    } finally {
-      isPersistingContentRef.current = false
-
-      const queuedContent = queuedContentRef.current
-      queuedContentRef.current = null
-
-      if (queuedContent) {
-        void persistContent(queuedContent.docId, queuedContent.content)
-      }
-    }
-  }, [doc, updateDoc])
-
-  useEffect(() => {
-    if (!debouncedContent) return
-    if (!shouldPersistDocContent({ activeDocId: activeDocIdRef.current, renderedDocId: doc?.id, targetDocId: debouncedContent.docId })) {
-      return
-    }
-    void persistContent(debouncedContent.docId, debouncedContent.content)
-  }, [debouncedContent, doc?.id, persistContent])
-
-  const handleContentChange = useCallback((nextContent: Block[]) => {
-    if (!doc) return
-    const contentState = { docId: doc.id, content: nextContent }
-    pendingContentRef.current = contentState
-    setPendingContent(contentState)
-  }, [doc])
-
-  const handleContentBlur = useCallback(() => {
-    const pendingContentState = pendingContentRef.current
-    if (!pendingContentState) return
-    void persistContent(pendingContentState.docId, pendingContentState.content)
-  }, [persistContent])
 
   const handleTitleSave = async () => {
     if (!doc) return
@@ -413,10 +314,10 @@ export function DocPage() {
     // Only update save state for connection status, not on every sync
     if (state === "error") {
       setSaveState("error")
-    } else if (state === "synced" && saveState === "error") {
-      // Recover from error state when reconnected
-      setSaveState("saved")
+      return
     }
+
+    setSaveState((current) => (current === "error" ? "saved" : current))
   }
 
   const canManageShares = projectId
@@ -539,8 +440,6 @@ export function DocPage() {
             key={doc.id}
             docId={doc.id}
             initialContent={doc.content ?? []}
-            onChange={handleContentChange}
-            onBlur={handleContentBlur}
             onSyncStateChange={handleSyncStateChange}
           />
         </div>

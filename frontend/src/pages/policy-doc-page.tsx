@@ -1,11 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { ArrowLeft, Check, CloudOff, FileText, Loader2, Pencil, Trash2 } from "@/lib/icons"
-import type { Block } from "@blocknote/core"
 import { ApiErrorResponse } from "@/api/client"
 import type { PropertyValue } from "@/api/types"
 import { useAuth } from "@/hooks/use-auth"
-import { useDebounce } from "@/hooks/use-debounce"
 import { usePolicies, usePolicyRow } from "@/hooks/use-policies"
 import { BlockNoteEditor } from "@/components/docs/block-note-editor"
 import { PropertiesPanel } from "@/components/docs/properties-panel"
@@ -32,14 +30,6 @@ export function PolicyDocPage() {
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [titleError, setTitleError] = useState<string | null>(null)
   const [saveState, setSaveState] = useState<SaveState>("saved")
-  const [pendingContent, setPendingContent] = useState<Block[] | null>(null)
-
-  const pendingContentRef = useRef<Block[] | null>(null)
-  const lastSavedContentRef = useRef("[]")
-  const isPersistingContentRef = useRef(false)
-  const queuedContentRef = useRef<Block[] | null>(null)
-
-  const debouncedContent = useDebounce(pendingContent, 900)
 
   useEffect(() => {
     if (!doc) return
@@ -48,65 +38,7 @@ export function PolicyDocPage() {
     setIsEditingTitle(false)
     setTitleError(null)
     setSaveState("saved")
-    setPendingContent(null)
-    pendingContentRef.current = null
-    queuedContentRef.current = null
-    lastSavedContentRef.current = JSON.stringify(doc.content ?? [])
   }, [doc?.id])
-
-  const persistContent = useCallback(async (nextContent: Block[]) => {
-    if (!doc || !isAdmin) return
-
-    const serialized = JSON.stringify(nextContent)
-    if (serialized === lastSavedContentRef.current) {
-      return
-    }
-
-    if (isPersistingContentRef.current) {
-      queuedContentRef.current = nextContent
-      return
-    }
-
-    isPersistingContentRef.current = true
-    setSaveState("saving")
-
-    try {
-      await updateRow.mutateAsync({
-        databaseId,
-        rowId: doc.id,
-        data: { content: nextContent },
-      })
-      lastSavedContentRef.current = serialized
-      setSaveState("saved")
-    } catch {
-      setSaveState("error")
-    } finally {
-      isPersistingContentRef.current = false
-
-      const queuedContent = queuedContentRef.current
-      queuedContentRef.current = null
-
-      if (queuedContent) {
-        void persistContent(queuedContent)
-      }
-    }
-  }, [databaseId, doc, isAdmin, updateRow])
-
-  useEffect(() => {
-    if (!isAdmin || !debouncedContent) return
-    void persistContent(debouncedContent)
-  }, [debouncedContent, isAdmin, persistContent])
-
-  const handleContentChange = useCallback((nextContent: Block[]) => {
-    if (!isAdmin) return
-    pendingContentRef.current = nextContent
-    setPendingContent(nextContent)
-  }, [isAdmin])
-
-  const handleContentBlur = useCallback(() => {
-    if (!isAdmin || !pendingContentRef.current) return
-    void persistContent(pendingContentRef.current)
-  }, [isAdmin, persistContent])
 
   const handleSaveTitle = async () => {
     if (!doc || !isAdmin) return
@@ -157,6 +89,15 @@ export function PolicyDocPage() {
       rowId: doc.id,
       data: { properties: nextProperties },
     })
+  }
+
+  const handleSyncStateChange = (state: "connecting" | "synced" | "error") => {
+    if (state === "error") {
+      setSaveState("error")
+      return
+    }
+
+    setSaveState((current) => (current === "error" ? "saved" : current))
   }
 
   if (isLoading) {
@@ -285,8 +226,7 @@ export function PolicyDocPage() {
           key={doc.id}
           docId={doc.id}
           initialContent={doc.content ?? []}
-          onChange={isAdmin ? handleContentChange : undefined}
-          onBlur={isAdmin ? handleContentBlur : undefined}
+          onSyncStateChange={handleSyncStateChange}
           editable={isAdmin}
         />
       </div>

@@ -1,14 +1,16 @@
 import { Hono } from 'hono';
 import { upgradeWebSocket } from '../websocket';
 import { authService, docService, whiteboardService } from '../services';
-import { docCollabRepository, whiteboardCollabRepository, whiteboardRepository } from '../repositories';
+import { docCollabRepository, docRepository, whiteboardCollabRepository, whiteboardRepository } from '../repositories';
 import { docCollabHub } from '../collab/hub';
+import { resolveDocSnapshotSeq, shouldPersistCanonicalDocContent } from '../collab/docSnapshot';
 import { whiteboardCollabHub } from '../collab/whiteboardHub';
 import type { User } from '../types';
+import { extractSearchTextFromDocContent } from '../utils/doc-search';
 
 type CollabMessage =
   | { type: 'doc.update'; update: string }
-  | { type: 'doc.snapshot'; snapshot: string }
+  | { type: 'doc.snapshot'; snapshot: string; seq?: number; content?: unknown }
   | { type: 'presence.update'; update: string };
 
 type WhiteboardUpdatePayload = {
@@ -123,7 +125,7 @@ collab.get(
           );
 
           if (docCollabHub.shouldRequestSnapshot(docId, seq)) {
-            ws.send(JSON.stringify({ type: 'doc.snapshot.request' }));
+            ws.send(JSON.stringify({ type: 'doc.snapshot.request', seq }));
           }
 
           ws.send(JSON.stringify({ type: 'doc.ack', seq }));
@@ -142,7 +144,20 @@ collab.get(
         if (message.type === 'doc.snapshot') {
           const snapshot = decodeBase64(message.snapshot);
           const latestSeq = await docCollabRepository.getLatestSeq(docId);
-          await docCollabRepository.createSnapshot(docId, snapshot, latestSeq);
+          const snapshotSeq = resolveDocSnapshotSeq(message.seq, latestSeq);
+
+          if (snapshotSeq === null) {
+            return;
+          }
+
+          await docCollabRepository.createSnapshot(docId, snapshot, snapshotSeq);
+
+          if (shouldPersistCanonicalDocContent(snapshotSeq, latestSeq, message.content)) {
+            await docRepository.update(docId, {
+              content: message.content,
+              searchText: extractSearchTextFromDocContent(message.content),
+            });
+          }
         }
       },
       onClose: (_event, ws) => {

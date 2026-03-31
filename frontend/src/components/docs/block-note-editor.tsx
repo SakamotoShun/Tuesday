@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useRef, useState, type FocusEvent, type ReactNode } from "react"
 import { BlockNoteSchema, createCodeBlockSpec, defaultBlockSpecs, type Block } from "@blocknote/core"
 import { codeBlockOptions } from "@blocknote/code-block"
 import { SideMenuExtension } from "@blocknote/core/extensions"
@@ -90,7 +90,10 @@ export function BlockNoteEditor({
   onSyncStateChange,
   editable = true,
 }: BlockNoteEditorProps) {
-  const { ydoc, awareness, syncState, hasRemoteContent } = useDocCollaboration(docId)
+  const editorRef = useRef<{ document: Block[] } | null>(null)
+  const { ydoc, awareness, syncState, hasRemoteContent, initialSyncComplete, sendSnapshot } = useDocCollaboration(docId, {
+    getSnapshotContent: () => editorRef.current?.document as Array<Record<string, unknown>>,
+  })
   const fragment = useMemo(() => ydoc.getXmlFragment("prosemirror"), [ydoc])
   const editor = useCreateBlockNote({
     schema,
@@ -102,6 +105,7 @@ export function BlockNoteEditor({
       showCursorLabels: "always",
     },
   }, [fragment, awareness, editable])
+  editorRef.current = editor
   const themePreference = useUIStore((state) => state.theme)
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light")
   const hasSeeded = useRef(false)
@@ -119,9 +123,13 @@ export function BlockNoteEditor({
     return undefined
   }, [themePreference])
 
-  const editorTheme = useMemo(() => resolvedTheme, [resolvedTheme])
+  const isEditorEditable = editable && initialSyncComplete
 
   const handleChange = () => {
+    if (!initialSyncComplete) {
+      return
+    }
+
     onChange?.(editor.document)
   }
 
@@ -131,27 +139,37 @@ export function BlockNoteEditor({
 
   useEffect(() => {
     if (hasSeeded.current) return
+    if (!initialSyncComplete) return
     if (hasRemoteContent) {
       hasSeeded.current = true
       return
     }
-    if (initialContent.length === 0) return
-    if (fragment.length > 0) {
+
+    if (initialContent.length === 0) {
       hasSeeded.current = true
       return
     }
 
     editor.replaceBlocks(editor.document, initialContent)
     hasSeeded.current = true
-  }, [editor, fragment, hasRemoteContent, initialContent])
+  }, [editor, hasRemoteContent, initialContent, initialSyncComplete])
 
   return (
     <div
       className="bn-cursor-labels-always rounded-lg border border-border bg-card px-4 py-6"
-      onBlur={onBlur}
+      onBlur={(event: FocusEvent<HTMLDivElement>) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          return
+        }
+
+        if (initialSyncComplete) {
+          sendSnapshot(editor.document as Array<Record<string, unknown>>)
+        }
+        onBlur?.()
+      }}
     >
-      <BlockNoteView editor={editor} onChange={handleChange} theme={editorTheme} sideMenu={false} editable={editable}>
-        {editable && (
+      <BlockNoteView editor={editor} onChange={handleChange} theme={resolvedTheme} sideMenu={false} editable={isEditorEditable}>
+        {isEditorEditable && (
           <SideMenuController
             sideMenu={(props) => <SideMenu {...props} dragHandleMenu={CustomDragHandleMenu} />}
           />

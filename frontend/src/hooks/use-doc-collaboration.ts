@@ -9,6 +9,10 @@ import { useAuthStore } from "@/store/auth-store"
 
 type SyncState = "connecting" | "synced" | "error"
 
+interface UseDocCollaborationOptions {
+  getSnapshotContent?: () => Array<Record<string, unknown>> | null
+}
+
 const USER_COLORS = [
   "#0F766E",
   "#C2410C",
@@ -51,17 +55,42 @@ const getWsUrl = (docId: string) => {
   return `${protocol}://${window.location.host}/api/v1/collab/docs/${docId}`
 }
 
-export function useDocCollaboration(docId: string) {
+export function useDocCollaboration(docId: string, options: UseDocCollaborationOptions = {}) {
   const user = useAuthStore((state) => state.user)
   const ydoc = useMemo(() => new Y.Doc(), [docId])
   const awareness = useMemo(() => new Awareness(ydoc), [ydoc])
   const [syncState, setSyncState] = useState<SyncState>("connecting")
   const [hasRemoteContent, setHasRemoteContent] = useState(false)
+  const [initialSyncComplete, setInitialSyncComplete] = useState(false)
   const socketRef = useRef<WebSocket | null>(null)
   const reconnectRef = useRef<number | null>(null)
   const pendingMessages = useRef<string[]>([])
   const isCleanedUp = useRef(false)
   const hasOpened = useRef(false)
+  const initialSyncCompleteRef = useRef(false)
+  const latestServerSeqRef = useRef(0)
+  const pendingAwarenessUpdatesRef = useRef<Uint8Array[]>([])
+
+  const sendMessage = (message: Record<string, unknown>) => {
+    const payload = JSON.stringify(message)
+    const socket = socketRef.current
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(payload)
+    } else {
+      pendingMessages.current.push(payload)
+    }
+  }
+
+  const sendSnapshot = (contentOverride?: Array<Record<string, unknown>>) => {
+    const snapshot = encodeBase64(Y.encodeStateAsUpdate(ydoc))
+    const content = contentOverride ?? options.getSnapshotContent?.() ?? null
+    sendMessage({
+      type: "doc.snapshot",
+      snapshot,
+      seq: latestServerSeqRef.current,
+      content,
+    })
+  }
 
   useEffect(() => {
     const name = user?.name ?? "Anonymous"
@@ -72,6 +101,11 @@ export function useDocCollaboration(docId: string) {
   useEffect(() => {
     if (!docId) return undefined
     isCleanedUp.current = false
+    initialSyncCompleteRef.current = false
+    latestServerSeqRef.current = 0
+    pendingAwarenessUpdatesRef.current = []
+    setInitialSyncComplete(false)
+    setHasRemoteContent(false)
 
     const connect = () => {
       // Don't reconnect if we've been cleaned up
@@ -117,6 +151,7 @@ export function useDocCollaboration(docId: string) {
         if (message.type === "doc.sync") {
           const snapshot = typeof message.snapshot === "string" ? message.snapshot : null
           const updates = Array.isArray(message.updates) ? message.updates : []
+          const latestSeq = typeof message.latestSeq === "number" ? message.latestSeq : 0
           if (snapshot) {
             Y.applyUpdate(ydoc, decodeBase64(snapshot), "remote")
           }
@@ -125,29 +160,49 @@ export function useDocCollaboration(docId: string) {
               Y.applyUpdate(ydoc, decodeBase64(update), "remote")
             }
           })
+          latestServerSeqRef.current = latestSeq
           setHasRemoteContent(Boolean(snapshot) || updates.length > 0)
+          initialSyncCompleteRef.current = true
+          pendingAwarenessUpdatesRef.current.forEach((update) => {
+            applyAwarenessUpdate(awareness, update, "remote")
+          })
+          pendingAwarenessUpdatesRef.current = []
+          setInitialSyncComplete(true)
           setSyncState("synced")
+          const localAwarenessUpdate = encodeAwarenessUpdate(awareness, [ydoc.clientID])
+          sendMessage({ type: "presence.update", update: encodeBase64(localAwarenessUpdate) })
           return
         }
 
         if (message.type === "doc.update" && typeof message.update === "string") {
+          if (typeof message.seq === "number") {
+            latestServerSeqRef.current = Math.max(latestServerSeqRef.current, message.seq)
+          }
           Y.applyUpdate(ydoc, decodeBase64(message.update), "remote")
           return
         }
 
+        if (message.type === "doc.ack" && typeof message.seq === "number") {
+          latestServerSeqRef.current = Math.max(latestServerSeqRef.current, message.seq)
+          return
+        }
+
         if (message.type === "presence.broadcast" && typeof message.update === "string") {
-          applyAwarenessUpdate(awareness, decodeBase64(message.update), "remote")
+          const update = decodeBase64(message.update)
+          if (!initialSyncCompleteRef.current) {
+            pendingAwarenessUpdatesRef.current.push(update)
+            return
+          }
+
+          applyAwarenessUpdate(awareness, update, "remote")
           return
         }
 
         if (message.type === "doc.snapshot.request") {
-          const snapshot = encodeBase64(Y.encodeStateAsUpdate(ydoc))
-          const payload = JSON.stringify({ type: "doc.snapshot", snapshot })
-          if (socket.readyState === WebSocket.OPEN) {
-            socket.send(payload)
-          } else {
-            pendingMessages.current.push(payload)
+          if (typeof message.seq === "number") {
+            latestServerSeqRef.current = Math.max(latestServerSeqRef.current, message.seq)
           }
+          sendSnapshot()
         }
       }
     }
@@ -168,18 +223,8 @@ export function useDocCollaboration(docId: string) {
   }, [awareness, docId, ydoc])
 
   useEffect(() => {
-    const sendMessage = (message: Record<string, unknown>) => {
-      const payload = JSON.stringify(message)
-      const socket = socketRef.current
-      if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.send(payload)
-      } else {
-        pendingMessages.current.push(payload)
-      }
-    }
-
     const handleDocUpdate = (update: Uint8Array, origin: unknown) => {
-      if (origin === "remote") return
+      if (origin === "remote" || !initialSyncCompleteRef.current) return
       sendMessage({ type: "doc.update", update: encodeBase64(update) })
     }
 
@@ -187,7 +232,7 @@ export function useDocCollaboration(docId: string) {
       { added, updated, removed }: { added: number[]; updated: number[]; removed: number[] },
       origin: unknown
     ) => {
-      if (origin === "remote") return
+      if (origin === "remote" || !initialSyncCompleteRef.current) return
       const clients = added.concat(updated).concat(removed)
       const update = encodeAwarenessUpdate(awareness, clients)
       sendMessage({ type: "presence.update", update: encodeBase64(update) })
@@ -202,5 +247,5 @@ export function useDocCollaboration(docId: string) {
     }
   }, [awareness, ydoc])
 
-  return { ydoc, awareness, syncState, hasRemoteContent }
+  return { ydoc, awareness, syncState, hasRemoteContent, initialSyncComplete, sendSnapshot }
 }
