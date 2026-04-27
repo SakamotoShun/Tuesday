@@ -33,12 +33,29 @@ function isSameOrigin(origin: string, requestUrl: string) {
   }
 }
 
+function isAllowedDevelopmentOrigin(origin: string) {
+  if (config.nodeEnv !== 'development') {
+    return false;
+  }
+
+  try {
+    const url = new URL(origin);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      return false;
+    }
+
+    return url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]';
+  } catch {
+    return false;
+  }
+}
+
 /**
  * CORS middleware - handles cross-origin requests
  */
 export async function cors(c: Context, next: Next) {
   const origin = c.req.header('Origin');
-  const allowOrigin = origin && config.corsOrigins.includes(origin) ? origin : null;
+  const allowOrigin = origin && (config.corsOrigins.includes(origin) || isAllowedDevelopmentOrigin(origin)) ? origin : null;
   const sameOrigin = origin ? isSameOrigin(origin, getEffectiveRequestUrl(c)) : false;
 
   c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');

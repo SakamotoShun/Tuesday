@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 
 const config = {
   corsOrigins: ['https://allowed.example'],
+  nodeEnv: 'production',
   trustProxy: false,
 };
 
@@ -14,6 +15,7 @@ const { cors } = await import('./cors');
 
 describe('cors middleware', () => {
   beforeEach(() => {
+    config.nodeEnv = 'production';
     config.trustProxy = false;
   });
 
@@ -51,6 +53,50 @@ describe('cors middleware', () => {
     expect(response.status).toBe(200);
     expect(handlerReached).toBe(true);
     expect(response.headers.get('Access-Control-Allow-Origin')).toBeNull();
+  });
+
+  it('allows localhost origins on any port during development', async () => {
+    config.nodeEnv = 'development';
+
+    let handlerReached = false;
+    const app = new Hono();
+    app.use('*', cors);
+    app.get('/', (c) => {
+      handlerReached = true;
+      return c.text('ok');
+    });
+
+    const response = await app.request('http://localhost:8080/', {
+      headers: {
+        Origin: 'http://localhost:3000',
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(handlerReached).toBe(true);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:3000');
+  });
+
+  it('allows 127.0.0.1 origins during development', async () => {
+    config.nodeEnv = 'development';
+
+    let handlerReached = false;
+    const app = new Hono();
+    app.use('*', cors);
+    app.get('/', (c) => {
+      handlerReached = true;
+      return c.text('ok');
+    });
+
+    const response = await app.request('http://localhost:8080/', {
+      headers: {
+        Origin: 'http://127.0.0.1:3000',
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(handlerReached).toBe(true);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('http://127.0.0.1:3000');
   });
 
   it('blocks disallowed non-preflight requests before handlers run', async () => {
@@ -114,6 +160,26 @@ describe('cors middleware', () => {
         Host: 'internal.service',
         'X-Forwarded-Host': 'workhub.example.com',
         'X-Forwarded-Proto': 'https',
+      },
+    });
+
+    expect(response.status).toBe(403);
+    expect(handlerReached).toBe(false);
+  });
+
+  it('does not auto-allow localhost origins outside development', async () => {
+    let handlerReached = false;
+    const app = new Hono();
+    app.use('*', cors);
+    app.post('/', (c) => {
+      handlerReached = true;
+      return c.text('created');
+    });
+
+    const response = await app.request('http://localhost:8080/', {
+      method: 'POST',
+      headers: {
+        Origin: 'http://localhost:3000',
       },
     });
 
