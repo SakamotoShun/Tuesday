@@ -390,6 +390,8 @@ app.use('*', async (c, next) => {
 });
 ```
 
+- Set `TRUST_PROXY=true` only behind a reverse proxy that strips client-supplied `X-Forwarded-*` headers. This is required before trusting forwarded host/protocol data for same-origin checks.
+
 ### SQL Injection Prevention
 - ALWAYS use Drizzle ORM for database queries
 - NEVER concatenate user input into SQL strings
