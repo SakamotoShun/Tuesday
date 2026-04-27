@@ -1,6 +1,6 @@
 import type { Context, Next } from 'hono';
 import { config } from '../config';
-import { join, extname } from 'node:path';
+import { extname, join, resolve, sep } from 'node:path';
 
 /**
  * MIME type map for common static file extensions.
@@ -34,6 +34,14 @@ function getMimeType(filePath: string): string {
   return MIME_TYPES[ext] || 'application/octet-stream';
 }
 
+export function isPathWithinDirectory(directoryPath: string, candidatePath: string) {
+  const resolvedDirectoryPath = resolve(directoryPath);
+  const resolvedCandidatePath = resolve(candidatePath);
+
+  return resolvedCandidatePath === resolvedDirectoryPath
+    || resolvedCandidatePath.startsWith(`${resolvedDirectoryPath}${sep}`);
+}
+
 /**
  * Static file serving middleware for production.
  * Serves the frontend build from STATIC_DIR and provides SPA fallback.
@@ -61,10 +69,11 @@ export async function serveStatic(c: Context, next: Next) {
 
   // Try to serve the exact file requested (e.g. /assets/main-abc123.js)
   if (path !== '/') {
-    const filePath = join(config.staticDir, path);
+    const staticDir = resolve(config.staticDir);
+    const filePath = resolve(staticDir, `.${path}`);
 
     // Prevent path traversal
-    if (!filePath.startsWith(config.staticDir)) {
+    if (!isPathWithinDirectory(staticDir, filePath)) {
       await next();
       return;
     }
@@ -85,7 +94,7 @@ export async function serveStatic(c: Context, next: Next) {
   }
 
   // SPA fallback - serve index.html for all non-file requests
-  const indexPath = join(config.staticDir, 'index.html');
+  const indexPath = join(resolve(config.staticDir), 'index.html');
   const indexFile = Bun.file(indexPath);
   if (await indexFile.exists()) {
     return new Response(indexFile, {

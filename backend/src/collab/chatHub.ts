@@ -1,6 +1,6 @@
 import type { User } from '../types';
 import type { WSContext } from 'hono/ws';
-import { sendWebSocketMessage } from '../utils/websocket';
+import { safeCloseWebSocket, sendWebSocketMessage } from '../utils/websocket';
 
 interface ChatClient {
   ws: WSContext;
@@ -15,10 +15,7 @@ const MAX_CHANNEL_SUBSCRIPTIONS_PER_CLIENT = 100;
 class ChatHub {
   private clients = new Map<string, Set<ChatClient>>();
   private channelSubscriptions = new Map<string, Set<ChatClient>>();
-
-  private getTotalConnections() {
-    return Array.from(this.clients.values()).reduce((total, clients) => total + clients.size, 0);
-  }
+  private totalConnections = 0;
 
   private getClient(userId: string, ws: WSContext) {
     const userClients = this.clients.get(userId);
@@ -38,7 +35,10 @@ class ChatHub {
   private removeClient(client: ChatClient) {
     const userClients = this.clients.get(client.user.id);
     if (userClients) {
-      userClients.delete(client);
+      const wasRemoved = userClients.delete(client);
+      if (wasRemoved) {
+        this.totalConnections = Math.max(0, this.totalConnections - 1);
+      }
       if (userClients.size === 0) {
         this.clients.delete(client.user.id);
       }
@@ -60,7 +60,7 @@ class ChatHub {
   connect(ws: WSContext, user: User): ChatClient | null {
     const userClients = this.clients.get(user.id);
 
-    if (this.getTotalConnections() >= MAX_TOTAL_CONNECTIONS || (userClients?.size ?? 0) >= MAX_CONNECTIONS_PER_USER) {
+    if (this.totalConnections >= MAX_TOTAL_CONNECTIONS || (userClients?.size ?? 0) >= MAX_CONNECTIONS_PER_USER) {
       return null;
     }
 
@@ -75,6 +75,7 @@ class ChatHub {
     }
 
     this.clients.get(user.id)!.add(client);
+    this.totalConnections += 1;
     return client;
   }
 
@@ -177,20 +178,20 @@ class ChatHub {
 
     for (const clients of this.clients.values()) {
       for (const client of clients) {
-        sendWebSocketMessage(client.ws, payload, { hub: 'chat', reason: 'shutdown' });
-        client.ws.close(1012, 'Service restarting');
+        sendWebSocketMessage(client.ws, payload, { hub: 'chat', reason: 'shutdown' }, { closeOnFailure: false });
+        safeCloseWebSocket(client.ws, 1012, 'Service restarting');
       }
     }
 
     this.clients.clear();
     this.channelSubscriptions.clear();
+    this.totalConnections = 0;
   }
 
   getStats() {
-    const connections = Array.from(this.clients.values()).reduce((total, clients) => total + clients.size, 0);
     return {
       connectedUsers: this.clients.size,
-      connections,
+      connections: this.totalConnections,
       subscribedChannels: this.channelSubscriptions.size,
     };
   }

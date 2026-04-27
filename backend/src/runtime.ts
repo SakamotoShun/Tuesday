@@ -3,7 +3,7 @@ import { constants as fsConstants } from 'node:fs';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { client, DB_POOL_CONFIG } from './db/client';
 import { config } from './config';
-import { getDefaultMigrationsDir } from './utils/runtime-paths';
+import { getMigrationsDir } from './utils/runtime-paths';
 
 export type CleanupJobName =
   | 'expiredSessions'
@@ -89,8 +89,13 @@ export async function checkReadiness() {
 
   try {
     const migrationFiles = (await readdir(getMigrationsDir())).filter((file) => file.endsWith('.sql'));
-    const [result] = await client<{ count: number }[]>`SELECT count(*)::int AS count FROM drizzle_migrations`;
-    checks.migrationsApplied = Number(result?.count ?? 0) === migrationFiles.length;
+    const appliedMigrations = await client<{ name: string }[]>`
+      SELECT name FROM drizzle_migrations
+    `;
+    checks.migrationsApplied = areMigrationsApplied(
+      migrationFiles,
+      appliedMigrations.map((migration) => migration.name)
+    );
   } catch {
     checks.migrationsApplied = false;
   }
@@ -119,6 +124,7 @@ export function getDiagnosticsSnapshot() {
   };
 }
 
-export function getMigrationsDir() {
-  return process.env.MIGRATIONS_DIR || getDefaultMigrationsDir();
+export function areMigrationsApplied(migrationFiles: string[], appliedMigrationNames: Iterable<string>) {
+  const appliedMigrations = new Set(appliedMigrationNames);
+  return migrationFiles.every((migrationFile) => appliedMigrations.has(migrationFile));
 }

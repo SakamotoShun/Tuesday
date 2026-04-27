@@ -1,23 +1,31 @@
 import type { WSContext } from 'hono/ws';
 import { log } from './logger';
 
+interface SendWebSocketMessageOptions {
+  closeOnFailure?: boolean;
+}
+
 export function sendWebSocketMessage(
   ws: WSContext,
   payload: string,
-  context: Record<string, unknown>
+  context: Record<string, unknown>,
+  options: SendWebSocketMessageOptions = {}
 ) {
+  const closeOnFailure = options.closeOnFailure ?? true;
+
   try {
     const result = ws.send(payload) as number | void;
 
     if (typeof result === 'number' && result === -1) {
       log('warn', 'websocket.backpressure', context);
-      safeCloseWebSocket(ws, 1013, 'Client too slow');
-      return false;
+      return true;
     }
 
     if (typeof result === 'number' && result === 0) {
       log('warn', 'websocket.send_dropped', context);
-      safeCloseWebSocket(ws, 1011, 'Connection unavailable');
+      if (closeOnFailure) {
+        safeCloseWebSocket(ws, 1011, 'Connection unavailable');
+      }
       return false;
     }
 
@@ -27,7 +35,9 @@ export function sendWebSocketMessage(
       ...context,
       error,
     });
-    safeCloseWebSocket(ws, 1011, 'Connection error');
+    if (closeOnFailure) {
+      safeCloseWebSocket(ws, 1011, 'Connection error');
+    }
     return false;
   }
 }

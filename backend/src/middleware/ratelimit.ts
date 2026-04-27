@@ -120,7 +120,7 @@ function consumeMemoryRateLimit(key: string, options: RateLimitOptions, now: num
   const namespacedKey = `${options.name}:${key}`;
   const entry = rateLimits.get(namespacedKey);
 
-  if (!entry || now > entry.resetTime) {
+  if (!entry || now >= entry.resetTime) {
     const nextEntry = {
       count: 1,
       resetTime: now + options.windowMs,
@@ -153,30 +153,40 @@ async function maybeSweepPostgresEntries(now: number) {
 async function consumePostgresRateLimit(key: string, options: RateLimitOptions, now: number): Promise<RateLimitResult> {
   await maybeSweepPostgresEntries(now);
 
-  const windowStart = Math.floor(now / options.windowMs) * options.windowMs;
-  const resetTime = windowStart + options.windowMs;
+  const currentTime = new Date(now);
+  const nextResetTime = new Date(now + options.windowMs);
 
-  const [row] = await client<{ count: number }[]>`
-    INSERT INTO rate_limit_entries (scope, client_key, window_start, request_count, expires_at, updated_at)
+  const [row] = await client<{ count: number; reset_time: number }[]>`
+    INSERT INTO rate_limit_entries (scope, client_key, first_request_at, request_count, expires_at, updated_at)
     VALUES (
       ${options.name},
       ${key},
-      to_timestamp(${windowStart / 1000}),
+      ${currentTime},
       1,
-      to_timestamp(${resetTime / 1000}),
+      ${nextResetTime},
       NOW()
     )
-    ON CONFLICT (scope, client_key, window_start)
+    ON CONFLICT (scope, client_key)
     DO UPDATE SET
-      request_count = rate_limit_entries.request_count + 1,
-      expires_at = EXCLUDED.expires_at,
+      request_count = CASE
+        WHEN rate_limit_entries.expires_at <= ${currentTime} THEN 1
+        ELSE rate_limit_entries.request_count + 1
+      END,
+      first_request_at = CASE
+        WHEN rate_limit_entries.expires_at <= ${currentTime} THEN EXCLUDED.first_request_at
+        ELSE rate_limit_entries.first_request_at
+      END,
+      expires_at = CASE
+        WHEN rate_limit_entries.expires_at <= ${currentTime} THEN EXCLUDED.expires_at
+        ELSE rate_limit_entries.expires_at
+      END,
       updated_at = NOW()
-    RETURNING request_count::int AS count
+    RETURNING request_count::int AS count, (EXTRACT(EPOCH FROM expires_at) * 1000)::bigint AS reset_time
   `;
 
   return {
     count: Number(row?.count ?? 1),
-    resetTime,
+    resetTime: Number(row?.reset_time ?? nextResetTime.getTime()),
   };
 }
 

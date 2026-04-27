@@ -24,3 +24,7 @@ export function getDefaultMigrationsDir() {
 
   return join(getRuntimeBaseDir(), 'db', 'migrations');
 }
+
+export function getMigrationsDir() {
+  return process.env.MIGRATIONS_DIR || getDefaultMigrationsDir();
+}

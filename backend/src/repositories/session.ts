@@ -4,6 +4,7 @@ import { sessions, users, type Session, type NewSession, type User } from '../db
 
 const SESSION_CACHE_TTL_MS = 30_000;
 const SESSION_CACHE_MAX_SIZE = 5_000;
+const SESSION_CACHE_PRUNE_LIMIT = 64;
 
 type SessionWithUser = { session: Session; user: User };
 
@@ -14,6 +15,52 @@ interface SessionCacheEntry {
 }
 
 const sessionCache = new Map<string, SessionCacheEntry>();
+const sessionCacheByUserId = new Map<string, Set<string>>();
+
+function addCachedSessionIndex(userId: string, sessionId: string) {
+  const sessionIds = sessionCacheByUserId.get(userId);
+  if (sessionIds) {
+    sessionIds.add(sessionId);
+    return;
+  }
+
+  sessionCacheByUserId.set(userId, new Set([sessionId]));
+}
+
+function removeCachedSession(sessionId: string) {
+  const entry = sessionCache.get(sessionId);
+  if (!entry) {
+    return false;
+  }
+
+  sessionCache.delete(sessionId);
+
+  const sessionIds = sessionCacheByUserId.get(entry.userId);
+  if (sessionIds) {
+    sessionIds.delete(sessionId);
+    if (sessionIds.size === 0) {
+      sessionCacheByUserId.delete(entry.userId);
+    }
+  }
+
+  return true;
+}
+
+function pruneExpiredCachedSessions(now: number) {
+  let inspected = 0;
+
+  for (const [sessionId, entry] of sessionCache) {
+    if (inspected >= SESSION_CACHE_PRUNE_LIMIT) {
+      break;
+    }
+
+    inspected += 1;
+
+    if (now - entry.cachedAt > SESSION_CACHE_TTL_MS) {
+      removeCachedSession(sessionId);
+    }
+  }
+}
 
 function getCachedSession(sessionId: string): SessionWithUser | null {
   const entry = sessionCache.get(sessionId);
@@ -22,7 +69,7 @@ function getCachedSession(sessionId: string): SessionWithUser | null {
   }
 
   if (Date.now() - entry.cachedAt > SESSION_CACHE_TTL_MS) {
-    sessionCache.delete(sessionId);
+    removeCachedSession(sessionId);
     return null;
   }
 
@@ -32,11 +79,16 @@ function getCachedSession(sessionId: string): SessionWithUser | null {
 }
 
 function setCachedSession(sessionId: string, value: SessionWithUser) {
+  const now = Date.now();
+  pruneExpiredCachedSessions(now);
+  removeCachedSession(sessionId);
+
   sessionCache.set(sessionId, {
     userId: value.user.id,
     value,
-    cachedAt: Date.now(),
+    cachedAt: now,
   });
+  addCachedSessionIndex(value.user.id, sessionId);
 
   if (sessionCache.size <= SESSION_CACHE_MAX_SIZE) {
     return;
@@ -44,14 +96,14 @@ function setCachedSession(sessionId: string, value: SessionWithUser) {
 
   const oldestKey = sessionCache.keys().next().value;
   if (oldestKey) {
-    sessionCache.delete(oldestKey);
+    removeCachedSession(oldestKey);
   }
 }
 
 export class SessionRepository {
   async create(data: NewSession): Promise<Session> {
     const [session] = await db.insert(sessions).values(data).returning();
-    sessionCache.delete(session.id);
+    removeCachedSession(session.id);
     return session;
   }
 
@@ -93,7 +145,7 @@ export class SessionRepository {
 
   async delete(id: string): Promise<boolean> {
     const result = await db.delete(sessions).where(eq(sessions.id, id)).returning();
-    sessionCache.delete(id);
+    removeCachedSession(id);
     return result.length > 0;
   }
 
@@ -104,7 +156,7 @@ export class SessionRepository {
       .returning();
 
     for (const deletedSession of result) {
-      sessionCache.delete(deletedSession.id);
+      removeCachedSession(deletedSession.id);
     }
 
     return result.length;
@@ -117,17 +169,20 @@ export class SessionRepository {
       .returning();
 
     for (const deletedSession of result) {
-      sessionCache.delete(deletedSession.id);
+      removeCachedSession(deletedSession.id);
     }
 
     return result.length;
   }
 
   invalidateByUserId(userId: string) {
-    for (const [sessionId, entry] of sessionCache.entries()) {
-      if (entry.userId === userId) {
-        sessionCache.delete(sessionId);
-      }
+    const sessionIds = sessionCacheByUserId.get(userId);
+    if (!sessionIds) {
+      return;
+    }
+
+    for (const sessionId of Array.from(sessionIds)) {
+      removeCachedSession(sessionId);
     }
   }
 

@@ -2,8 +2,8 @@ import { config } from '../config';
 import postgres from 'postgres';
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
-import { getMigrationsDir } from '../runtime';
 import { log } from '../utils/logger';
+import { getMigrationsDir } from '../utils/runtime-paths';
 
 const MIGRATION_LOCK_ID = 7100200;
 
@@ -49,21 +49,28 @@ async function getMigrationStatuses(client: postgres.Sql): Promise<MigrationStat
   }));
 }
 
-async function withMigrationLock<T>(client: postgres.Sql, fn: () => Promise<T>) {
-  await client`SELECT pg_advisory_lock(${MIGRATION_LOCK_ID})`;
+async function withMigrationLock<T>(client: postgres.Sql, fn: (sql: postgres.Sql) => Promise<T>) {
+  const reserved = await client.reserve();
 
   try {
-    return await fn();
+    const sql = reserved as unknown as postgres.Sql;
+    await sql`SELECT pg_advisory_lock(${MIGRATION_LOCK_ID})`;
+
+    try {
+      return await fn(sql);
+    } finally {
+      await sql`SELECT pg_advisory_unlock(${MIGRATION_LOCK_ID})`;
+    }
   } finally {
-    await client`SELECT pg_advisory_unlock(${MIGRATION_LOCK_ID})`;
+    reserved.release();
   }
 }
 
-async function executeMigration(client: postgres.Sql, file: string, sql: string) {
+async function executeMigration(client: postgres.Sql, file: string, statement: string) {
   await client`BEGIN`;
 
   try {
-    await client.unsafe(sql);
+    await client.unsafe(statement);
     await client`
       INSERT INTO drizzle_migrations (name) VALUES (${file})
     `;
@@ -78,7 +85,7 @@ export async function getPendingMigrationCount() {
   const client = postgres(config.databaseUrl, { max: 1 });
 
   try {
-    const statuses = await withMigrationLock(client, () => getMigrationStatuses(client));
+    const statuses = await withMigrationLock(client, (sql) => getMigrationStatuses(sql));
     return statuses.filter((status) => !status.applied).length;
   } finally {
     await client.end({ timeout: 5 });
@@ -89,7 +96,7 @@ export async function printMigrationStatus() {
   const client = postgres(config.databaseUrl, { max: 1 });
 
   try {
-    const statuses = await withMigrationLock(client, () => getMigrationStatuses(client));
+    const statuses = await withMigrationLock(client, (sql) => getMigrationStatuses(sql));
 
     for (const status of statuses) {
       const label = status.applied ? 'applied' : 'pending';
@@ -110,7 +117,7 @@ export async function dryRunMigrations() {
   const client = postgres(config.databaseUrl, { max: 1 });
 
   try {
-    const statuses = await withMigrationLock(client, () => getMigrationStatuses(client));
+    const statuses = await withMigrationLock(client, (sql) => getMigrationStatuses(sql));
     const pending = statuses.filter((status) => !status.applied);
 
     if (pending.length === 0) {
@@ -135,13 +142,13 @@ export async function runMigrations() {
   });
 
   try {
-    await withMigrationLock(client, async () => {
-      await ensureMigrationTable(client);
+    await withMigrationLock(client, async (sql) => {
+      await ensureMigrationTable(sql);
 
       const { migrationsDir, files } = getMigrationFiles();
 
       for (const file of files) {
-        const [existing] = await client`
+        const [existing] = await sql`
           SELECT id FROM drizzle_migrations WHERE name = ${file}
         `;
 
@@ -150,10 +157,10 @@ export async function runMigrations() {
           continue;
         }
 
-        const sql = readFileSync(join(migrationsDir, file), 'utf-8');
+        const statement = readFileSync(join(migrationsDir, file), 'utf-8');
 
         try {
-          await executeMigration(client, file, sql);
+          await executeMigration(sql, file, statement);
           log('info', 'migration.applied', { migration: file });
         } catch (error) {
           log('error', 'migration.failed', {

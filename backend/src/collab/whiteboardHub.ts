@@ -1,6 +1,6 @@
 import type { User } from '../types';
 import type { WSContext } from 'hono/ws';
-import { sendWebSocketMessage } from '../utils/websocket';
+import { safeCloseWebSocket, sendWebSocketMessage } from '../utils/websocket';
 
 interface CollabClient {
   ws: WSContext;
@@ -102,8 +102,8 @@ class WhiteboardCollabHub {
 
     for (const room of this.rooms.values()) {
       for (const client of room.clients) {
-        sendWebSocketMessage(client.ws, payload, { hub: 'whiteboard_collab', reason: 'shutdown' });
-        client.ws.close(1012, 'Service restarting');
+        sendWebSocketMessage(client.ws, payload, { hub: 'whiteboard_collab', reason: 'shutdown' }, { closeOnFailure: false });
+        safeCloseWebSocket(client.ws, 1012, 'Service restarting');
       }
     }
 

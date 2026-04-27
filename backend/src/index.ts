@@ -14,6 +14,7 @@ import { whiteboardCollabHub } from './collab/whiteboardHub';
 const app = new Hono();
 const cleanupHandles: Array<ReturnType<typeof setInterval>> = [];
 const SHUTDOWN_TIMEOUT_MS = 25_000;
+const FATAL_EXIT_TIMEOUT_MS = 5_000;
 
 // Global middleware
 app.use('*', requestContext);
@@ -99,7 +100,7 @@ async function startServer() {
 
     let shutdownPromise: Promise<void> | null = null;
 
-    const shutdown = async (signal: string) => {
+    const shutdown = async (signal: string, exitCode = 0) => {
       if (shutdownPromise) {
         await shutdownPromise;
         return;
@@ -118,37 +119,55 @@ async function startServer() {
 
         forceCloseTimer.unref?.();
 
-        await server.stop(false);
-        clearTimeout(forceCloseTimer);
+        try {
+          await server.stop(false);
+          log('info', 'server.network_stopped', { signal });
 
-        log('info', 'server.network_stopped', { signal });
+          for (const handle of cleanupHandles) {
+            clearInterval(handle);
+          }
 
-      for (const handle of cleanupHandles) {
-        clearInterval(handle);
-      }
-
-        await client.end({ timeout: 5 });
-        log('info', 'server.shutdown_completed', { signal });
+          await client.end({ timeout: 5 });
+          log('info', 'server.shutdown_completed', { signal });
+        } finally {
+          clearTimeout(forceCloseTimer);
+        }
       })();
 
       try {
         await shutdownPromise;
-        process.exit(0);
+        process.exit(exitCode);
       } catch (error) {
         log('error', 'server.shutdown_failed', { signal, error });
         process.exit(1);
       }
     };
 
-    process.on('SIGINT', () => void shutdown('SIGINT'));
-    process.on('SIGTERM', () => void shutdown('SIGTERM'));
+    process.on('SIGINT', () => void shutdown('SIGINT', 0));
+    process.on('SIGTERM', () => void shutdown('SIGTERM', 0));
     process.on('unhandledRejection', (error) => {
+      if (shutdownPromise) {
+        return;
+      }
+
       log('error', 'process.unhandled_rejection', { error });
-      void shutdown('unhandledRejection');
+      void shutdown('unhandledRejection', 1);
     });
     process.on('uncaughtException', (error) => {
+      if (shutdownPromise) {
+        return;
+      }
+
       log('error', 'process.uncaught_exception', { error });
-      void shutdown('uncaughtException');
+      const fatalExitTimer = setTimeout(() => {
+        process.exit(1);
+      }, FATAL_EXIT_TIMEOUT_MS);
+
+      fatalExitTimer.unref?.();
+
+      void shutdown('uncaughtException', 1).finally(() => {
+        clearTimeout(fatalExitTimer);
+      });
     });
 
     log('info', 'server.started', { port: config.port });
