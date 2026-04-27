@@ -20,7 +20,9 @@ const FATAL_EXIT_TIMEOUT_MS = 5_000;
 app.use('*', requestContext);
 app.use('*', recovery);
 app.use('*', logging);
-app.use('*', cors);
+// Only API responses need CORS enforcement. Keeping it off the SPA shell and
+// static assets avoids proxy-specific origin quirks from breaking app boot.
+app.use('/api/*', cors);
 app.use('*', securityHeaders);
 
 // Mount routes

@@ -212,4 +212,57 @@ describe('cors middleware', () => {
     expect(response.status).toBe(403);
     expect(handlerReached).toBe(false);
   });
+
+  it('can be scoped to API routes without blocking page navigations', async () => {
+    let pageHandlerReached = false;
+    let apiHandlerReached = false;
+    const app = new Hono();
+    app.use('/api/*', cors);
+    app.get('/', (c) => {
+      pageHandlerReached = true;
+      return c.text('ok');
+    });
+    app.get('/api/v1/projects', (c) => {
+      apiHandlerReached = true;
+      return c.json({ ok: true });
+    });
+
+    const pageResponse = await app.request('https://app.example/', {
+      headers: {
+        Origin: 'https://denied.example',
+      },
+    });
+
+    const apiResponse = await app.request('https://app.example/api/v1/projects', {
+      headers: {
+        Origin: 'https://denied.example',
+      },
+    });
+
+    expect(pageResponse.status).toBe(200);
+    expect(pageHandlerReached).toBe(true);
+    expect(apiResponse.status).toBe(403);
+    expect(apiHandlerReached).toBe(false);
+  });
+
+  it('can be scoped to API routes without blocking static assets', async () => {
+    let assetHandlerReached = false;
+    const app = new Hono();
+    app.use('/api/*', cors);
+    app.get('/assets/app.css', (c) => {
+      assetHandlerReached = true;
+      return c.text('body {}', 200, {
+        'Content-Type': 'text/css; charset=utf-8',
+      });
+    });
+
+    const response = await app.request('https://app.example/assets/app.css', {
+      headers: {
+        Origin: 'https://denied.example',
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(assetHandlerReached).toBe(true);
+  });
 });
