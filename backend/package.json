@@ -11,6 +11,8 @@
     "test:coverage": "bun test --coverage",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun run src/db/migrate.ts",
+    "db:migrate:status": "bun run src/db/migrate.ts status",
+    "db:migrate:dry-run": "bun run src/db/migrate.ts dry-run",
     "db:studio": "drizzle-kit studio",
     "search:backfill-docs": "bun run src/scripts/backfill-doc-search.ts",
     "cleanup:hiring-doc-orphans": "bun run src/scripts/cleanup-orphaned-hiring-docs.ts",
@@ -30,12 +32,16 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.10.0",
     "@types/nodemailer": "^7.0.11",
     "bun-types": "latest",
     "drizzle-kit": "^0.30.0",
-    "typescript": "^5.3.3"
+    "eslint": "^10.2.1",
+    "globals": "^17.5.0",
+    "typescript": "^5.3.3",
+    "typescript-eslint": "^8.59.0"
   },
   "peerDependencies": {
     "typescript": "^5.3.3"

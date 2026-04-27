@@ -7,6 +7,7 @@ import { resolveDocSnapshotSeq, shouldPersistCanonicalDocContent } from '../coll
 import { whiteboardCollabHub } from '../collab/whiteboardHub';
 import type { User } from '../types';
 import { extractSearchTextFromDocContent } from '../utils/doc-search';
+import { sendWebSocketMessage, safeCloseWebSocket } from '../utils/websocket';
 
 type CollabMessage =
   | { type: 'doc.update'; update: string }
@@ -35,6 +36,8 @@ type WhiteboardCollabMessage =
   | { type: 'whiteboard.presence'; update: WhiteboardPresencePayload };
 
 const collab = new Hono();
+const MAX_DOC_MESSAGE_BYTES = 512 * 1024;
+const MAX_WHITEBOARD_MESSAGE_BYTES = 1024 * 1024;
 
 const encodeBase64 = (data: Uint8Array) => Buffer.from(data).toString('base64');
 const decodeBase64 = (data: string) => Uint8Array.from(Buffer.from(data, 'base64'));
@@ -46,62 +49,59 @@ collab.get(
     const sessionId = c.req.header('Cookie')?.match(/session_id=([^;]+)/)?.[1];
     let user: User | null = null;
 
-    console.log(`[WS] Upgrade request for doc ${docId}, session: ${sessionId ? 'present' : 'missing'}`);
-
     return {
       onOpen: async (_event, ws) => {
-        console.log(`[WS] Connection opened for doc ${docId}`);
         try {
-          // Authenticate inside WebSocket handler
           if (!sessionId) {
-            console.log(`[WS] Closing: no session`);
-            ws.close(1008, 'Unauthorized');
-            return;
-          }
-          user = await authService.validateSession(sessionId);
-          if (!user) {
-            console.log(`[WS] Closing: invalid session`);
-            ws.close(1008, 'Unauthorized');
+            safeCloseWebSocket(ws, 1008, 'Unauthorized');
             return;
           }
 
-          console.log(`[WS] User authenticated: ${user.email}`);
+          user = await authService.validateSession(sessionId);
+          if (!user) {
+            safeCloseWebSocket(ws, 1008, 'Unauthorized');
+            return;
+          }
 
           const doc = await docService.getDoc(docId, user);
           if (!doc) {
-            console.log(`[WS] Closing: doc not found`);
-            ws.close(1008, 'Doc not found');
+            safeCloseWebSocket(ws, 1008, 'Doc not found');
             return;
           }
 
-          console.log(`[WS] Doc found: ${doc.title}, joining collab hub`);
-
-          docCollabHub.join(docId, { ws, user });
+          if (!docCollabHub.join(docId, { ws, user })) {
+            safeCloseWebSocket(ws, 1013, 'Room capacity reached');
+            return;
+          }
 
           const snapshot = await docCollabRepository.getLatestSnapshot(docId);
           const updates = await docCollabRepository.getUpdatesSince(docId, snapshot?.seq ?? 0);
           const latestSeq = await docCollabRepository.getLatestSeq(docId);
 
-          console.log(`[WS] Sending sync: snapshot=${!!snapshot}, updates=${updates.length}, latestSeq=${latestSeq}`);
-
-          ws.send(
+          sendWebSocketMessage(
+            ws,
             JSON.stringify({
               type: 'doc.sync',
               snapshot: snapshot ? encodeBase64(snapshot.snapshot) : null,
               updates: updates.map((update) => encodeBase64(update.update)),
               latestSeq,
-            })
+            }),
+            { hub: 'doc_collab', event: 'sync', doc_id: docId, user_id: user.id }
           );
-        } catch (err) {
-          console.log(`[WS] Error in onOpen:`, err);
-          ws.close(1008, 'Access denied');
+        } catch {
+          safeCloseWebSocket(ws, 1008, 'Access denied');
         }
       },
       onMessage: async (event, ws) => {
         if (!user) return;
-        
+
         const raw = typeof event.data === 'string' ? event.data : '';
         if (!raw) return;
+
+        if (Buffer.byteLength(raw, 'utf8') > MAX_DOC_MESSAGE_BYTES) {
+          safeCloseWebSocket(ws, 1009, 'Message too large');
+          return;
+        }
 
         let message: CollabMessage | null = null;
         try {
@@ -125,10 +125,20 @@ collab.get(
           );
 
           if (docCollabHub.shouldRequestSnapshot(docId, seq)) {
-            ws.send(JSON.stringify({ type: 'doc.snapshot.request', seq }));
+            sendWebSocketMessage(ws, JSON.stringify({ type: 'doc.snapshot.request', seq }), {
+              hub: 'doc_collab',
+              event: 'snapshot_request',
+              doc_id: docId,
+              user_id: user.id,
+            });
           }
 
-          ws.send(JSON.stringify({ type: 'doc.ack', seq }));
+          sendWebSocketMessage(ws, JSON.stringify({ type: 'doc.ack', seq }), {
+            hub: 'doc_collab',
+            event: 'ack',
+            doc_id: docId,
+            user_id: user.id,
+          });
           return;
         }
 
@@ -151,6 +161,7 @@ collab.get(
           }
 
           await docCollabRepository.createSnapshot(docId, snapshot, snapshotSeq);
+          await docCollabRepository.compactHistory(docId, snapshotSeq);
 
           if (shouldPersistCanonicalDocContent(snapshotSeq, latestSeq, message.content)) {
             await docRepository.update(docId, {
@@ -161,7 +172,6 @@ collab.get(
         }
       },
       onClose: (_event, ws) => {
-        console.log(`[WS] Connection closed for doc ${docId}`);
         docCollabHub.leave(docId, ws);
       },
     };
@@ -179,22 +189,25 @@ collab.get(
       onOpen: async (_event, ws) => {
         try {
           if (!sessionId) {
-            ws.close(1008, 'Unauthorized');
+            safeCloseWebSocket(ws, 1008, 'Unauthorized');
             return;
           }
           user = await authService.validateSession(sessionId);
           if (!user) {
-            ws.close(1008, 'Unauthorized');
+            safeCloseWebSocket(ws, 1008, 'Unauthorized');
             return;
           }
 
           const whiteboard = await whiteboardService.getWhiteboard(whiteboardId, user);
           if (!whiteboard) {
-            ws.close(1008, 'Whiteboard not found');
+            safeCloseWebSocket(ws, 1008, 'Whiteboard not found');
             return;
           }
 
-          whiteboardCollabHub.join(whiteboardId, { ws, user });
+          if (!whiteboardCollabHub.join(whiteboardId, { ws, user })) {
+            safeCloseWebSocket(ws, 1013, 'Room capacity reached');
+            return;
+          }
 
           const snapshot = await whiteboardCollabRepository.getLatestSnapshot(whiteboardId);
           const updates = await whiteboardCollabRepository.getUpdatesSince(whiteboardId, snapshot?.seq ?? 0);
@@ -205,14 +218,16 @@ collab.get(
             avatarUrl: collaborator.avatarUrl ?? undefined,
           }));
 
-          ws.send(
+          sendWebSocketMessage(
+            ws,
             JSON.stringify({
               type: 'whiteboard.sync',
               snapshot: snapshot?.snapshot ?? whiteboard.data ?? { elements: [], files: {} },
               updates: updates.map((update) => update.update),
               latestSeq,
               collaborators,
-            })
+            }),
+            { hub: 'whiteboard_collab', event: 'sync', whiteboard_id: whiteboardId, user_id: user.id }
           );
 
           whiteboardCollabHub.broadcast(
@@ -227,8 +242,8 @@ collab.get(
             }),
             ws
           );
-        } catch (err) {
-          ws.close(1008, 'Access denied');
+        } catch {
+          safeCloseWebSocket(ws, 1008, 'Access denied');
         }
       },
       onMessage: async (event, ws) => {
@@ -236,6 +251,11 @@ collab.get(
 
         const raw = typeof event.data === 'string' ? event.data : '';
         if (!raw) return;
+
+        if (Buffer.byteLength(raw, 'utf8') > MAX_WHITEBOARD_MESSAGE_BYTES) {
+          safeCloseWebSocket(ws, 1009, 'Message too large');
+          return;
+        }
 
         let message: WhiteboardCollabMessage | null = null;
         try {
@@ -259,10 +279,20 @@ collab.get(
           );
 
           if (whiteboardCollabHub.shouldRequestSnapshot(whiteboardId, seq)) {
-            ws.send(JSON.stringify({ type: 'whiteboard.snapshot.request' }));
+            sendWebSocketMessage(ws, JSON.stringify({ type: 'whiteboard.snapshot.request' }), {
+              hub: 'whiteboard_collab',
+              event: 'snapshot_request',
+              whiteboard_id: whiteboardId,
+              user_id: user.id,
+            });
           }
 
-          ws.send(JSON.stringify({ type: 'whiteboard.ack', seq }));
+          sendWebSocketMessage(ws, JSON.stringify({ type: 'whiteboard.ack', seq }), {
+            hub: 'whiteboard_collab',
+            event: 'ack',
+            whiteboard_id: whiteboardId,
+            user_id: user.id,
+          });
           return;
         }
 
@@ -286,6 +316,7 @@ collab.get(
         if (message.type === 'whiteboard.snapshot') {
           const latestSeq = await whiteboardCollabRepository.getLatestSeq(whiteboardId);
           await whiteboardCollabRepository.createSnapshot(whiteboardId, message.snapshot as Record<string, unknown>, latestSeq);
+          await whiteboardCollabRepository.compactHistory(whiteboardId, latestSeq);
           await whiteboardRepository.update(whiteboardId, { data: message.snapshot as Record<string, unknown> });
         }
       },

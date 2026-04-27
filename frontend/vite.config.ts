@@ -1,9 +1,22 @@
 import path from "path"
 import react from "@vitejs/plugin-react"
+import { visualizer } from "rollup-plugin-visualizer"
 import { defineConfig } from "vite"
 
+const analyzeBundle = process.env.ANALYZE === "1"
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    analyzeBundle
+      ? visualizer({
+          filename: "dist/stats.html",
+          gzipSize: true,
+          brotliSize: true,
+          open: false,
+        })
+      : null,
+  ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
@@ -14,7 +27,25 @@ export default defineConfig({
     },
   },
   build: {
-    sourcemap: false,
+    sourcemap: "hidden",
+    modulePreload: {
+      // Drop preload directives for chunks that are only reachable from lazy
+      // routes. Keeping them as separate chunks for caching, but not paying
+      // the network cost on the initial shell load.
+      resolveDependencies(_filename, deps) {
+        const eagerPreloadAllowlist = new Set([
+          "vendor",
+          "query",
+        ])
+
+        return deps.filter((dep) => {
+          const name = dep.split("/").pop() ?? dep
+          return Array.from(eagerPreloadAllowlist).some((prefix) =>
+            name.startsWith(`${prefix}-`)
+          )
+        })
+      },
+    },
     rollupOptions: {
       output: {
         manualChunks: {

@@ -1,6 +1,7 @@
 import { asc, eq, sql } from 'drizzle-orm';
 import { db } from '../db/client';
 import { users, type User, type NewUser } from '../db/schema';
+import { sessionRepository } from './session';
 
 export class UserRepository {
   async findById(id: string): Promise<User | null> {
@@ -28,11 +29,19 @@ export class UserRepository {
       .set({ ...data, updatedAt: new Date() })
       .where(eq(users.id, id))
       .returning();
+
+    if (user) {
+      sessionRepository.invalidateByUserId(user.id);
+    }
+
     return user || null;
   }
 
   async delete(id: string): Promise<boolean> {
     const result = await db.delete(users).where(eq(users.id, id)).returning();
+    if (result.length > 0) {
+      sessionRepository.invalidateByUserId(id);
+    }
     return result.length > 0;
   }
 

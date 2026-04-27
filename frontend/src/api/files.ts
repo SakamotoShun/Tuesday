@@ -1,5 +1,5 @@
 import type { ApiError, ApiResponse } from "@/api/types"
-import { ApiErrorResponse } from "@/api/client"
+import { ApiErrorResponse, captureRequestId } from "@/api/client"
 import type { FileAttachment } from "@/api/types"
 
 const API_BASE = "/api/v1"
@@ -13,6 +13,8 @@ export async function uploadFile(file: File): Promise<FileAttachment> {
     body: formData,
     credentials: "include",
   })
+
+  captureRequestId(response)
 
   const data = (await response.json()) as ApiResponse<FileAttachment> | { error: ApiError }
 
@@ -37,6 +39,8 @@ export async function deleteFile(fileId: string): Promise<void> {
     method: "DELETE",
     credentials: "include",
   })
+
+  captureRequestId(response)
 
   // Ignore errors - file may already be deleted, attached, or not found
   // This is a best-effort cleanup

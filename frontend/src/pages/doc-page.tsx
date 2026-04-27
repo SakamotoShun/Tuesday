@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ErrorBoundary } from "@/components/common/error-boundary"
 import {
   Dialog,
   DialogContent,
@@ -341,7 +342,9 @@ export function DocPage() {
         </Button>
       </div>
       <div className="flex-1 min-h-0">
-        <ChatView projectId={projectId || ""} variant="panel" />
+        <ErrorBoundary title="Chat unavailable" message="The project chat panel crashed. Try reloading this section." resetKeys={[projectId ?? "personal-doc", doc.id, "chat"]}>
+          <ChatView projectId={projectId || ""} variant="panel" />
+        </ErrorBoundary>
       </div>
     </div>
   )
@@ -414,34 +417,40 @@ export function DocPage() {
       </div>
 
       {doc.isDatabase ? (
-        <DatabaseView
-          doc={doc}
-          getRowPath={(rowId) => getDocPath(projectId, rowId)}
-          onUpdateRow={(rowId, data) => updateDoc.mutateAsync({ docId: rowId, data })}
-          onUpdateSchema={(databaseId, schema) =>
-            updateDoc.mutateAsync({ docId: databaseId, data: { schema } })
-          }
-          onCreateRow={(data) => createDoc.mutateAsync(data)}
-          isCreating={createDoc.isPending}
-        />
+        <ErrorBoundary title="Database unavailable" message="The database view crashed. Try reloading this section." resetKeys={[doc.id, "database"]}>
+          <DatabaseView
+            doc={doc}
+            getRowPath={(rowId) => getDocPath(projectId, rowId)}
+            onUpdateRow={(rowId, data) => updateDoc.mutateAsync({ docId: rowId, data })}
+            onUpdateSchema={(databaseId, schema) =>
+              updateDoc.mutateAsync({ docId: databaseId, data: { schema } })
+            }
+            onCreateRow={(data) => createDoc.mutateAsync(data)}
+            isCreating={createDoc.isPending}
+          />
+        </ErrorBoundary>
       ) : (
         <div className="space-y-4">
           {isDatabaseRow && parentDatabase?.schema && (
-            <PropertiesPanel
-              doc={doc}
-              schema={parentDatabase.schema}
-              onUpdate={handlePropertiesUpdate}
-              onOpenDatabase={() =>
-                navigate(getDocPath(projectId, parentDatabase.id))
-              }
-            />
+            <ErrorBoundary title="Properties unavailable" message="The properties panel crashed. Try reloading this section." resetKeys={[doc.id, "properties"]}>
+              <PropertiesPanel
+                doc={doc}
+                schema={parentDatabase.schema}
+                onUpdate={handlePropertiesUpdate}
+                onOpenDatabase={() =>
+                  navigate(getDocPath(projectId, parentDatabase.id))
+                }
+              />
+            </ErrorBoundary>
           )}
-          <BlockNoteEditor
-            key={doc.id}
-            docId={doc.id}
-            initialContent={doc.content ?? []}
-            onSyncStateChange={handleSyncStateChange}
-          />
+          <ErrorBoundary title="Editor unavailable" message="The document editor crashed. Try reloading this section." resetKeys={[doc.id, "editor"]}>
+            <BlockNoteEditor
+              key={doc.id}
+              docId={doc.id}
+              initialContent={doc.content ?? []}
+              onSyncStateChange={handleSyncStateChange}
+            />
+          </ErrorBoundary>
         </div>
       )}
     </div>

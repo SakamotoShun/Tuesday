@@ -1,4 +1,4 @@
-import { api, ApiErrorResponse } from "./client"
+import { api, ApiErrorResponse, captureRequestId } from "./client"
 import type { ApiError, ApiResponse, User } from "./types"
 
 const API_BASE = "/api/v1"
@@ -40,6 +40,8 @@ export async function uploadAvatar(file: File): Promise<User> {
     body: formData,
     credentials: "include",
   })
+
+  captureRequestId(response)
 
   const data = (await response.json()) as ApiResponse<{ user: BackendUser }> | { error: ApiError }
 

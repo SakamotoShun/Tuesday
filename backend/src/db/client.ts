@@ -3,11 +3,17 @@ import postgres from 'postgres';
 import { config } from '../config';
 import * as schema from './schema';
 
+export const DB_POOL_CONFIG = {
+  max: 10,
+  idleTimeoutSeconds: 20,
+  connectTimeoutSeconds: 10,
+} as const;
+
 // Create postgres connection
 const client = postgres(config.databaseUrl, {
-  max: 10, // Connection pool size
-  idle_timeout: 20, // Idle timeout in seconds
-  connect_timeout: 10, // Connection timeout in seconds
+  max: DB_POOL_CONFIG.max,
+  idle_timeout: DB_POOL_CONFIG.idleTimeoutSeconds,
+  connect_timeout: DB_POOL_CONFIG.connectTimeoutSeconds,
 });
 
 // Create Drizzle database instance

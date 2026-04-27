@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { projectStatusRepository, taskStatusRepository, settingsRepository, userRepository } from '../repositories';
+import { projectStatusRepository, taskStatusRepository, settingsRepository, sessionRepository, userRepository } from '../repositories';
 import { db } from '../db/client';
 import {
   EmploymentType,
@@ -37,6 +37,10 @@ import { timeEntryService } from '../services';
 import { emailService } from '../services/email';
 import { z } from 'zod';
 import { hashPassword } from '../utils/password';
+import { getDiagnosticsSnapshot } from '../runtime';
+import { chatHub } from '../collab/chatHub';
+import { docCollabHub } from '../collab/hub';
+import { whiteboardCollabHub } from '../collab/whiteboardHub';
 
 // Schema for updating admin settings
 const updateSettingsSchema = z.object({
@@ -203,6 +207,30 @@ admin.get('/settings', async (c) => {
   } catch (error) {
     console.error('Error fetching admin settings:', error);
     return errors.internal(c, 'Failed to fetch settings');
+  }
+});
+
+// GET /api/v1/admin/diagnostics - Runtime diagnostics
+admin.get('/diagnostics', async (c) => {
+  try {
+    const [workspaceName, sessionCount] = await Promise.all([
+      settingsRepository.get<string>('workspace_name'),
+      sessionRepository.count(),
+    ]);
+
+    return success(c, {
+      workspaceName: workspaceName?.trim() || 'Tuesday',
+      activeSessions: sessionCount,
+      websockets: {
+        chat: chatHub.getStats(),
+        docs: docCollabHub.getStats(),
+        whiteboards: whiteboardCollabHub.getStats(),
+      },
+      runtime: getDiagnosticsSnapshot(),
+    });
+  } catch (error) {
+    console.error('Error fetching diagnostics:', error);
+    return errors.internal(c, 'Failed to fetch diagnostics');
   }
 });
 

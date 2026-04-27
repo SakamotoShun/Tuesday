@@ -53,8 +53,8 @@ export async function serveStatic(c: Context, next: Next) {
 
   const path = c.req.path;
 
-  // Skip API routes and health check - let API handlers process these
-  if (path.startsWith('/api/') || path === '/health') {
+  // Skip API routes and health endpoints - let API handlers process these
+  if (path.startsWith('/api/') || path === '/health' || path === '/ready') {
     await next();
     return;
   }

@@ -3,6 +3,8 @@ set -e
 
 DATA_DIR="${DATA_DIR:-/app/data}"
 PG_DATA="$DATA_DIR/postgres"
+POSTGRES_OWNER="$(id -u postgres):$(id -g postgres)"
+APP_OWNER="$(id -u tuesday):$(id -g tuesday)"
 
 # Initialize PostgreSQL if needed
 if [ ! -d "$PG_DATA" ]; then
@@ -22,8 +24,10 @@ if [ ! -d "$PG_DATA" ]; then
     su postgres -c "/usr/lib/postgresql/16/bin/pg_ctl -D $PG_DATA -w stop"
 fi
 
-# Ensure correct ownership after any volume mount changes
-chown -R postgres:postgres "$PG_DATA"
+# Ensure correct ownership after volume mount changes
+if [ "$(stat -c '%u:%g' "$PG_DATA")" != "$POSTGRES_OWNER" ]; then
+    chown -R postgres:postgres "$PG_DATA"
+fi
 
 # Generate session secret if not already set or stored
 SECRET_FILE="$DATA_DIR/.session_secret"
@@ -37,9 +41,14 @@ if [ -z "$SESSION_SECRET" ]; then
 fi
 
 export DATABASE_URL="${DATABASE_URL:-postgresql://tuesday:tuesday@localhost:5432/tuesday}"
+export STATIC_DIR="${STATIC_DIR:-/app/static}"
+export MIGRATIONS_DIR="${MIGRATIONS_DIR:-/app/migrations}"
 
 # Create uploads directory if it doesn't exist
 mkdir -p "$DATA_DIR/uploads"
+if [ "$(stat -c '%u:%g' "$DATA_DIR/uploads")" != "$APP_OWNER" ]; then
+    chown -R tuesday:tuesday "$DATA_DIR/uploads"
+fi
 
 echo "Starting Tuesday..."
 

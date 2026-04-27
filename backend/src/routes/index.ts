@@ -27,6 +27,7 @@ import { noticeBoard } from './notice-board';
 import { hiring } from './hiring';
 import { policies } from './policies';
 import { shared } from './shared';
+import { checkReadiness } from '../runtime';
 
 const routes = new Hono();
 
@@ -63,6 +64,19 @@ routes.route('/api/v1/shared', shared);
 // Health check
 routes.get('/health', (c) => {
   return c.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+routes.get('/ready', async (c) => {
+  const readiness = await checkReadiness();
+  const status = readiness.ok ? 200 : 503;
+  return c.json(
+    {
+      status: readiness.ok ? 'ready' : 'not_ready',
+      timestamp: new Date().toISOString(),
+      checks: readiness.checks,
+    },
+    status
+  );
 });
 
 export { routes };

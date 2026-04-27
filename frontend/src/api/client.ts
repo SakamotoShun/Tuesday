@@ -1,6 +1,20 @@
 import type { ApiError, ApiResponse } from "./types"
 
 const API_BASE = "/api/v1"
+const REQUEST_ID_HEADER = "X-Request-Id"
+
+let lastRequestId: string | null = null
+
+export function captureRequestId(response: Response) {
+  const requestId = response.headers.get(REQUEST_ID_HEADER)
+  if (requestId) {
+    lastRequestId = requestId
+  }
+}
+
+export function getLastRequestId() {
+  return lastRequestId
+}
 
 export class ApiErrorResponse extends Error {
   code: string
@@ -27,6 +41,8 @@ class ApiClient {
         ...options?.headers,
       },
     })
+
+    captureRequestId(response)
 
     const data = (await response.json()) as ApiResponse<T> | { error: ApiError }
 

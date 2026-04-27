@@ -2,9 +2,56 @@ import { eq, lt, sql } from 'drizzle-orm';
 import { db } from '../db/client';
 import { sessions, users, type Session, type NewSession, type User } from '../db/schema';
 
+const SESSION_CACHE_TTL_MS = 30_000;
+const SESSION_CACHE_MAX_SIZE = 5_000;
+
+type SessionWithUser = { session: Session; user: User };
+
+interface SessionCacheEntry {
+  userId: string;
+  value: SessionWithUser;
+  cachedAt: number;
+}
+
+const sessionCache = new Map<string, SessionCacheEntry>();
+
+function getCachedSession(sessionId: string): SessionWithUser | null {
+  const entry = sessionCache.get(sessionId);
+  if (!entry) {
+    return null;
+  }
+
+  if (Date.now() - entry.cachedAt > SESSION_CACHE_TTL_MS) {
+    sessionCache.delete(sessionId);
+    return null;
+  }
+
+  sessionCache.delete(sessionId);
+  sessionCache.set(sessionId, entry);
+  return entry.value;
+}
+
+function setCachedSession(sessionId: string, value: SessionWithUser) {
+  sessionCache.set(sessionId, {
+    userId: value.user.id,
+    value,
+    cachedAt: Date.now(),
+  });
+
+  if (sessionCache.size <= SESSION_CACHE_MAX_SIZE) {
+    return;
+  }
+
+  const oldestKey = sessionCache.keys().next().value;
+  if (oldestKey) {
+    sessionCache.delete(oldestKey);
+  }
+}
+
 export class SessionRepository {
   async create(data: NewSession): Promise<Session> {
     const [session] = await db.insert(sessions).values(data).returning();
+    sessionCache.delete(session.id);
     return session;
   }
 
@@ -16,26 +63,37 @@ export class SessionRepository {
   }
 
   async findByIdWithUser(id: string): Promise<{ session: Session; user: User } | null> {
-    const sessionResult = await db.query.sessions.findFirst({
-      where: eq(sessions.id, id),
-    });
+    const cached = getCachedSession(id);
+    if (cached) {
+      return cached;
+    }
 
-    if (!sessionResult) return null;
+    const [result] = await db
+      .select({
+        session: sessions,
+        user: users,
+      })
+      .from(sessions)
+      .innerJoin(users, eq(users.id, sessions.userId))
+      .where(eq(sessions.id, id))
+      .limit(1);
 
-    const userResult = await db.query.users.findFirst({
-      where: eq(users.id, sessionResult.userId),
-    });
+    if (!result) {
+      return null;
+    }
 
-    if (!userResult) return null;
-    
-    return {
-      session: sessionResult,
-      user: userResult,
+    const value = {
+      session: result.session,
+      user: result.user,
     };
+
+    setCachedSession(id, value);
+    return value;
   }
 
   async delete(id: string): Promise<boolean> {
     const result = await db.delete(sessions).where(eq(sessions.id, id)).returning();
+    sessionCache.delete(id);
     return result.length > 0;
   }
 
@@ -44,6 +102,11 @@ export class SessionRepository {
       .delete(sessions)
       .where(lt(sessions.expiresAt, new Date()))
       .returning();
+
+    for (const deletedSession of result) {
+      sessionCache.delete(deletedSession.id);
+    }
+
     return result.length;
   }
 
@@ -52,7 +115,20 @@ export class SessionRepository {
       .delete(sessions)
       .where(eq(sessions.userId, userId))
       .returning();
+
+    for (const deletedSession of result) {
+      sessionCache.delete(deletedSession.id);
+    }
+
     return result.length;
+  }
+
+  invalidateByUserId(userId: string) {
+    for (const [sessionId, entry] of sessionCache.entries()) {
+      if (entry.userId === userId) {
+        sessionCache.delete(sessionId);
+      }
+    }
   }
 
   async count(): Promise<number> {

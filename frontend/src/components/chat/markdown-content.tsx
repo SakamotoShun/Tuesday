@@ -1,9 +1,11 @@
-import { Children, isValidElement, useEffect, useMemo, useState, type ReactNode } from "react"
+import { Children, isValidElement, lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from "react"
 import ReactMarkdown, { type Components } from "react-markdown"
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
-import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism"
 import remarkGfm from "remark-gfm"
 import { useUIStore } from "@/store/ui-store"
+
+const CodeBlock = lazy(() =>
+  import("./code-block").then((module) => ({ default: module.CodeBlock }))
+)
 
 interface MarkdownContentProps {
   content: string
@@ -83,14 +85,15 @@ const getMarkdownComponents = (isDark: boolean): Components => ({
     const code = String(children ?? "").replace(/\n$/, "")
 
     return (
-      <SyntaxHighlighter
-        language={language}
-        style={isDark ? oneDark : oneLight}
-        customStyle={{ margin: 0, borderRadius: "0.375rem", fontSize: "13px" }}
-        codeTagProps={{ className: "font-mono" }}
+      <Suspense
+        fallback={
+          <pre className="rounded-md bg-muted p-3 text-[13px] font-mono whitespace-pre-wrap">
+            {code}
+          </pre>
+        }
       >
-        {code}
-      </SyntaxHighlighter>
+        <CodeBlock code={code} language={language} isDark={isDark} />
+      </Suspense>
     )
   },
   pre: ({ children }) => <>{children}</>,

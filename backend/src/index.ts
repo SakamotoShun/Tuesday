@@ -2,12 +2,21 @@ import 'dotenv/config';
 import { Hono } from 'hono';
 import { config } from './config';
 import { routes } from './routes';
-import { recovery, logging, cors, securityHeaders, serveStatic } from './middleware';
+import { requestContext, recovery, logging, cors, securityHeaders, serveStatic } from './middleware';
 import { websocket } from './websocket';
+import { log } from './utils/logger';
+import { runTrackedCleanupJob, type CleanupJobName } from './runtime';
+import { client } from './db/client';
+import { chatHub } from './collab/chatHub';
+import { docCollabHub } from './collab/hub';
+import { whiteboardCollabHub } from './collab/whiteboardHub';
 
 const app = new Hono();
+const cleanupHandles: Array<ReturnType<typeof setInterval>> = [];
+const SHUTDOWN_TIMEOUT_MS = 25_000;
 
 // Global middleware
+app.use('*', requestContext);
 app.use('*', recovery);
 app.use('*', logging);
 app.use('*', cors);
@@ -30,83 +39,121 @@ async function startServer() {
     // Run migrations
     const { runMigrations } = await import('./db/migrate');
     await runMigrations();
+
+    const scheduleCleanupJob = (name: CleanupJobName, intervalMs: number, task: () => Promise<number>) => {
+      const handle = setInterval(async () => {
+        try {
+          const deleted = await runTrackedCleanupJob(name, task);
+          if (deleted > 0) {
+            log('info', 'cleanup.completed', {
+              job: name,
+              deleted_count: deleted,
+            });
+          }
+        } catch (error) {
+          log('error', 'cleanup.failed', {
+            job: name,
+            error,
+          });
+        }
+      }, intervalMs);
+      cleanupHandles.push(handle);
+    };
     
     // Clean up old sessions periodically
-    setInterval(async () => {
-      try {
-        const { sessionRepository } = await import('./repositories');
-        const deleted = await sessionRepository.deleteExpired();
-        if (deleted > 0) {
-          console.log(`🧹 Cleaned up ${deleted} expired sessions`);
-        }
-      } catch (error) {
-        console.error('Error cleaning up expired sessions:', error);
-      }
-    }, 60 * 60 * 1000); // Every hour
+    scheduleCleanupJob('expiredSessions', 60 * 60 * 1000, async () => {
+      const { sessionRepository } = await import('./repositories');
+      return sessionRepository.deleteExpired();
+    });
 
     // Clean up expired and consumed auth tokens periodically
-    setInterval(async () => {
-      try {
-        const { authService } = await import('./services/auth');
-        const deleted = await authService.cleanupExpiredTokens();
-        if (deleted > 0) {
-          console.log(`🧹 Cleaned up ${deleted} expired auth tokens`);
-        }
-      } catch (error) {
-        console.error('Error cleaning up auth tokens:', error);
-      }
-    }, 60 * 60 * 1000); // Every hour
+    scheduleCleanupJob('expiredAuthTokens', 60 * 60 * 1000, async () => {
+      const { authService } = await import('./services/auth');
+      return authService.cleanupExpiredTokens();
+    });
 
     // Clean up expired pending files periodically
-    setInterval(async () => {
-      try {
-        const { fileService } = await import('./services/file');
-        const deleted = await fileService.cleanupExpiredFiles();
-        if (deleted > 0) {
-          console.log(`🧹 Cleaned up ${deleted} expired pending files`);
-        }
-      } catch (error) {
-        console.error('Error cleaning up expired files:', error);
-      }
-    }, 5 * 60 * 1000); // Every 5 minutes
+    scheduleCleanupJob('expiredPendingFiles', 5 * 60 * 1000, async () => {
+      const { fileService } = await import('./services/file');
+      return fileService.cleanupExpiredFiles();
+    });
 
     // Clean up orphaned files periodically (attached status but no reference)
-    setInterval(async () => {
-      try {
-        const { fileService } = await import('./services/file');
-        const deleted = await fileService.cleanupOrphanedFiles();
-        if (deleted > 0) {
-          console.log(`🧹 Cleaned up ${deleted} orphaned files`);
-        }
-      } catch (error) {
-        console.error('Error cleaning up orphaned files:', error);
-      }
-    }, 60 * 60 * 1000); // Every hour
+    scheduleCleanupJob('orphanedFiles', 60 * 60 * 1000, async () => {
+      const { fileService } = await import('./services/file');
+      return fileService.cleanupOrphanedFiles();
+    });
 
     // Clean up files from soft-deleted messages (daily)
-    setInterval(async () => {
-      try {
-        const { fileService } = await import('./services/file');
-        const { config } = await import('./config');
-        const deleted = await fileService.cleanupDeletedMessageFiles(config.deletedMessageFileRetentionDays);
-        if (deleted > 0) {
-          console.log(`🧹 Cleaned up ${deleted} files from deleted messages`);
-        }
-      } catch (error) {
-        console.error('Error cleaning up deleted message files:', error);
-      }
-    }, 24 * 60 * 60 * 1000); // Every 24 hours
+    scheduleCleanupJob('deletedMessageFiles', 24 * 60 * 60 * 1000, async () => {
+      const { fileService } = await import('./services/file');
+      const { config } = await import('./config');
+      return fileService.cleanupDeletedMessageFiles(config.deletedMessageFileRetentionDays);
+    });
 
-    // Explicitly start Bun server with WebSocket support
-    Bun.serve({
+    const server = Bun.serve({
       port: config.port,
       fetch: app.fetch,
       websocket,
     });
 
-    console.log(`🚀 Tuesday backend running on port ${config.port}`);
+    let shutdownPromise: Promise<void> | null = null;
+
+    const shutdown = async (signal: string) => {
+      if (shutdownPromise) {
+        await shutdownPromise;
+        return;
+      }
+
+      shutdownPromise = (async () => {
+        log('info', 'server.shutdown_started', { signal, timeout_ms: SHUTDOWN_TIMEOUT_MS });
+
+        chatHub.shutdown();
+        docCollabHub.shutdown();
+        whiteboardCollabHub.shutdown();
+
+        const forceCloseTimer = setTimeout(() => {
+          void server.stop(true);
+        }, SHUTDOWN_TIMEOUT_MS);
+
+        forceCloseTimer.unref?.();
+
+        await server.stop(false);
+        clearTimeout(forceCloseTimer);
+
+        log('info', 'server.network_stopped', { signal });
+
+      for (const handle of cleanupHandles) {
+        clearInterval(handle);
+      }
+
+        await client.end({ timeout: 5 });
+        log('info', 'server.shutdown_completed', { signal });
+      })();
+
+      try {
+        await shutdownPromise;
+        process.exit(0);
+      } catch (error) {
+        log('error', 'server.shutdown_failed', { signal, error });
+        process.exit(1);
+      }
+    };
+
+    process.on('SIGINT', () => void shutdown('SIGINT'));
+    process.on('SIGTERM', () => void shutdown('SIGTERM'));
+    process.on('unhandledRejection', (error) => {
+      log('error', 'process.unhandled_rejection', { error });
+      void shutdown('unhandledRejection');
+    });
+    process.on('uncaughtException', (error) => {
+      log('error', 'process.uncaught_exception', { error });
+      void shutdown('uncaughtException');
+    });
+
+    log('info', 'server.started', { port: config.port });
   } catch (error) {
-    console.error('Failed to start server:', error);
+    log('error', 'server.start_failed', { error });
     process.exit(1);
   }
 }
