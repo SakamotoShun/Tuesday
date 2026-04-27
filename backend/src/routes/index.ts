@@ -28,6 +28,7 @@ import { hiring } from './hiring';
 import { policies } from './policies';
 import { shared } from './shared';
 import { checkReadiness } from '../runtime';
+import { log } from '../utils/logger';
 
 const routes = new Hono();
 
@@ -67,16 +68,31 @@ routes.get('/health', (c) => {
 });
 
 routes.get('/ready', async (c) => {
-  const readiness = await checkReadiness();
-  const status = readiness.ok ? 200 : 503;
-  return c.json(
-    {
-      status: readiness.ok ? 'ready' : 'not_ready',
-      timestamp: new Date().toISOString(),
-      checks: readiness.checks,
-    },
-    status
-  );
+  try {
+    const readiness = await checkReadiness();
+    return c.json(
+      {
+        status: readiness.ok ? 'ready' : 'not_ready',
+        timestamp: new Date().toISOString(),
+        checks: readiness.checks,
+      },
+      readiness.ok ? 200 : 503
+    );
+  } catch (error) {
+    log('warn', 'server.readiness_failed', { error });
+    return c.json(
+      {
+        status: 'not_ready',
+        timestamp: new Date().toISOString(),
+        checks: {
+          database: false,
+          uploadStorageWritable: false,
+          migrationsApplied: false,
+        },
+      },
+      503
+    );
+  }
 });
 
 export { routes };

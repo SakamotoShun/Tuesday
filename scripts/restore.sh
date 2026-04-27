@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 CONTAINER_NAME="${CONTAINER_NAME:-tuesday}"
 ASSUME_YES=false

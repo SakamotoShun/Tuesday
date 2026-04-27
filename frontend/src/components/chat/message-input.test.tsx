@@ -1,6 +1,6 @@
 import "@/test/setup"
 import React from "react"
-import { beforeEach, describe, expect, it, mock } from "bun:test"
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
 
 let uploadFileImpl = async (_file: File) => ({
   id: "file-1",
@@ -21,7 +21,10 @@ const { fireEvent, render, waitFor } = await import("@testing-library/react")
 const { MessageInput } = await import("./message-input")
 
 describe("MessageInput", () => {
+  let originalRequestAnimationFrame: typeof globalThis.requestAnimationFrame
+
   beforeEach(() => {
+    originalRequestAnimationFrame = globalThis.requestAnimationFrame
     uploadFileImpl = async (_file: File) => ({
       id: "file-1",
       originalName: "notes.txt",
@@ -36,6 +39,10 @@ describe("MessageInput", () => {
       callback(0)
       return 1
     }) as typeof globalThis.requestAnimationFrame
+  })
+
+  afterEach(() => {
+    globalThis.requestAnimationFrame = originalRequestAnimationFrame
   })
 
   it("shows upload progress and then renders the uploaded attachment", async () => {

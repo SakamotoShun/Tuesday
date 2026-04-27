@@ -3,11 +3,12 @@ import React from "react"
 import { afterEach, beforeEach, describe, expect, it } from "bun:test"
 
 const { render, waitFor } = await import("@testing-library/react")
-const { captureRequestId } = await import("@/api/client")
 const { ErrorBoundary } = await import("./error-boundary")
 
 function Boom() {
-  throw new Error("boom")
+  const error = new Error("boom") as Error & { requestId?: string }
+  error.requestId = "req-test-123"
+  throw error
 }
 
 describe("ErrorBoundary", () => {
@@ -22,8 +23,6 @@ describe("ErrorBoundary", () => {
   })
 
   it("shows the request ID in the fallback", async () => {
-    captureRequestId(new Response(null, { headers: { "X-Request-Id": "req-test-123" } }))
-
     const view = render(
       <ErrorBoundary message="Please refresh and try again.">
         <Boom />

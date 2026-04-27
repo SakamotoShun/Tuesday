@@ -2,6 +2,18 @@ import "@/test/setup"
 import React from "react"
 import { beforeEach, describe, expect, it, mock } from "bun:test"
 
+const SETUP_FIXTURE = {
+  workspaceName: "Acme Corp",
+  adminEmail: "admin@example.com",
+  adminName: "Jane Admin",
+  adminPassword: "password-123",
+} as const
+
+const SETUP_FORM_FIXTURE = {
+  ...SETUP_FIXTURE,
+  confirmPassword: "password-123",
+} as const
+
 let completeImpl = async (_data: {
   workspaceName: string
   adminEmail: string
@@ -24,13 +36,7 @@ mock.module("react-hook-form", () => ({
       }) => Promise<void>) =>
       async (event?: Event) => {
         event?.preventDefault?.()
-        await callback({
-          workspaceName: "Acme Corp",
-          adminEmail: "admin@example.com",
-          adminName: "Jane Admin",
-          adminPassword: "password-123",
-          confirmPassword: "password-123",
-        })
+        await callback(SETUP_FORM_FIXTURE)
       },
     formState: {
       errors: {},
@@ -85,16 +91,35 @@ describe("SetupPage", () => {
     fireEvent.click(view.getByRole("button", { name: "Complete Setup" }))
 
     await waitFor(() => {
-      expect(receivedPayload).toEqual({
-        workspaceName: "Acme Corp",
-        adminEmail: "admin@example.com",
-        adminName: "Jane Admin",
-        adminPassword: "password-123",
-      })
+      expect(receivedPayload).toEqual(SETUP_FIXTURE)
     })
 
     await waitFor(() => {
       expect(view.getByText("Login destination")).toBeDefined()
     })
+  })
+
+  it("surfaces errors when complete fails", async () => {
+    completeImpl = async () => {
+      throw new Error("boom")
+    }
+
+    const view = render(
+      <MemoryRouter initialEntries={["/setup"]}>
+        <Routes>
+          <Route path="/setup" element={<SetupPage />} />
+          <Route path="/login" element={<div>Login destination</div>} />
+        </Routes>
+      </MemoryRouter>
+    )
+
+    fireEvent.click(view.getByRole("button", { name: "Complete Setup" }))
+
+    await waitFor(() => {
+      expect(view.getByText("An unexpected error occurred")).toBeDefined()
+    })
+
+    expect(view.queryByText("Login destination")).toBeNull()
+    expect(view.getByRole("button", { name: "Complete Setup" })).toBeDefined()
   })
 })

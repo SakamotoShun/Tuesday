@@ -147,8 +147,28 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<HomePage />} />
-          <Route path="projects" element={<ProjectsPage />} />
+          <Route
+            index
+            element={
+              <RouteBoundary
+                title="Home unavailable"
+                message="This home view hit a rendering issue. Try reloading the page."
+              >
+                <HomePage />
+              </RouteBoundary>
+            }
+          />
+          <Route
+            path="projects"
+            element={
+              <RouteBoundary
+                title="Projects unavailable"
+                message="This projects view hit a rendering issue. Try reloading the page."
+              >
+                <ProjectsPage />
+              </RouteBoundary>
+            }
+          />
           <Route
             path="docs/personal/:docId"
             element={

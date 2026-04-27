@@ -30,7 +30,10 @@ export function createRouteTestApp(path: string, router: Hono) {
 
 export async function ensureIntegrationDb() {
   if (!migrationPromise) {
-    migrationPromise = runMigrations();
+    migrationPromise = runMigrations().catch((error) => {
+      migrationPromise = null;
+      throw error;
+    });
   }
 
   await migrationPromise;

@@ -10,6 +10,7 @@ const configSchema = z.object({
   corsOrigin: z.string().min(1),
   corsOrigins: z.array(z.string().min(1)).min(1),
   trustProxy: z.boolean(),
+  trustedProxyHops: z.number().int().min(1).max(10),
   rateLimitEnabled: z.boolean(),
   rateLimitBackend: z.enum(['memory', 'postgres']),
   uploadMaxSizeMb: z.number().int().min(1).max(100),
@@ -24,20 +25,28 @@ const configSchema = z.object({
 export type Config = z.infer<typeof configSchema>;
 
 function loadConfig(): Config {
-  const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+  const nodeEnv = (process.env.NODE_ENV as 'development' | 'production' | 'test') || 'development';
+  const rawCorsOrigin = process.env.CORS_ORIGIN ?? (nodeEnv === 'production' ? '' : 'http://localhost:5173');
+  const corsOrigins = rawCorsOrigin
     .split(',')
     .map((entry) => entry.trim())
     .filter(Boolean);
 
+  if (nodeEnv === 'production' && corsOrigins.length === 0) {
+    console.error('Configuration validation failed: CORS_ORIGIN must be set in production');
+    process.exit(1);
+  }
+
   const config = {
     databaseUrl: process.env.DATABASE_URL || 'postgresql://tuesday:tuesday@localhost:5432/tuesday',
     port: parseInt(process.env.PORT || '8080', 10),
-    nodeEnv: (process.env.NODE_ENV as 'development' | 'production' | 'test') || 'development',
+    nodeEnv,
     sessionSecret: process.env.SESSION_SECRET || 'default-secret-change-in-production-min-32-chars',
     sessionDurationHours: parseInt(process.env.SESSION_DURATION_HOURS || '24', 10),
     corsOrigin: corsOrigins[0] || 'http://localhost:5173',
     corsOrigins,
     trustProxy: process.env.TRUST_PROXY === 'true',
+    trustedProxyHops: parseInt(process.env.TRUSTED_PROXY_HOPS || '1', 10),
     rateLimitEnabled: process.env.RATE_LIMIT_ENABLED !== 'false',
     rateLimitBackend: (process.env.RATE_LIMIT_BACKEND as 'memory' | 'postgres') || 'memory',
     uploadMaxSizeMb: parseInt(process.env.UPLOAD_MAX_SIZE_MB || '10', 10),
@@ -45,7 +54,7 @@ function loadConfig(): Config {
     uploadAllowedTypes: (process.env.UPLOAD_ALLOWED_TYPES || 'image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown').split(',').map((entry) => entry.trim()).filter(Boolean),
     uploadPendingTtlMinutes: parseInt(process.env.UPLOAD_PENDING_TTL_MINUTES || '30', 10),
     deletedMessageFileRetentionDays: parseInt(process.env.DELETED_MESSAGE_FILE_RETENTION_DAYS || '30', 10),
-    staticDir: process.env.STATIC_DIR || (process.env.NODE_ENV === 'production' ? getDefaultStaticDir() : undefined),
+    staticDir: process.env.STATIC_DIR || (nodeEnv === 'production' ? getDefaultStaticDir() : undefined),
     logLevel: (process.env.LOG_LEVEL as 'debug' | 'info' | 'warn' | 'error') || 'info',
   };
 

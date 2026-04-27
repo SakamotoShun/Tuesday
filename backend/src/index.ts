@@ -109,10 +109,6 @@ async function startServer() {
       shutdownPromise = (async () => {
         log('info', 'server.shutdown_started', { signal, timeout_ms: SHUTDOWN_TIMEOUT_MS });
 
-        chatHub.shutdown();
-        docCollabHub.shutdown();
-        whiteboardCollabHub.shutdown();
-
         const forceCloseTimer = setTimeout(() => {
           void server.stop(true);
         }, SHUTDOWN_TIMEOUT_MS);
@@ -122,6 +118,10 @@ async function startServer() {
         try {
           await server.stop(false);
           log('info', 'server.network_stopped', { signal });
+
+          chatHub.shutdown();
+          docCollabHub.shutdown();
+          whiteboardCollabHub.shutdown();
 
           for (const handle of cleanupHandles) {
             clearInterval(handle);
@@ -147,6 +147,7 @@ async function startServer() {
     process.on('SIGTERM', () => void shutdown('SIGTERM', 0));
     process.on('unhandledRejection', (error) => {
       if (shutdownPromise) {
+        log('warn', 'process.unhandled_rejection_during_shutdown', { error });
         return;
       }
 

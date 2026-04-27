@@ -12,7 +12,7 @@ const MAX_TOTAL_CONNECTIONS = 250;
 const MAX_CONNECTIONS_PER_USER = 5;
 const MAX_CHANNEL_SUBSCRIPTIONS_PER_CLIENT = 100;
 
-class ChatHub {
+export class ChatHub {
   private clients = new Map<string, Set<ChatClient>>();
   private channelSubscriptions = new Map<string, Set<ChatClient>>();
   private totalConnections = 0;

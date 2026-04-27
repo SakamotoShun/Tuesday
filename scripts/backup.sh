@@ -22,7 +22,14 @@ docker exec "$CONTAINER_NAME" pg_dump --clean --if-exists --no-owner --no-privil
 
 echo "Copying uploads snapshot..."
 mkdir -p "$TMP_DIR/uploads"
-docker cp "$CONTAINER_NAME:/app/data/uploads/." "$TMP_DIR/uploads/" 2>/dev/null || true
+if docker exec "$CONTAINER_NAME" test -d /app/data/uploads; then
+    if ! docker cp "$CONTAINER_NAME:/app/data/uploads/." "$TMP_DIR/uploads/"; then
+        echo "ERROR: failed to copy uploads from $CONTAINER_NAME; aborting backup so restore.sh is not left with an empty uploads snapshot." >&2
+        exit 1
+    fi
+else
+    echo "No uploads directory in container; archive will contain an empty uploads/."
+fi
 
 cat > "$TMP_DIR/metadata.env" <<EOF
 BACKUP_CREATED_AT=$TIMESTAMP
@@ -35,7 +42,11 @@ tar -czf "$ARCHIVE_FILE" -C "$TMP_DIR" database.sql uploads metadata.env
 
 if [ -n "$BACKUP_UPLOAD_CMD" ]; then
     echo "Running backup upload hook..."
-    BACKUP_FILE_PATH="$ARCHIVE_FILE" sh -c "$BACKUP_UPLOAD_CMD"
+    if [ -x "$BACKUP_UPLOAD_CMD" ]; then
+        BACKUP_FILE_PATH="$ARCHIVE_FILE" "$BACKUP_UPLOAD_CMD"
+    else
+        BACKUP_FILE_PATH="$ARCHIVE_FILE" sh -c "$BACKUP_UPLOAD_CMD"
+    fi
 fi
 
 mapfile -t backups < <(ls -1t "$BACKUP_DIR"/tuesday_backup_*.tar.gz 2>/dev/null || true)

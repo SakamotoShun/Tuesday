@@ -4,7 +4,7 @@
 # =============================================================================
 
 # Stage 1: Build frontend
-FROM oven/bun:1 AS frontend-builder
+FROM oven/bun:1.3.9-slim AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/bun.lock ./
 RUN bun install --frozen-lockfile
@@ -12,7 +12,7 @@ COPY frontend/ .
 RUN bun run build
 
 # Stage 2: Build compiled backend binary
-FROM oven/bun:1 AS backend-builder
+FROM oven/bun:1.3.9-slim AS backend-builder
 WORKDIR /app/backend
 COPY backend/package.json backend/bun.lock ./
 RUN bun install --frozen-lockfile

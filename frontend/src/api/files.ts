@@ -1,5 +1,5 @@
 import type { ApiError, ApiResponse } from "@/api/types"
-import { ApiErrorResponse, captureRequestId } from "@/api/client"
+import { ApiErrorResponse, RequestError, captureRequestId } from "@/api/client"
 import type { FileAttachment } from "@/api/types"
 
 const API_BASE = "/api/v1"
@@ -14,22 +14,27 @@ export async function uploadFile(file: File): Promise<FileAttachment> {
     credentials: "include",
   })
 
-  captureRequestId(response)
+  const requestId = captureRequestId(response)
 
-  const data = (await response.json()) as ApiResponse<FileAttachment> | { error: ApiError }
+  let data: ApiResponse<FileAttachment> | { error: ApiError }
+  try {
+    data = (await response.json()) as ApiResponse<FileAttachment> | { error: ApiError }
+  } catch {
+    throw new RequestError("Invalid API response format", requestId)
+  }
 
   if (!response.ok) {
     if ("error" in data) {
-      throw new ApiErrorResponse(data.error)
+      throw new ApiErrorResponse(data.error, requestId)
     }
-    throw new Error("Unknown API error")
+    throw new RequestError("Unknown API error", requestId)
   }
 
   if ("data" in data) {
     return data.data
   }
 
-  throw new Error("Invalid API response format")
+  throw new RequestError("Invalid API response format", requestId)
 }
 
 export const getFileUrl = (fileId: string) => `${API_BASE}/files/${fileId}`

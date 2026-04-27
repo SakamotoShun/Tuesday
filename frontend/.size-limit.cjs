@@ -3,9 +3,9 @@
 
 module.exports = [
   {
-    name: "Initial shell HTML + preloaded scripts (gzipped)",
+    name: "Initial shell HTML (gzipped)",
     path: ["dist/index.html"],
-    limit: "320 kB",
+    limit: "10 kB",
     gzip: true,
     running: false,
   },

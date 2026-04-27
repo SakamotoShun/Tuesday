@@ -1,6 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react"
 import { ErrorDisplay } from "@/components/common/error-display"
-import { getLastRequestId } from "@/api/client"
 
 interface ErrorBoundaryProps {
   children: ReactNode
@@ -14,6 +13,8 @@ interface ErrorBoundaryState {
   hasError: boolean
   requestId: string | null
 }
+
+type ErrorWithRequestId = Error & { requestId?: string | null }
 
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   override state: ErrorBoundaryState = { hasError: false, requestId: null }
@@ -32,7 +33,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   override componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("ErrorBoundary caught an error", error, info)
-    this.setState({ hasError: true, requestId: getLastRequestId() })
+    const requestId = "requestId" in error ? (error as ErrorWithRequestId).requestId ?? null : null
+    this.setState({ hasError: true, requestId })
   }
 
   private handleRetry = () => {

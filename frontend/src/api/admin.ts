@@ -1,4 +1,4 @@
-import { api, captureRequestId } from "./client"
+import { api, RequestError, captureRequestId } from "./client"
 import type {
   AdminSettings,
   UpdateAdminSettingsInput,
@@ -182,8 +182,8 @@ export async function exportWorkspaceTimesheetCsv(start: string, end: string): P
     `${import.meta.env.VITE_API_URL || ""}/api/v1/admin/timesheet/export?start=${start}&end=${end}`,
     { credentials: "include" }
   )
-  captureRequestId(response)
-  if (!response.ok) throw new Error("Failed to export workspace timesheet")
+  const requestId = captureRequestId(response)
+  if (!response.ok) throw new RequestError("Failed to export workspace timesheet", requestId)
   const blob = await response.blob()
   const url = window.URL.createObjectURL(blob)
   const a = document.createElement("a")
@@ -237,8 +237,8 @@ export async function exportPayrollCsv(query: Omit<PayrollQuery, "page" | "pageS
     `${import.meta.env.VITE_API_URL || ""}/api/v1/admin/payroll/export?${q}`,
     { credentials: "include" }
   )
-  captureRequestId(response)
-  if (!response.ok) throw new Error("Failed to export payroll report")
+  const requestId = captureRequestId(response)
+  if (!response.ok) throw new RequestError("Failed to export payroll report", requestId)
   const blob = await response.blob()
   const url = window.URL.createObjectURL(blob)
   const a = document.createElement("a")

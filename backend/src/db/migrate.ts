@@ -6,6 +6,8 @@ import { log } from '../utils/logger';
 import { getMigrationsDir } from '../utils/runtime-paths';
 
 const MIGRATION_LOCK_ID = 7100200;
+const MIGRATION_LOCK_TIMEOUT_MS = 10_000;
+const MIGRATION_LOCK_RETRY_MS = 200;
 
 type MigrationStatus = {
   name: string;
@@ -51,15 +53,33 @@ async function getMigrationStatuses(client: postgres.Sql): Promise<MigrationStat
 
 async function withMigrationLock<T>(client: postgres.Sql, fn: (sql: postgres.Sql) => Promise<T>) {
   const reserved = await client.reserve();
+  let lockAcquired = false;
 
   try {
     const sql = reserved as unknown as postgres.Sql;
-    await sql`SELECT pg_advisory_lock(${MIGRATION_LOCK_ID})`;
+    const deadline = Date.now() + MIGRATION_LOCK_TIMEOUT_MS;
+
+    while (!lockAcquired) {
+      const [{ acquired }] = await sql<{ acquired: boolean }[]>`SELECT pg_try_advisory_lock(${MIGRATION_LOCK_ID}) AS acquired`;
+      lockAcquired = acquired;
+
+      if (lockAcquired) {
+        break;
+      }
+
+      if (Date.now() >= deadline) {
+        throw new Error(`Timed out waiting for migration lock after ${MIGRATION_LOCK_TIMEOUT_MS}ms`);
+      }
+
+      await Bun.sleep(MIGRATION_LOCK_RETRY_MS);
+    }
 
     try {
       return await fn(sql);
     } finally {
-      await sql`SELECT pg_advisory_unlock(${MIGRATION_LOCK_ID})`;
+      if (lockAcquired) {
+        await sql`SELECT pg_advisory_unlock(${MIGRATION_LOCK_ID})`;
+      }
     }
   } finally {
     reserved.release();
@@ -191,5 +211,8 @@ if (import.meta.main) {
       ? dryRunMigrations()
       : runMigrations();
 
-  action.catch(() => process.exit(1));
+  action.catch((error) => {
+    log('error', 'migration.cli_failed', { command, error });
+    process.exit(1);
+  });
 }

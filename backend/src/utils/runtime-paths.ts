@@ -1,8 +1,8 @@
-import { basename } from 'node:path';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, extname, join, resolve } from 'node:path';
 
 function isCompiledRuntime() {
-  return basename(process.execPath) !== 'bun';
+  const executable = basename(process.execPath);
+  return basename(executable, extname(executable)) !== 'bun';
 }
 
 export function getRuntimeBaseDir() {

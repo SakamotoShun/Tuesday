@@ -9,6 +9,8 @@ const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
   error: 40,
 };
 
+const REDACT_PATTERN = /authorization|cookie|password|passphrase|secret|token|api[_-]?key|private[_-]?key/i;
+
 function shouldLog(level: LogLevel) {
   return LOG_LEVEL_PRIORITY[level] >= LOG_LEVEL_PRIORITY[config.logLevel];
 }
@@ -21,13 +23,18 @@ function serializeError(error: Error) {
   };
 }
 
-function sanitizeValue(value: unknown): unknown {
+function sanitizeValue(value: unknown, seen: WeakSet<object> = new WeakSet()): unknown {
   if (value instanceof Error) {
     return serializeError(value);
   }
 
   if (Array.isArray(value)) {
-    return value.map((entry) => sanitizeValue(entry));
+    if (seen.has(value)) {
+      return '[Circular]';
+    }
+
+    seen.add(value);
+    return value.map((entry) => sanitizeValue(entry, seen));
   }
 
   if (typeof value === 'bigint') {
@@ -35,14 +42,18 @@ function sanitizeValue(value: unknown): unknown {
   }
 
   if (value && typeof value === 'object') {
+    if (seen.has(value as object)) {
+      return '[Circular]';
+    }
+
+    seen.add(value as object);
     return Object.fromEntries(
       Object.entries(value).map(([key, entry]) => {
-        const normalizedKey = key.toLowerCase();
-        if (normalizedKey.includes('authorization') || normalizedKey.includes('cookie')) {
+        if (REDACT_PATTERN.test(key)) {
           return [key, '[REDACTED]'];
         }
 
-        return [key, sanitizeValue(entry)];
+        return [key, sanitizeValue(entry, seen)];
       })
     );
   }

@@ -31,11 +31,14 @@ export function getForwardedClientIp(c: Context) {
 
   const forwardedFor = c.req.header('X-Forwarded-For');
   if (forwardedFor) {
-    for (const entry of forwardedFor.split(',')) {
-      const normalized = normalizeIp(entry);
-      if (normalized) {
-        return normalized;
-      }
+    const entries = forwardedFor
+      .split(',')
+      .map((entry) => normalizeIp(entry))
+      .filter((entry): entry is string => entry !== null);
+    const clientIndex = entries.length - (config.trustedProxyHops || 1);
+
+    if (clientIndex >= 0) {
+      return entries[clientIndex] || null;
     }
   }
 

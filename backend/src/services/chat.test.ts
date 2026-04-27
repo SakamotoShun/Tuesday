@@ -70,20 +70,19 @@ mock.module('../repositories/reaction', () => ({
   },
 }));
 
-mock.module('../collab/chatHub', () => ({
-  chatHub: {
-    broadcastToChannel: () => {},
-    sendToUser: () => {},
-  },
-}));
-
 mock.module('./file', () => ({
   fileService: {
     markAttached: async () => {},
   },
 }));
 
-const { chatService } = await import('./chat');
+const { ChatService } = await import('./chat');
+
+const chatHubStub = {
+  broadcastToAll: () => {},
+  broadcastToChannel: () => {},
+  sendToUser: () => {},
+};
 
 const memberUser = {
   id: 'user-1',
@@ -97,6 +96,8 @@ const memberUser = {
 };
 
 describe('ChatService', () => {
+  let chatService: InstanceType<typeof ChatService>;
+
   beforeEach(() => {
     findUserChannels = async () => [];
     findById = async () => null;
@@ -109,6 +110,7 @@ describe('ChatService', () => {
     findMembership = async () => ({ channelId: 'channel-1', userId: 'user-1', lastReadAt: new Date() });
     countUnread = async () => 0;
     findUserById = async () => null;
+    chatService = new ChatService(chatHubStub);
   });
 
   it('returns channels with unread counts', async () => {

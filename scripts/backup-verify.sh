@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 BACKUP_DIR="${BACKUP_DIR:-./backups}"
 POSTGRES_IMAGE="${POSTGRES_IMAGE:-postgres:16-alpine}"
@@ -61,7 +61,7 @@ if ! docker exec "$VERIFY_CONTAINER" pg_isready -U tuesday -d tuesday >/dev/null
     exit 1
 fi
 
-cat "$TMP_DIR/database.sql" | docker exec -i "$VERIFY_CONTAINER" psql -U tuesday tuesday >/dev/null
+docker exec -i "$VERIFY_CONTAINER" psql -U tuesday -d tuesday -v ON_ERROR_STOP=1 -q < "$TMP_DIR/database.sql" >/dev/null
 
 MIGRATION_COUNT=$(docker exec "$VERIFY_CONTAINER" psql -U tuesday -d tuesday -t -A -c "SELECT count(*) FROM drizzle_migrations;")
 TABLE_COUNT=$(docker exec "$VERIFY_CONTAINER" psql -U tuesday -d tuesday -t -A -c "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public';")

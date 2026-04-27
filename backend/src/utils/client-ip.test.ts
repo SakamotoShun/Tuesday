@@ -3,6 +3,7 @@ import { Hono, type Context } from 'hono';
 
 const config = {
   trustProxy: false,
+  trustedProxyHops: 1,
 };
 
 mock.module('../config', () => ({ config }));
@@ -28,6 +29,7 @@ function createApp(handler: (c: Context) => Response | Promise<Response>) {
 describe('client IP utilities', () => {
   beforeEach(() => {
     config.trustProxy = false;
+    config.trustedProxyHops = 1;
   });
 
   it('normalizes bracketed ipv6 and ipv4 port values', () => {
@@ -36,7 +38,7 @@ describe('client IP utilities', () => {
     expect(normalizeIp('unknown')).toBeNull();
   });
 
-  it('uses the first forwarded address when proxy trust is enabled', async () => {
+  it('uses the rightmost untrusted forwarded address when proxy trust is enabled', async () => {
     config.trustProxy = true;
     const app = createApp((c) => c.text(getForwardedClientIp(c) || 'missing'));
 
@@ -46,7 +48,21 @@ describe('client IP utilities', () => {
       },
     });
 
-    expect(await response.text()).toBe('198.51.100.1');
+    expect(await response.text()).toBe('203.0.113.1');
+  });
+
+  it('can skip multiple trusted proxy hops from the right', async () => {
+    config.trustProxy = true;
+    config.trustedProxyHops = 2;
+    const app = createApp((c) => c.text(getForwardedClientIp(c) || 'missing'));
+
+    const response = await app.request('http://localhost/', {
+      headers: {
+        'X-Forwarded-For': '198.51.100.1, 203.0.113.1, 203.0.113.2',
+      },
+    });
+
+    expect(await response.text()).toBe('203.0.113.1');
   });
 
   it('uses x-real-ip when forwarded-for is absent and proxy trust is enabled', async () => {

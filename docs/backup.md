@@ -32,6 +32,8 @@ KEEP_LAST_N=14 ./scripts/backup.sh
 BACKUP_UPLOAD_CMD='rclone copy "$BACKUP_FILE_PATH" remote:tuesday/' ./scripts/backup.sh
 ```
 
+`BACKUP_UPLOAD_CMD` is operator-controlled and interpreted by the shell unless it points to an executable file, so quote any embedded paths or secrets carefully.
+
 ### Manual Backup
 
 ```bash
