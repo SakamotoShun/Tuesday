@@ -1,4 +1,5 @@
 export { recovery } from './recovery';
+export { requestContext, getRequestId, REQUEST_ID_HEADER } from './request-context';
 export { logging } from './logging';
 export { cors } from './cors';
 export { securityHeaders } from './security';

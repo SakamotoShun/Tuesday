@@ -39,7 +39,7 @@ Tuesday is configured via environment variables. All settings have sensible defa
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `CORS_ORIGIN` | `http://localhost:5173` | Allowed CORS origin. Not needed in Docker (same-origin). Only set for separate frontend/backend development. |
+| `CORS_ORIGIN` | `http://localhost:5173` | Allowed CORS origin. Development defaults to localhost; production must set this explicitly when browsers access the API from another origin. |
 
 ## Advanced
 
@@ -47,6 +47,7 @@ Tuesday is configured via environment variables. All settings have sensible defa
 |----------|---------|-------------|
 | `DATA_DIR` | `/app/data` | Root data directory for PostgreSQL data, uploads, and secrets. |
 | `STATIC_DIR` | _(empty)_ | Directory containing frontend build files. Set to `/app/static` in the Docker image. Leave empty to disable static serving (development mode). |
+| `TRUSTED_PROXY_HOPS` | `1` | When `TRUST_PROXY=true`, number of trusted proxy hops to skip from the right side of `X-Forwarded-For` before choosing the client IP. |
 
 ## Docker-Specific
 
@@ -57,8 +58,9 @@ These are set automatically in the Docker image and generally should not be chan
 | `NODE_ENV` | `production` | Set in supervisord.conf |
 | `STATIC_DIR` | `/app/static` | Set in supervisord.conf |
 | `UPLOAD_STORAGE_PATH` | `/app/data/uploads` | Set in supervisord.conf |
-| `CORS_ORIGIN` | `http://localhost:8080` | Set in supervisord.conf (same-origin) |
 | `DATABASE_URL` | `postgresql://tuesday:tuesday@localhost:5432/tuesday` | Set in entrypoint.sh |
+
+For production images, pass `CORS_ORIGIN=https://app.example.com` at runtime when the browser origin differs from the API origin.
 
 ## Example `.env` File
 

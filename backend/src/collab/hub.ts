@@ -1,5 +1,6 @@
 import type { User } from '../types';
 import type { WSContext } from 'hono/ws';
+import { safeCloseWebSocket, sendWebSocketMessage } from '../utils/websocket';
 
 interface CollabClient {
   ws: WSContext;
@@ -10,6 +11,8 @@ interface CollabRoom {
   clients: Set<CollabClient>;
   lastSnapshotAt: number;
 }
+
+const MAX_DOC_ROOM_CLIENTS = 20;
 
 class DocCollabHub {
   private rooms = new Map<string, CollabRoom>();
@@ -28,7 +31,12 @@ class DocCollabHub {
 
   join(docId: string, client: CollabClient) {
     const room = this.getRoom(docId);
+    if (room.clients.size >= MAX_DOC_ROOM_CLIENTS) {
+      return false;
+    }
+
     room.clients.add(client);
+    return true;
   }
 
   leave(docId: string, ws: WSContext) {
@@ -49,9 +57,16 @@ class DocCollabHub {
     const room = this.rooms.get(docId);
     if (!room) return;
 
-    for (const client of room.clients) {
+    for (const client of Array.from(room.clients)) {
       if (exclude && client.ws === exclude) continue;
-      client.ws.send(message);
+
+      if (!sendWebSocketMessage(client.ws, message, { hub: 'doc_collab', doc_id: docId, user_id: client.user.id })) {
+        room.clients.delete(client);
+      }
+    }
+
+    if (room.clients.size === 0) {
+      this.rooms.delete(docId);
     }
   }
 
@@ -67,6 +82,30 @@ class DocCollabHub {
     }
 
     return false;
+  }
+
+  shutdown() {
+    const payload = JSON.stringify({
+      type: 'server.restart',
+      message: 'Server is restarting. Please reconnect shortly.',
+    });
+
+    for (const room of this.rooms.values()) {
+      for (const client of room.clients) {
+        sendWebSocketMessage(client.ws, payload, { hub: 'doc_collab', reason: 'shutdown' }, { closeOnFailure: false });
+        safeCloseWebSocket(client.ws, 1012, 'Service restarting');
+      }
+    }
+
+    this.rooms.clear();
+  }
+
+  getStats() {
+    const clients = Array.from(this.rooms.values()).reduce((total, room) => total + room.clients.size, 0);
+    return {
+      activeRooms: this.rooms.size,
+      clients,
+    };
   }
 }
 

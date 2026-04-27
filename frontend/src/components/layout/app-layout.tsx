@@ -24,7 +24,12 @@ export function AppLayout() {
                 : "overflow-auto p-8"
           )}
         >
-          <ErrorBoundary>
+          <ErrorBoundary
+            title="Page unavailable"
+            message="This page hit a rendering issue. Try reloading the page."
+            resetKeys={[pathname]}
+            retryLabel="Reload page"
+          >
             <Outlet />
           </ErrorBoundary>
         </main>

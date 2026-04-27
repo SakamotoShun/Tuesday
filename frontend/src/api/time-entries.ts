@@ -1,4 +1,4 @@
-import { api } from "./client"
+import { api, RequestError, captureRequestId } from "./client"
 import type {
   TimeEntry,
   UpsertTimeEntryInput,
@@ -45,7 +45,8 @@ export const timeEntriesApi = {
       `${import.meta.env.VITE_API_URL || ""}/api/v1/time-entries/my/export?start=${start}&end=${end}`,
       { credentials: "include" }
     )
-    if (!response.ok) throw new Error("Failed to export timesheet")
+    const requestId = captureRequestId(response)
+    if (!response.ok) throw new RequestError("Failed to export timesheet", requestId)
     const blob = await response.blob()
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement("a")
@@ -81,7 +82,8 @@ export const timeEntriesApi = {
       `${import.meta.env.VITE_API_URL || ""}/api/v1/projects/${projectId}/time-entries/export?start=${start}&end=${end}`,
       { credentials: "include" }
     )
-    if (!response.ok) throw new Error("Failed to export project timesheet")
+    const requestId = captureRequestId(response)
+    if (!response.ok) throw new RequestError("Failed to export project timesheet", requestId)
     const blob = await response.blob()
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement("a")

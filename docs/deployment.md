@@ -64,8 +64,8 @@ docker compose build
 
 The multi-stage build:
 1. Builds the React frontend with Vite
-2. Installs backend production dependencies
-3. Creates an Ubuntu-based image with PostgreSQL 16, supervisord, and Bun
+2. Compiles the Bun backend into a standalone binary
+3. Creates a Debian-based image with PostgreSQL 16, supervisord, the compiled app, bundled SQL migrations, and static assets
 
 ## Running the Container
 
@@ -149,14 +149,17 @@ All persistent data is stored in the `/app/data` Docker volume:
 
 ## Health Check
 
-The container includes a built-in health check:
+The container includes a built-in liveness health check on `/health`. Use `/ready` for deeper operational checks (database connectivity, uploads directory, and migration state):
 
 ```bash
 # Check container health
 docker inspect --format='{{.State.Health.Status}}' tuesday
 
-# Manual health check
+# Manual liveness check
 curl http://localhost:7002/health
+
+# Manual readiness check
+curl http://localhost:7002/ready
 ```
 
 ## Reverse Proxy Setup

@@ -1,5 +1,5 @@
 import type { ApiError, ApiResponse } from "@/api/types"
-import { ApiErrorResponse } from "@/api/client"
+import { ApiErrorResponse, RequestError, captureRequestId } from "@/api/client"
 import type { FileAttachment } from "@/api/types"
 
 const API_BASE = "/api/v1"
@@ -14,20 +14,27 @@ export async function uploadFile(file: File): Promise<FileAttachment> {
     credentials: "include",
   })
 
-  const data = (await response.json()) as ApiResponse<FileAttachment> | { error: ApiError }
+  const requestId = captureRequestId(response)
+
+  let data: ApiResponse<FileAttachment> | { error: ApiError }
+  try {
+    data = (await response.json()) as ApiResponse<FileAttachment> | { error: ApiError }
+  } catch {
+    throw new RequestError("Invalid API response format", requestId)
+  }
 
   if (!response.ok) {
     if ("error" in data) {
-      throw new ApiErrorResponse(data.error)
+      throw new ApiErrorResponse(data.error, requestId)
     }
-    throw new Error("Unknown API error")
+    throw new RequestError("Unknown API error", requestId)
   }
 
   if ("data" in data) {
     return data.data
   }
 
-  throw new Error("Invalid API response format")
+  throw new RequestError("Invalid API response format", requestId)
 }
 
 export const getFileUrl = (fileId: string) => `${API_BASE}/files/${fileId}`
@@ -37,6 +44,8 @@ export async function deleteFile(fileId: string): Promise<void> {
     method: "DELETE",
     credentials: "include",
   })
+
+  captureRequestId(response)
 
   // Ignore errors - file may already be deleted, attached, or not found
   // This is a best-effort cleanup

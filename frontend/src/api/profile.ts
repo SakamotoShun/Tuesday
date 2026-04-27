@@ -1,4 +1,4 @@
-import { api, ApiErrorResponse } from "./client"
+import { api, ApiErrorResponse, RequestError, captureRequestId } from "./client"
 import type { ApiError, ApiResponse, User } from "./types"
 
 const API_BASE = "/api/v1"
@@ -41,20 +41,27 @@ export async function uploadAvatar(file: File): Promise<User> {
     credentials: "include",
   })
 
-  const data = (await response.json()) as ApiResponse<{ user: BackendUser }> | { error: ApiError }
+  const requestId = captureRequestId(response)
+
+  let data: ApiResponse<{ user: BackendUser }> | { error: ApiError }
+  try {
+    data = (await response.json()) as ApiResponse<{ user: BackendUser }> | { error: ApiError }
+  } catch {
+    throw new RequestError("Invalid API response format", requestId)
+  }
 
   if (!response.ok) {
     if ("error" in data) {
-      throw new ApiErrorResponse(data.error)
+      throw new ApiErrorResponse(data.error, requestId)
     }
-    throw new Error("Unknown API error")
+    throw new RequestError("Unknown API error", requestId)
   }
 
   if ("data" in data) {
     return normalizeUser(data.data.user)
   }
 
-  throw new Error("Invalid API response format")
+  throw new RequestError("Invalid API response format", requestId)
 }
 
 export async function removeAvatar(): Promise<User> {

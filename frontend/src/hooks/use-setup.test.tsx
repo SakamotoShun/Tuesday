@@ -1,16 +1,11 @@
 import "@/test/setup"
 import React from "react"
-import { describe, it, expect, beforeEach, mock } from "bun:test"
+import { afterEach, beforeEach, describe, expect, it } from "bun:test"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { renderHook, waitFor } from "@testing-library/react"
 
 let getStatus: (...args: any[]) => Promise<any> = async () => ({ initialized: false })
 let complete: (...args: any[]) => Promise<any> = async () => null
-
-mock.module("@/api/setup", () => ({
-  getStatus: () => getStatus(),
-  complete: (data: any) => complete(data),
-}))
 
 const { useSetup } = await import("./use-setup")
 
@@ -24,14 +19,48 @@ function createWrapper() {
   return { wrapper }
 }
 
+function jsonResponse(body: unknown, status = 200, requestId = "req-test") {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      "X-Request-Id": requestId,
+    },
+  })
+}
+
 describe("useSetup", () => {
+  const originalFetch = globalThis.fetch
+
   beforeEach(() => {
     getStatus = async () => ({ initialized: false })
     complete = async () => null
+
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const rawUrl = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url
+      const url = new URL(rawUrl, "http://localhost")
+      const method = init?.method ?? (input instanceof Request ? input.method : "GET")
+
+      if (url.pathname === "/api/v1/setup/status" && method === "GET") {
+        return jsonResponse({ data: await getStatus() }, 200, "req-setup-status")
+      }
+
+      if (url.pathname === "/api/v1/setup/complete" && method === "POST") {
+        const body = init?.body ? JSON.parse(String(init.body)) : {}
+        await complete(body)
+        return jsonResponse({ data: { message: "ok" } }, 200, "req-setup-complete")
+      }
+
+      throw new Error(`Unhandled fetch in use-setup.test.tsx: ${method} ${url.pathname}`)
+    }) as typeof globalThis.fetch
+  })
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
   })
 
   it("loads setup status", async () => {
-    getStatus = async () => ({ initialized: true })
+    getStatus = async () => ({ initialized: true, passwordResetEnabled: true })
     const { wrapper } = createWrapper()
     const { result } = renderHook(() => useSetup(), { wrapper })
 

@@ -1,16 +1,33 @@
 import type { ApiError, ApiResponse } from "./types"
 
 const API_BASE = "/api/v1"
+const REQUEST_ID_HEADER = "X-Request-Id"
+
+export function captureRequestId(response: Response) {
+  return response.headers.get(REQUEST_ID_HEADER)
+}
 
 export class ApiErrorResponse extends Error {
   code: string
   details?: Array<{ field: string; message: string }>
+  requestId: string | null
 
-  constructor(error: ApiError) {
+  constructor(error: ApiError, requestId: string | null = null) {
     super(error.message)
     this.name = "ApiErrorResponse"
     this.code = error.code
     this.details = error.details
+    this.requestId = requestId
+  }
+}
+
+export class RequestError extends Error {
+  requestId: string | null
+
+  constructor(message: string, requestId: string | null = null) {
+    super(message)
+    this.name = "RequestError"
+    this.requestId = requestId
   }
 }
 
@@ -28,20 +45,27 @@ class ApiClient {
       },
     })
 
-    const data = (await response.json()) as ApiResponse<T> | { error: ApiError }
+    const requestId = captureRequestId(response)
+
+    let data: ApiResponse<T> | { error: ApiError }
+    try {
+      data = (await response.json()) as ApiResponse<T> | { error: ApiError }
+    } catch {
+      throw new RequestError("Invalid API response format", requestId)
+    }
 
     if (!response.ok) {
       if ("error" in data) {
-        throw new ApiErrorResponse(data.error)
+        throw new ApiErrorResponse(data.error, requestId)
       }
-      throw new Error("Unknown API error")
+      throw new RequestError("Unknown API error", requestId)
     }
 
     if ("data" in data) {
       return data.data
     }
 
-    throw new Error("Invalid API response format")
+    throw new RequestError("Invalid API response format", requestId)
   }
 
   get<T>(path: string) {

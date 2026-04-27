@@ -4,6 +4,7 @@ import { Excalidraw, exportToCanvas, exportToSvg } from "@excalidraw/excalidraw"
 import "@excalidraw/excalidraw/index.css"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { MessageSquare, X } from "@/lib/icons"
+import { ErrorBoundary } from "@/components/common/error-boundary"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -282,7 +283,9 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
         </Button>
       </div>
       <div className="flex-1 min-h-0">
-        <ChatView projectId={whiteboard.projectId} variant="panel" />
+        <ErrorBoundary title="Chat unavailable" message="The project chat panel crashed. Try reloading this section." resetKeys={[whiteboard.id, "chat"]}>
+          <ChatView projectId={whiteboard.projectId} variant="panel" />
+        </ErrorBoundary>
       </div>
     </div>
   )
@@ -326,52 +329,54 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
       </div>
 
       <div className="flex-1 rounded-lg border border-border bg-card overflow-hidden">
-        <Excalidraw
-          initialData={initialData}
-          isCollaborating
-          excalidrawAPI={(api: unknown) => {
-            excalidrawAPI.current = api
-            setIsApiReady(true)
-          }}
-          onChange={(elements, _appState, files) => {
-            if (ignoreAppStateChangeRef.current) {
-              ignoreAppStateChangeRef.current = false
-              return
-            }
-            const filteredFiles = filterReferencedFiles(
-              elements as WhiteboardScene["elements"],
-              files as Record<string, unknown>
-            )
-            const scene = {
-              elements: elements as WhiteboardScene["elements"],
-              files: filteredFiles,
-            }
-            sceneRef.current = scene
-            const signature = JSON.stringify({ elements, files: filteredFiles })
-            if (signature === lastRemoteSignatureRef.current) {
-              return
-            }
-            if (signature === lastSentSignatureRef.current) {
-              return
-            }
+        <ErrorBoundary title="Whiteboard unavailable" message="The whiteboard canvas crashed. Try reloading this section." resetKeys={[whiteboard.id, "canvas"]}>
+          <Excalidraw
+            initialData={initialData}
+            isCollaborating
+            excalidrawAPI={(api: unknown) => {
+              excalidrawAPI.current = api
+              setIsApiReady(true)
+            }}
+            onChange={(elements, _appState, files) => {
+              if (ignoreAppStateChangeRef.current) {
+                ignoreAppStateChangeRef.current = false
+                return
+              }
+              const filteredFiles = filterReferencedFiles(
+                elements as WhiteboardScene["elements"],
+                files as Record<string, unknown>
+              )
+              const scene = {
+                elements: elements as WhiteboardScene["elements"],
+                files: filteredFiles,
+              }
+              sceneRef.current = scene
+              const signature = JSON.stringify({ elements, files: filteredFiles })
+              if (signature === lastRemoteSignatureRef.current) {
+                return
+              }
+              if (signature === lastSentSignatureRef.current) {
+                return
+              }
 
-            if (saveTimeoutRef.current) {
-              clearTimeout(saveTimeoutRef.current)
-            }
+              if (saveTimeoutRef.current) {
+                clearTimeout(saveTimeoutRef.current)
+              }
 
-            saveTimeoutRef.current = setTimeout(() => {
-              sendUpdate(scene)
-              lastSentSignatureRef.current = signature
-            }, 600)
-          }}
-          onPointerUpdate={({ pointer, button }) => {
-            sendPresence({
-              pointer,
-              button,
-            })
-          }}
-          theme="light"
-        />
+              saveTimeoutRef.current = setTimeout(() => {
+                sendUpdate(scene)
+                lastSentSignatureRef.current = signature
+              }, 600)
+            }}
+            onPointerUpdate={({ pointer, button }) => {
+              sendPresence({
+                pointer,
+                button,
+              })
+            }}
+            theme="light"
+          />
+        </ErrorBoundary>
       </div>
     </div>
   )

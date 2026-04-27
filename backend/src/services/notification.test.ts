@@ -17,21 +17,20 @@ mock.module('../repositories/notification', () => ({
   },
 }));
 
-mock.module('../collab/chatHub', () => ({
-  chatHub: {
-    sendToUser: (userId: string, payload: string) => sendToUser(userId, payload),
-  },
-}));
-
-const { notificationService } = await import('./notification');
+const { NotificationService } = await import('./notification');
 
 describe('NotificationService', () => {
+  let notificationService: InstanceType<typeof NotificationService>;
+
   beforeEach(() => {
     findByUserId = async () => [];
     markAsRead = async () => null;
     markAllAsRead = async () => 0;
     createNotification = async (data) => ({ id: 'notification-1', ...data });
     sendToUser = () => {};
+    notificationService = new NotificationService({
+      sendToUser: (userId: string, payload: string) => sendToUser(userId, payload),
+    });
   });
 
   it('lists notifications', async () => {

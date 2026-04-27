@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { auth, requireAdmin } from '../middleware';
 import { noticeBoardService } from '../services';
+import { requireRouteParam } from '../utils/route-params';
 import { success, errors } from '../utils/response';
 import {
   createNoticeBoardItemSchema,
@@ -50,7 +51,7 @@ noticeBoard.post('/', requireAdmin, async (c) => {
 noticeBoard.patch('/:id', requireAdmin, async (c) => {
   try {
     const user = c.get('user');
-    const id = c.req.param('id');
+    const id = requireRouteParam(c, 'id');
     const body = await c.req.json();
 
     const validation = validateBody(updateNoticeBoardItemSchema, body);
@@ -76,7 +77,7 @@ noticeBoard.patch('/:id', requireAdmin, async (c) => {
 // DELETE /api/v1/notice-board/:id - Delete notice board item (admin only)
 noticeBoard.delete('/:id', requireAdmin, async (c) => {
   try {
-    const id = c.req.param('id');
+    const id = requireRouteParam(c, 'id');
     const deleted = await noticeBoardService.deleteItem(id);
     if (!deleted) {
       return errors.notFound(c, 'Notice board item');
@@ -95,7 +96,7 @@ noticeBoard.delete('/:id', requireAdmin, async (c) => {
 noticeBoard.patch('/:id/toggle', async (c) => {
   try {
     const user = c.get('user');
-    const id = c.req.param('id');
+    const id = requireRouteParam(c, 'id');
 
     const item = await noticeBoardService.toggleItem(id, user);
     if (!item) {

@@ -5,6 +5,7 @@ import { Window } from "happy-dom"
 
 if (typeof globalThis.document === "undefined") {
   const window = new Window()
+  ;(window as typeof window & { SyntaxError?: typeof SyntaxError }).SyntaxError = globalThis.SyntaxError
   globalThis.window = window as unknown as Window & typeof globalThis.window
   globalThis.document = window.document as unknown as Document
   globalThis.navigator = window.navigator as unknown as Navigator

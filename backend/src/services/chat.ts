@@ -1,7 +1,7 @@
 import { channelRepository, messageRepository, channelMemberRepository, userRepository, projectMemberRepository, fileRepository, reactionRepository, botRepository } from '../repositories';
 import { projectService } from './project';
 import { fileService } from './file';
-import { chatHub } from '../collab/chatHub';
+import { chatHub, type ChatHub } from '../collab/chatHub';
 import type { Channel, Message, File } from '../db/schema';
 import { BotType } from '../db/schema';
 import type { ChannelWithProject } from '../repositories/channel';
@@ -81,7 +81,11 @@ const dmKey = (userIdA: string, userIdB: string) => {
 
 const isPrivateAccess = (access?: string | null) => access === 'private' || access === 'invite_only';
 
+type ChatHubNotifier = Pick<ChatHub, 'broadcastToAll' | 'broadcastToChannel' | 'sendToUser'>;
+
 export class ChatService {
+  constructor(private readonly hub: ChatHubNotifier = chatHub) {}
+
   async getChannels(user: User): Promise<ChannelWithState[]> {
     const channels = await channelRepository.findUserChannels(user.id);
     const memberships = await channelMemberRepository.findByUserId(user.id);
@@ -448,7 +452,7 @@ export class ChatService {
 
     if (deleted) {
       // Notify all connected clients that the channel was deleted
-      chatHub.broadcastToChannel(
+      this.hub.broadcastToChannel(
         channelId,
         JSON.stringify({
           type: 'channel_deleted',
@@ -951,12 +955,12 @@ export class ChatService {
       const members = await channelMemberRepository.findByChannelId(channel.id);
       for (const member of members) {
         if (excludeUserId && member.userId === excludeUserId) continue;
-        chatHub.sendToUser(member.userId, message);
+        this.hub.sendToUser(member.userId, message);
       }
       return;
     }
 
-    chatHub.broadcastToChannel(channel.id, message, excludeUserId);
+    this.hub.broadcastToChannel(channel.id, message, excludeUserId);
   }
 
   private async notifyChannelAdded(userIds: string[], channelId: string) {
@@ -974,7 +978,7 @@ export class ChatService {
         ? await this.resolveDmOtherUser(channelId, userId)
         : null;
 
-      chatHub.sendToUser(userId, JSON.stringify({
+      this.hub.sendToUser(userId, JSON.stringify({
         type: 'channel_added',
         channel: {
           ...channel,
@@ -998,7 +1002,7 @@ export class ChatService {
     });
 
     if (channel.type === 'workspace') {
-      chatHub.broadcastToAll(payload);
+      this.hub.broadcastToAll(payload);
       return;
     }
 
@@ -1008,7 +1012,7 @@ export class ChatService {
 
     const members = await projectMemberRepository.findByProjectId(channel.projectId);
     for (const member of members) {
-      chatHub.sendToUser(member.user.id, payload);
+      this.hub.sendToUser(member.user.id, payload);
     }
   }
 
@@ -1088,7 +1092,7 @@ export class ChatService {
     if (channel.type === 'dm') {
       const members = await channelMemberRepository.findByChannelId(channel.id);
       for (const member of members) {
-        chatHub.sendToUser(member.userId, JSON.stringify(payload));
+        this.hub.sendToUser(member.userId, JSON.stringify(payload));
       }
       return;
     }
@@ -1097,14 +1101,14 @@ export class ChatService {
       if (isPrivateAccess(channel.access)) {
         const members = await channelMemberRepository.findByChannelId(channel.id);
         for (const member of members) {
-          chatHub.sendToUser(member.userId, JSON.stringify(payload));
+          this.hub.sendToUser(member.userId, JSON.stringify(payload));
         }
         return;
       }
 
       const users = await userRepository.findAll();
       for (const user of users) {
-        chatHub.sendToUser(user.id, JSON.stringify(payload));
+        this.hub.sendToUser(user.id, JSON.stringify(payload));
       }
       return;
     }
@@ -1113,14 +1117,14 @@ export class ChatService {
       if (isPrivateAccess(channel.access)) {
         const members = await channelMemberRepository.findByChannelId(channel.id);
         for (const member of members) {
-          chatHub.sendToUser(member.userId, JSON.stringify(payload));
+          this.hub.sendToUser(member.userId, JSON.stringify(payload));
         }
         return;
       }
 
       const members = await projectMemberRepository.findByProjectId(channel.projectId);
       for (const member of members) {
-        chatHub.sendToUser(member.user.id, JSON.stringify(payload));
+        this.hub.sendToUser(member.user.id, JSON.stringify(payload));
       }
     }
   }

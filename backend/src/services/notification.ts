@@ -1,5 +1,5 @@
 import { notificationRepository } from '../repositories';
-import { chatHub } from '../collab/chatHub';
+import { chatHub, type ChatHub } from '../collab/chatHub';
 import type { Notification } from '../db/schema';
 
 export type NotificationType = 'mention' | 'assignment' | 'meeting_invite' | 'project_invite';
@@ -34,7 +34,11 @@ export interface ProjectInviteNotificationInput {
   invitedBy: string;
 }
 
+type NotificationHub = Pick<ChatHub, 'sendToUser'>;
+
 export class NotificationService {
+  constructor(private readonly hub: NotificationHub = chatHub) {}
+
   async getNotifications(userId: string, options?: { unreadOnly?: boolean; limit?: number }): Promise<Notification[]> {
     return notificationRepository.findByUserId(userId, options);
   }
@@ -56,7 +60,7 @@ export class NotificationService {
       link: payload.link ?? null,
     });
 
-    chatHub.sendToUser(userId, JSON.stringify({ type: 'notification', notification }));
+    this.hub.sendToUser(userId, JSON.stringify({ type: 'notification', notification }));
 
     return notification;
   }

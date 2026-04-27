@@ -9,6 +9,8 @@ Tuesday stores all data in two locations within the `/app/data` Docker volume:
 
 A complete backup requires both the database dump and the uploads directory.
 
+Backups are created as a single archive containing both the PostgreSQL dump and the current uploads snapshot. This is a best-effort hot backup: the database dump is captured first, then the uploads directory is copied. That ordering favors consistency for referenced files and may leave behind harmless orphaned uploads created during the backup window.
+
 ## Database Backup
 
 ### Using the Backup Script
@@ -17,17 +19,27 @@ A complete backup requires both the database dump and the uploads directory.
 ./scripts/backup.sh
 ```
 
-This creates a compressed backup in `./backups/`:
+This creates a compressed archive in `./backups/`:
 
 ```
-backups/tuesday_backup_20260101_120000.sql.gz
+backups/tuesday_backup_20260101_120000.tar.gz
 ```
+
+Optional environment variables:
+
+```bash
+KEEP_LAST_N=14 ./scripts/backup.sh
+BACKUP_UPLOAD_CMD='rclone copy "$BACKUP_FILE_PATH" remote:tuesday/' ./scripts/backup.sh
+```
+
+`BACKUP_UPLOAD_CMD` is operator-controlled and interpreted by the shell unless it points to an executable file, so quote any embedded paths or secrets carefully.
 
 ### Manual Backup
 
 ```bash
-docker exec tuesday pg_dump -U tuesday tuesday > backup.sql
-gzip backup.sql
+docker exec tuesday pg_dump --clean --if-exists --no-owner --no-privileges -U tuesday tuesday > database.sql
+docker cp tuesday:/app/data/uploads ./uploads
+tar -czf tuesday_backup_manual.tar.gz database.sql uploads
 ```
 
 ### Automated Backups
@@ -39,56 +51,56 @@ Add a cron job for scheduled backups:
 0 2 * * * /path/to/tuesday/scripts/backup.sh
 ```
 
-Consider adding cleanup for old backups:
+The script already keeps the newest 14 archives by default. To override that behavior:
 
 ```bash
-# Keep only the last 30 days of backups
-find /path/to/tuesday/backups -name "*.sql.gz" -mtime +30 -delete
+# Keep the newest 30 archives instead
+KEEP_LAST_N=30 /path/to/tuesday/scripts/backup.sh
 ```
 
-## File Backup
+## Backup Verification
 
-Back up uploaded files separately:
+Test the newest archive (or pass an explicit archive path):
 
 ```bash
-# Copy uploads from the Docker volume
-docker cp tuesday:/app/data/uploads ./backups/uploads_$(date +%Y%m%d)
+./scripts/backup-verify.sh
+./scripts/backup-verify.sh backups/tuesday_backup_20260101_120000.tar.gz
 ```
 
-Or if using a bind mount:
-
-```bash
-cp -r /path/to/data/uploads ./backups/uploads_$(date +%Y%m%d)
-```
+The verification script restores the database into a temporary PostgreSQL container and checks that the uploads snapshot is present.
 
 ## Restore
 
 ### Using the Restore Script
 
 ```bash
-./scripts/restore.sh backups/tuesday_backup_20260101_120000.sql.gz
+./scripts/restore.sh backups/tuesday_backup_20260101_120000.tar.gz
+```
+
+Skip the confirmation prompt when running in automation:
+
+```bash
+./scripts/restore.sh --yes backups/tuesday_backup_20260101_120000.tar.gz
 ```
 
 The script will:
 1. Validate the backup file exists
 2. Ask for confirmation before overwriting
 3. Restore the database from the backup
+4. Replace `/app/data/uploads` with the archived uploads snapshot when restoring from `.tar.gz`
 
 ### Manual Restore
 
 ```bash
-# From compressed backup
-gunzip -c backup.sql.gz | docker exec -i tuesday psql -U tuesday tuesday
+# Extract the archive first
+tar -xzf tuesday_backup_manual.tar.gz
 
-# From uncompressed backup
-cat backup.sql | docker exec -i tuesday psql -U tuesday tuesday
-```
+# Restore the database
+cat database.sql | docker exec -i tuesday psql -U tuesday tuesday
 
-### Restoring Files
-
-```bash
-# Copy uploads back into the container
-docker cp ./backups/uploads_20260101/. tuesday:/app/data/uploads/
+# Restore uploads
+docker exec tuesday sh -c 'rm -rf /app/data/uploads && mkdir -p /app/data/uploads'
+docker cp ./uploads/. tuesday:/app/data/uploads/
 ```
 
 ## Disaster Recovery
@@ -106,16 +118,10 @@ Full recovery procedure:
 3. Restore the database:
 
    ```bash
-   ./scripts/restore.sh backups/tuesday_backup_<timestamp>.sql.gz
+   ./scripts/restore.sh backups/tuesday_backup_<timestamp>.tar.gz
    ```
 
-4. Restore uploaded files:
-
-   ```bash
-   docker cp ./backups/uploads_<date>/. tuesday:/app/data/uploads/
-   ```
-
-5. Verify everything works by logging in and checking data.
+4. Verify everything works by logging in and checking data.
 
 ## Best Practices
 
@@ -124,3 +130,4 @@ Full recovery procedure:
 - **Automate backups** — Use cron jobs or your infrastructure's backup system.
 - **Back up before upgrades** — Always create a backup before upgrading Tuesday.
 - **Monitor backup size** — Database and file backups will grow over time.
+- **Run `backup-verify.sh` regularly** — especially before upgrades or infrastructure moves.

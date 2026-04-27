@@ -1,6 +1,8 @@
-import { and, asc, desc, eq, gt } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, lte } from 'drizzle-orm';
 import { db } from '../db/client';
 import { whiteboardCollabSnapshots, whiteboardCollabUpdates } from '../db/schema';
+
+const SNAPSHOTS_TO_KEEP = 3;
 
 export class WhiteboardCollabRepository {
   async getLatestSnapshot(whiteboardId: string) {
@@ -51,6 +53,27 @@ export class WhiteboardCollabRepository {
       .returning();
 
     return result;
+  }
+
+  async compactHistory(whiteboardId: string, snapshotSeq: number) {
+    await db.delete(whiteboardCollabUpdates).where(
+      and(eq(whiteboardCollabUpdates.whiteboardId, whiteboardId), lte(whiteboardCollabUpdates.seq, snapshotSeq))
+    );
+
+    const staleSnapshots = await db.query.whiteboardCollabSnapshots.findMany({
+      where: eq(whiteboardCollabSnapshots.whiteboardId, whiteboardId),
+      columns: { id: true },
+      orderBy: [desc(whiteboardCollabSnapshots.seq)],
+      offset: SNAPSHOTS_TO_KEEP,
+    });
+
+    if (staleSnapshots.length === 0) {
+      return;
+    }
+
+    await db.delete(whiteboardCollabSnapshots).where(
+      inArray(whiteboardCollabSnapshots.id, staleSnapshots.map((snapshot) => snapshot.id))
+    );
   }
 }
 

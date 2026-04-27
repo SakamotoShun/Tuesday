@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { meetingService } from '../services';
 import { auth, requireProjectAccess } from '../middleware';
+import { requireRouteParam } from '../utils/route-params';
 import { success, errors } from '../utils/response';
 import { validateBody, formatValidationErrors, createMeetingSchema, updateMeetingSchema } from '../utils/validation';
 
@@ -13,7 +14,7 @@ meetings.use('*', auth);
 meetings.get('/projects/:id/meetings', requireProjectAccess, async (c) => {
   try {
     const user = c.get('user');
-    const projectId = c.req.param('id');
+    const projectId = requireRouteParam(c, 'id');
     const projectMeetings = await meetingService.getProjectMeetings(projectId, user);
     return success(c, projectMeetings);
   } catch (error) {
@@ -29,7 +30,7 @@ meetings.get('/projects/:id/meetings', requireProjectAccess, async (c) => {
 meetings.post('/projects/:id/meetings', requireProjectAccess, async (c) => {
   try {
     const user = c.get('user');
-    const projectId = c.req.param('id');
+    const projectId = requireRouteParam(c, 'id');
     const body = await c.req.json();
 
     const validation = validateBody(createMeetingSchema, body);
@@ -89,7 +90,7 @@ meetings.get('/my', async (c) => {
 meetings.get('/:id', async (c) => {
   try {
     const user = c.get('user');
-    const meetingId = c.req.param('id');
+    const meetingId = requireRouteParam(c, 'id');
 
     const meeting = await meetingService.getMeeting(meetingId, user);
 
@@ -111,7 +112,7 @@ meetings.get('/:id', async (c) => {
 meetings.patch('/:id', async (c) => {
   try {
     const user = c.get('user');
-    const meetingId = c.req.param('id');
+    const meetingId = requireRouteParam(c, 'id');
     const body = await c.req.json();
 
     const validation = validateBody(updateMeetingSchema, body);
@@ -139,7 +140,7 @@ meetings.patch('/:id', async (c) => {
 meetings.delete('/:id', async (c) => {
   try {
     const user = c.get('user');
-    const meetingId = c.req.param('id');
+    const meetingId = requireRouteParam(c, 'id');
 
     const deleted = await meetingService.deleteMeeting(meetingId, user);
 

@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ErrorBoundary } from "@/components/common/error-boundary"
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -310,44 +311,56 @@ export function ProjectDetailPage() {
         </TabsList>
 
         <TabsContent value="docs" className="mt-6">
-          <ProjectDocsPage projectId={project.id} />
+          <ErrorBoundary title="Docs unavailable" message="The docs section crashed. Try reloading this section." resetKeys={[project.id, "docs"]}>
+            <ProjectDocsPage projectId={project.id} />
+          </ErrorBoundary>
         </TabsContent>
 
         <TabsContent value="tasks" className="mt-6">
-          {taskStatuses && (
-            <div className="h-[calc(100vh-400px)] min-h-[500px]">
-              <KanbanBoard
-                tasks={tasks}
-                statuses={taskStatuses}
-                onTaskMove={handleTaskMove}
-                onTaskReorder={handleTaskReorder}
-                onAddTask={handleAddTask}
-                onTaskClick={handleTaskClick}
-                isLoading={createTask.isPending || updateTaskStatus.isPending}
-              />
-            </div>
-          )}
+          <ErrorBoundary title="Tasks unavailable" message="The kanban board crashed. Try reloading this section." resetKeys={[project.id, "tasks"]}>
+            {taskStatuses && (
+              <div className="h-[calc(100vh-400px)] min-h-[500px]">
+                <KanbanBoard
+                  tasks={tasks}
+                  statuses={taskStatuses}
+                  onTaskMove={handleTaskMove}
+                  onTaskReorder={handleTaskReorder}
+                  onAddTask={handleAddTask}
+                  onTaskClick={handleTaskClick}
+                  isLoading={createTask.isPending || updateTaskStatus.isPending}
+                />
+              </div>
+            )}
+          </ErrorBoundary>
         </TabsContent>
 
         <TabsContent value="schedule" className="mt-6">
-          <ProjectSchedulePage projectId={project.id} />
+          <ErrorBoundary title="Schedule unavailable" message="The schedule section crashed. Try reloading this section." resetKeys={[project.id, "schedule"]}>
+            <ProjectSchedulePage projectId={project.id} />
+          </ErrorBoundary>
         </TabsContent>
 
         <TabsContent value="whiteboards" className="mt-6">
-          <ProjectWhiteboardsPage projectId={project.id} />
+          <ErrorBoundary title="Whiteboards unavailable" message="The whiteboards section crashed. Try reloading this section." resetKeys={[project.id, "whiteboards"]}>
+            <ProjectWhiteboardsPage projectId={project.id} />
+          </ErrorBoundary>
         </TabsContent>
 
         <TabsContent value="chat" className="mt-6 flex flex-col flex-1 min-h-0">
-          <div className="flex flex-1 min-h-0">
-            <ChatView projectId={project.id} title="Project Chat" />
-          </div>
+          <ErrorBoundary title="Chat unavailable" message="The project chat crashed. Try reloading this section." resetKeys={[project.id, "chat"]}>
+            <div className="flex flex-1 min-h-0">
+              <ChatView projectId={project.id} title="Project Chat" />
+            </div>
+          </ErrorBoundary>
         </TabsContent>
 
         {canManageMembers && (
           <TabsContent value="time" className="mt-6">
-            <div className="border rounded-lg p-4">
-              <ProjectTimeReport projectId={project.id} />
-            </div>
+            <ErrorBoundary title="Time reports unavailable" message="The time report crashed. Try reloading this section." resetKeys={[project.id, "time"]}>
+              <div className="border rounded-lg p-4">
+                <ProjectTimeReport projectId={project.id} />
+              </div>
+            </ErrorBoundary>
           </TabsContent>
         )}
       </Tabs>
