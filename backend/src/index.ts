@@ -94,7 +94,7 @@ async function startServer() {
 
     const server = Bun.serve({
       port: config.port,
-      fetch: app.fetch,
+      fetch: (request, server) => app.fetch(request, { server }),
       websocket,
     });
 

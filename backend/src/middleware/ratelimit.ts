@@ -1,4 +1,5 @@
 import type { Context, Next } from 'hono';
+import { getConnInfo } from 'hono/bun';
 import { errors } from '../utils/response';
 import { config } from '../config';
 import { client } from '../db/client';
@@ -51,7 +52,11 @@ function normalizeIp(value: string) {
   return trimmed;
 }
 
-function getClientIp(c: Context) {
+function getForwardedClientIp(c: Context) {
+  if (!config.trustProxy) {
+    return null;
+  }
+
   const forwardedFor = c.req.header('X-Forwarded-For');
   if (forwardedFor) {
     for (const entry of forwardedFor.split(',')) {
@@ -68,6 +73,19 @@ function getClientIp(c: Context) {
   }
 
   return null;
+}
+
+function getSocketClientIp(c: Context) {
+  try {
+    const info = getConnInfo(c);
+    return info.remote.address ? normalizeIp(info.remote.address) : null;
+  } catch {
+    return null;
+  }
+}
+
+function getClientIp(c: Context) {
+  return getForwardedClientIp(c) ?? getSocketClientIp(c);
 }
 
 function getRateLimitKey(c: Context, requireIp: boolean) {

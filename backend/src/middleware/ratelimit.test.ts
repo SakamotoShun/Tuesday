@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 const config = {
   rateLimitEnabled: true,
   rateLimitBackend: 'memory' as 'memory' | 'postgres',
+  trustProxy: false,
 };
 
 type PostgresRateLimitState = {
@@ -73,11 +74,22 @@ function createApp(name: string) {
   return app;
 }
 
+function createSocketServer(address: string) {
+  return {
+    requestIP: () => ({
+      address,
+      family: address.includes(':') ? 'IPv6' : 'IPv4',
+      port: 1234,
+    }),
+  };
+}
+
 describe('rateLimit middleware', () => {
   const originalDateNow = Date.now;
 
   beforeEach(() => {
     postgresState.clear();
+    config.trustProxy = false;
   });
 
   afterEach(() => {
@@ -86,6 +98,7 @@ describe('rateLimit middleware', () => {
 
   it('resets the in-memory window exactly at the reset boundary', async () => {
     config.rateLimitBackend = 'memory';
+    config.trustProxy = true;
     const app = createApp('memory-boundary');
 
     Date.now = () => 0;
@@ -100,6 +113,7 @@ describe('rateLimit middleware', () => {
 
   it('keeps postgres rate limiting in a sliding window across fixed-window boundaries', async () => {
     config.rateLimitBackend = 'postgres';
+    config.trustProxy = true;
     const app = createApp('postgres-sliding');
 
     Date.now = () => 900;
@@ -110,5 +124,45 @@ describe('rateLimit middleware', () => {
 
     expect(first.status).toBe(200);
     expect(second.status).toBe(429);
+  });
+
+  it('uses the socket address when proxy headers are not trusted', async () => {
+    config.rateLimitBackend = 'memory';
+    const app = createApp('socket-fallback');
+
+    const first = await app.fetch(new Request('http://localhost/'), { server: createSocketServer('127.0.0.1') as never });
+    const second = await app.fetch(new Request('http://localhost/'), { server: createSocketServer('127.0.0.1') as never });
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(429);
+  });
+
+  it('ignores forwarded headers when proxy trust is disabled', async () => {
+    config.rateLimitBackend = 'memory';
+    const app = createApp('ignore-forwarded');
+
+    const first = await app.fetch(new Request('http://localhost/', {
+      headers: {
+        'X-Forwarded-For': '198.51.100.10',
+      },
+    }), { server: createSocketServer('127.0.0.1') as never });
+
+    const second = await app.fetch(new Request('http://localhost/', {
+      headers: {
+        'X-Forwarded-For': '203.0.113.10',
+      },
+    }), { server: createSocketServer('127.0.0.1') as never });
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(429);
+  });
+
+  it('accepts ipv6 loopback socket addresses', async () => {
+    config.rateLimitBackend = 'memory';
+    const app = createApp('ipv6-loopback');
+
+    const response = await app.fetch(new Request('http://localhost/'), { server: createSocketServer('::1') as never });
+
+    expect(response.status).toBe(200);
   });
 });
