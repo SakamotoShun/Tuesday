@@ -1,6 +1,9 @@
 import "@/test/setup"
 import React from "react"
-import { beforeEach, describe, expect, it, mock } from "bun:test"
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { act, fireEvent, render, waitFor } from "@testing-library/react"
+import { MemoryRouter, Route, Routes } from "react-router-dom"
 
 const SETUP_FIXTURE = {
   workspaceName: "Acme Corp",
@@ -20,6 +23,7 @@ let completeImpl = async (_data: {
   adminName: string
   adminPassword: string
 }) => undefined
+
 const reactHookForm = await import("react-hook-form")
 
 mock.module("react-hook-form", () => ({
@@ -45,29 +49,67 @@ mock.module("react-hook-form", () => ({
   }),
 }))
 
-mock.module("@/hooks/use-setup", () => ({
-  useSetup: () => ({
-    complete: {
-      mutateAsync: (data: {
-        workspaceName: string
-        adminEmail: string
-        adminName: string
-        adminPassword: string
-      }) => completeImpl(data),
-    },
-  }),
-}))
-
-const { fireEvent, render, waitFor } = await import("@testing-library/react")
-const { MemoryRouter, Route, Routes } = await import("react-router-dom")
 const { SetupPage } = await import("./setup")
 
+function createWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  )
+  return { wrapper }
+}
+
+function jsonResponse(body: unknown, status = 200, requestId = "req-test") {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      "X-Request-Id": requestId,
+    },
+  })
+}
+
 describe("SetupPage", () => {
+  const originalFetch = globalThis.fetch
+
   beforeEach(() => {
     completeImpl = async () => undefined
+
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const rawUrl = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url
+      const url = new URL(rawUrl, "http://localhost")
+      const method = init?.method ?? (input instanceof Request ? input.method : "GET")
+
+      if (url.pathname === "/api/v1/setup/status" && method === "GET") {
+        return jsonResponse({ data: { initialized: false, passwordResetEnabled: true } }, 200, "req-setup-status")
+      }
+
+      if (url.pathname === "/api/v1/setup/complete" && method === "POST") {
+        const body = init?.body ? JSON.parse(String(init.body)) : {}
+        try {
+          await completeImpl(body)
+          return jsonResponse({ data: { message: "ok" } }, 200, "req-setup-complete")
+        } catch (error) {
+          return jsonResponse(
+            { error: { code: "SETUP_FAILED", message: error instanceof Error ? error.message : "boom" } },
+            400,
+            "req-setup-complete"
+          )
+        }
+      }
+
+      throw new Error(`Unhandled fetch in setup.test.tsx: ${method} ${url.pathname}`)
+    }) as typeof globalThis.fetch
+  })
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
   })
 
   it("submits setup details and navigates to login", async () => {
+    const { wrapper } = createWrapper()
     let receivedPayload: {
       workspaceName: string
       adminEmail: string
@@ -85,10 +127,13 @@ describe("SetupPage", () => {
           <Route path="/setup" element={<SetupPage />} />
           <Route path="/login" element={<div>Login destination</div>} />
         </Routes>
-      </MemoryRouter>
+      </MemoryRouter>,
+      { wrapper }
     )
 
-    fireEvent.click(view.getByRole("button", { name: "Complete Setup" }))
+    await act(async () => {
+      fireEvent.click(view.getByRole("button", { name: "Complete Setup" }))
+    })
 
     await waitFor(() => {
       expect(receivedPayload).toEqual(SETUP_FIXTURE)
@@ -100,6 +145,8 @@ describe("SetupPage", () => {
   })
 
   it("surfaces errors when complete fails", async () => {
+    const { wrapper } = createWrapper()
+
     completeImpl = async () => {
       throw new Error("boom")
     }
@@ -110,13 +157,16 @@ describe("SetupPage", () => {
           <Route path="/setup" element={<SetupPage />} />
           <Route path="/login" element={<div>Login destination</div>} />
         </Routes>
-      </MemoryRouter>
+      </MemoryRouter>,
+      { wrapper }
     )
 
-    fireEvent.click(view.getByRole("button", { name: "Complete Setup" }))
+    await act(async () => {
+      fireEvent.click(view.getByRole("button", { name: "Complete Setup" }))
+    })
 
     await waitFor(() => {
-      expect(view.getByText("An unexpected error occurred")).toBeDefined()
+      expect(view.getByText("boom")).toBeDefined()
     })
 
     expect(view.queryByText("Login destination")).toBeNull()

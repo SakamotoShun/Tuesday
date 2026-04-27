@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { docService } from '../services';
 import { auth, requireProjectAccess } from '../middleware';
+import { requireRouteParam } from '../utils/route-params';
 import { success, errors } from '../utils/response';
 import { validateBody, formatValidationErrors, createDocSchema, updateDocSchema, updateDocSharesSchema } from '../utils/validation';
 
@@ -13,7 +14,7 @@ docs.use('*', auth);
 docs.get('/projects/:id/docs', requireProjectAccess, async (c) => {
   try {
     const user = c.get('user');
-    const projectId = c.req.param('id');
+    const projectId = requireRouteParam(c, 'id');
     const projectDocs = await docService.getProjectDocs(projectId, user);
     return success(c, projectDocs);
   } catch (error) {
@@ -29,7 +30,7 @@ docs.get('/projects/:id/docs', requireProjectAccess, async (c) => {
 docs.post('/projects/:id/docs', requireProjectAccess, async (c) => {
   try {
     const user = c.get('user');
-    const projectId = c.req.param('id');
+    const projectId = requireRouteParam(c, 'id');
     const body = await c.req.json();
 
     const validation = validateBody(createDocSchema, body);
@@ -93,7 +94,7 @@ docs.post('/personal', async (c) => {
 docs.get('/:id/children', async (c) => {
   try {
     const user = c.get('user');
-    const docId = c.req.param('id');
+    const docId = requireRouteParam(c, 'id');
 
     const doc = await docService.getDocWithChildren(docId, user);
 
@@ -115,7 +116,7 @@ docs.get('/:id/children', async (c) => {
 docs.get('/:id', async (c) => {
   try {
     const user = c.get('user');
-    const docId = c.req.param('id');
+    const docId = requireRouteParam(c, 'id');
 
     const doc = await docService.getDoc(docId, user);
 
@@ -137,7 +138,7 @@ docs.get('/:id', async (c) => {
 docs.get('/:id/shares', async (c) => {
   try {
     const user = c.get('user');
-    const docId = c.req.param('id');
+    const docId = requireRouteParam(c, 'id');
 
     const shares = await docService.listDocShares(docId, user);
     if (!shares) {
@@ -161,7 +162,7 @@ docs.get('/:id/shares', async (c) => {
 docs.put('/:id/shares', async (c) => {
   try {
     const user = c.get('user');
-    const docId = c.req.param('id');
+    const docId = requireRouteParam(c, 'id');
     const body = await c.req.json();
 
     const validation = validateBody(updateDocSharesSchema, body);
@@ -191,7 +192,7 @@ docs.put('/:id/shares', async (c) => {
 docs.get('/:id/share-link', async (c) => {
   try {
     const user = c.get('user');
-    const docId = c.req.param('id');
+    const docId = requireRouteParam(c, 'id');
     const shareLink = await docService.getDocPublicShareLink(docId, user);
     return success(c, shareLink);
   } catch (error) {
@@ -213,7 +214,7 @@ docs.get('/:id/share-link', async (c) => {
 docs.put('/:id/share-link', async (c) => {
   try {
     const user = c.get('user');
-    const docId = c.req.param('id');
+    const docId = requireRouteParam(c, 'id');
     const shareLink = await docService.createDocPublicShareLink(docId, user);
     return success(c, shareLink);
   } catch (error) {
@@ -235,7 +236,7 @@ docs.put('/:id/share-link', async (c) => {
 docs.delete('/:id/share-link', async (c) => {
   try {
     const user = c.get('user');
-    const docId = c.req.param('id');
+    const docId = requireRouteParam(c, 'id');
     const deleted = await docService.deleteDocPublicShareLink(docId, user);
     return success(c, { deleted });
   } catch (error) {
@@ -257,7 +258,7 @@ docs.delete('/:id/share-link', async (c) => {
 docs.patch('/:id', async (c) => {
   try {
     const user = c.get('user');
-    const docId = c.req.param('id');
+    const docId = requireRouteParam(c, 'id');
     const body = await c.req.json();
 
     const validation = validateBody(updateDocSchema, body);
@@ -285,7 +286,7 @@ docs.patch('/:id', async (c) => {
 docs.delete('/:id', async (c) => {
   try {
     const user = c.get('user');
-    const docId = c.req.param('id');
+    const docId = requireRouteParam(c, 'id');
 
     const deleted = await docService.deleteDoc(docId, user);
 

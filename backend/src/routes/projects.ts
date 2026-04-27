@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { projectService, taskService, timeEntryService } from '../services';
 import { auth, requireProjectMember, requireProjectOwner } from '../middleware';
+import { requireRouteParam } from '../utils/route-params';
 import { success, errors } from '../utils/response';
 import { 
   validateBody, 
@@ -78,7 +79,7 @@ projects.get('/:id', requireProjectMember, async (c) => {
 projects.patch('/:id', requireProjectOwner, async (c) => {
   try {
     const user = c.get('user');
-    const projectId = c.req.param('id');
+    const projectId = requireRouteParam(c, 'id');
     const body = await c.req.json();
 
     const validation = validateBody(updateProjectSchema, body);
@@ -106,7 +107,7 @@ projects.patch('/:id', requireProjectOwner, async (c) => {
 projects.delete('/:id', requireProjectOwner, async (c) => {
   try {
     const user = c.get('user');
-    const projectId = c.req.param('id');
+    const projectId = requireRouteParam(c, 'id');
 
     const deleted = await projectService.deleteProject(projectId, user);
     
@@ -128,7 +129,7 @@ projects.delete('/:id', requireProjectOwner, async (c) => {
 projects.get('/:id/members', requireProjectMember, async (c) => {
   try {
     const user = c.get('user');
-    const projectId = c.req.param('id');
+    const projectId = requireRouteParam(c, 'id');
     const members = await projectService.getMembers(projectId, user);
     return success(c, members);
   } catch (error) {
@@ -144,7 +145,7 @@ projects.get('/:id/members', requireProjectMember, async (c) => {
 projects.get('/:id/teams', requireProjectOwner, async (c) => {
   try {
     const user = c.get('user');
-    const projectId = c.req.param('id');
+    const projectId = requireRouteParam(c, 'id');
     const teams = await projectService.getAssignedTeams(projectId, user);
     return success(c, teams);
   } catch (error) {
@@ -160,7 +161,7 @@ projects.get('/:id/teams', requireProjectOwner, async (c) => {
 projects.post('/:id/members', requireProjectOwner, async (c) => {
   try {
     const user = c.get('user');
-    const projectId = c.req.param('id');
+    const projectId = requireRouteParam(c, 'id');
     const body = await c.req.json();
 
     const validation = validateBody(addMemberSchema, body);
@@ -189,8 +190,8 @@ projects.post('/:id/members', requireProjectOwner, async (c) => {
 projects.patch('/:id/members/:userId', requireProjectOwner, async (c) => {
   try {
     const user = c.get('user');
-    const projectId = c.req.param('id');
-    const memberUserId = c.req.param('userId');
+    const projectId = requireRouteParam(c, 'id');
+    const memberUserId = requireRouteParam(c, 'userId');
     const body = await c.req.json();
 
     const validation = validateBody(updateMemberSchema, body);
@@ -223,8 +224,8 @@ projects.patch('/:id/members/:userId', requireProjectOwner, async (c) => {
 projects.delete('/:id/members/:userId', requireProjectOwner, async (c) => {
   try {
     const user = c.get('user');
-    const projectId = c.req.param('id');
-    const memberUserId = c.req.param('userId');
+    const projectId = requireRouteParam(c, 'id');
+    const memberUserId = requireRouteParam(c, 'userId');
 
     const removed = await projectService.removeMember(projectId, memberUserId, user);
 
@@ -245,7 +246,7 @@ projects.delete('/:id/members/:userId', requireProjectOwner, async (c) => {
 projects.get('/:id/tasks', requireProjectMember, async (c) => {
   try {
     const user = c.get('user');
-    const projectId = c.req.param('id');
+    const projectId = requireRouteParam(c, 'id');
     
     // Parse query filters
     const query = c.req.query();
@@ -269,7 +270,7 @@ projects.get('/:id/tasks', requireProjectMember, async (c) => {
 projects.post('/:id/tasks', requireProjectMember, async (c) => {
   try {
     const user = c.get('user');
-    const projectId = c.req.param('id');
+    const projectId = requireRouteParam(c, 'id');
     const body = await c.req.json();
 
     const validation = validateBody(createTaskSchema, body);
@@ -292,7 +293,7 @@ projects.post('/:id/tasks', requireProjectMember, async (c) => {
 projects.get('/:id/time-entries', requireProjectOwner, async (c) => {
   try {
     const user = c.get('user');
-    const projectId = c.req.param('id');
+    const projectId = requireRouteParam(c, 'id');
     const week = c.req.query('week');
 
     if (!week) {
@@ -319,7 +320,7 @@ projects.get('/:id/time-entries', requireProjectOwner, async (c) => {
 projects.get('/:id/time-entries/overview', requireProjectOwner, async (c) => {
   try {
     const user = c.get('user');
-    const projectId = c.req.param('id');
+    const projectId = requireRouteParam(c, 'id');
     const month = c.req.query('month');
 
     if (!month) {
@@ -347,7 +348,7 @@ projects.get('/:id/time-entries/overview', requireProjectOwner, async (c) => {
 projects.get('/:id/time-entries/export', requireProjectOwner, async (c) => {
   try {
     const user = c.get('user');
-    const projectId = c.req.param('id');
+    const projectId = requireRouteParam(c, 'id');
     const start = c.req.query('start');
     const end = c.req.query('end');
 

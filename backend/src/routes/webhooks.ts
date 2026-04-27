@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { webhookRateLimit } from '../middleware';
 import { botService } from '../services/bot';
+import { requireRouteParam } from '../utils/route-params';
 import { success, errors } from '../utils/response';
 import { validateBody, formatValidationErrors, webhookMessageSchema } from '../utils/validation';
 
@@ -9,9 +10,9 @@ const webhooks = new Hono();
 // POST /api/v1/webhooks/:botId/:token/channels/:channelId - Post a bot message
 webhooks.post('/:botId/:token/channels/:channelId', webhookRateLimit, async (c) => {
   try {
-    const botId = c.req.param('botId');
-    const token = c.req.param('token');
-    const channelId = c.req.param('channelId');
+    const botId = requireRouteParam(c, 'botId');
+    const token = requireRouteParam(c, 'token');
+    const channelId = requireRouteParam(c, 'channelId');
     const body = await c.req.json();
 
     const validation = validateBody(webhookMessageSchema, body);

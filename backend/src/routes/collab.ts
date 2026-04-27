@@ -7,6 +7,7 @@ import { resolveDocSnapshotSeq, shouldPersistCanonicalDocContent } from '../coll
 import { whiteboardCollabHub } from '../collab/whiteboardHub';
 import type { User } from '../types';
 import { extractSearchTextFromDocContent } from '../utils/doc-search';
+import { requireRouteParam } from '../utils/route-params';
 import { sendWebSocketMessage, safeCloseWebSocket } from '../utils/websocket';
 
 type CollabMessage =
@@ -45,7 +46,7 @@ const decodeBase64 = (data: string) => Uint8Array.from(Buffer.from(data, 'base64
 collab.get(
   '/docs/:id',
   upgradeWebSocket((c) => {
-    const docId = c.req.param('id');
+    const docId = requireRouteParam(c, 'id');
     const sessionId = c.req.header('Cookie')?.match(/session_id=([^;]+)/)?.[1];
     let user: User | null = null;
 
@@ -181,7 +182,7 @@ collab.get(
 collab.get(
   '/whiteboards/:id',
   upgradeWebSocket((c) => {
-    const whiteboardId = c.req.param('id');
+    const whiteboardId = requireRouteParam(c, 'id');
     const sessionId = c.req.header('Cookie')?.match(/session_id=([^;]+)/)?.[1];
     let user: User | null = null;
 

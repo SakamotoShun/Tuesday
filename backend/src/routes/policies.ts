@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { auth, requireAdmin } from '../middleware';
 import { policyService } from '../services';
+import { requireRouteParam } from '../utils/route-params';
 import { success, errors } from '../utils/response';
 import {
   createDocSchema,
@@ -57,7 +58,7 @@ policies.post('/', requireAdmin, async (c) => {
 policies.post('/:id/rows', requireAdmin, async (c) => {
   try {
     const user = c.get('user');
-    const databaseId = c.req.param('id');
+    const databaseId = requireRouteParam(c, 'id');
     const body = await c.req.json();
 
     const validation = validateBody(createDocSchema, body);
@@ -88,8 +89,8 @@ policies.post('/:id/rows', requireAdmin, async (c) => {
 // GET /api/v1/policies/:id/rows/:rowId - Get policy row
 policies.get('/:id/rows/:rowId', async (c) => {
   try {
-    const databaseId = c.req.param('id');
-    const rowId = c.req.param('rowId');
+    const databaseId = requireRouteParam(c, 'id');
+    const rowId = requireRouteParam(c, 'rowId');
 
     const row = await policyService.getRow(databaseId, rowId);
     if (!row) {
@@ -110,8 +111,8 @@ policies.get('/:id/rows/:rowId', async (c) => {
 policies.patch('/:id/rows/:rowId', requireAdmin, async (c) => {
   try {
     const user = c.get('user');
-    const databaseId = c.req.param('id');
-    const rowId = c.req.param('rowId');
+    const databaseId = requireRouteParam(c, 'id');
+    const rowId = requireRouteParam(c, 'rowId');
     const body = await c.req.json();
 
     const validation = validateBody(updateDocSchema, body);
@@ -138,8 +139,8 @@ policies.patch('/:id/rows/:rowId', requireAdmin, async (c) => {
 policies.delete('/:id/rows/:rowId', requireAdmin, async (c) => {
   try {
     const user = c.get('user');
-    const databaseId = c.req.param('id');
-    const rowId = c.req.param('rowId');
+    const databaseId = requireRouteParam(c, 'id');
+    const rowId = requireRouteParam(c, 'rowId');
 
     const deleted = await policyService.deleteRow(databaseId, rowId, user);
     if (!deleted) {
@@ -159,7 +160,7 @@ policies.delete('/:id/rows/:rowId', requireAdmin, async (c) => {
 // GET /api/v1/policies/:id - Get policy database with rows
 policies.get('/:id', async (c) => {
   try {
-    const databaseId = c.req.param('id');
+    const databaseId = requireRouteParam(c, 'id');
     const database = await policyService.getDatabaseWithRows(databaseId);
 
     if (!database) {
@@ -180,7 +181,7 @@ policies.get('/:id', async (c) => {
 policies.patch('/:id', requireAdmin, async (c) => {
   try {
     const user = c.get('user');
-    const databaseId = c.req.param('id');
+    const databaseId = requireRouteParam(c, 'id');
     const body = await c.req.json();
 
     const validation = validateBody(updateDocSchema, body);
@@ -215,7 +216,7 @@ policies.patch('/:id', requireAdmin, async (c) => {
 policies.delete('/:id', requireAdmin, async (c) => {
   try {
     const user = c.get('user');
-    const databaseId = c.req.param('id');
+    const databaseId = requireRouteParam(c, 'id');
 
     const deleted = await policyService.deleteDatabase(databaseId, user);
     if (!deleted) {

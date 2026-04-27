@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { whiteboardService } from '../services';
 import { auth, requireProjectAccess } from '../middleware';
+import { requireRouteParam } from '../utils/route-params';
 import { success, errors } from '../utils/response';
 import { validateBody, formatValidationErrors, createWhiteboardSchema, updateWhiteboardSchema } from '../utils/validation';
 
@@ -13,7 +14,7 @@ whiteboards.use('*', auth);
 whiteboards.get('/projects/:id/whiteboards', requireProjectAccess, async (c) => {
   try {
     const user = c.get('user');
-    const projectId = c.req.param('id');
+    const projectId = requireRouteParam(c, 'id');
     const projectWhiteboards = await whiteboardService.getProjectWhiteboards(projectId, user);
     return success(c, projectWhiteboards);
   } catch (error) {
@@ -29,7 +30,7 @@ whiteboards.get('/projects/:id/whiteboards', requireProjectAccess, async (c) => 
 whiteboards.post('/projects/:id/whiteboards', requireProjectAccess, async (c) => {
   try {
     const user = c.get('user');
-    const projectId = c.req.param('id');
+    const projectId = requireRouteParam(c, 'id');
     const body = await c.req.json();
 
     const validation = validateBody(createWhiteboardSchema, body);
@@ -52,7 +53,7 @@ whiteboards.post('/projects/:id/whiteboards', requireProjectAccess, async (c) =>
 whiteboards.get('/:id', async (c) => {
   try {
     const user = c.get('user');
-    const whiteboardId = c.req.param('id');
+    const whiteboardId = requireRouteParam(c, 'id');
 
     const whiteboard = await whiteboardService.getWhiteboard(whiteboardId, user);
 
@@ -74,7 +75,7 @@ whiteboards.get('/:id', async (c) => {
 whiteboards.patch('/:id', async (c) => {
   try {
     const user = c.get('user');
-    const whiteboardId = c.req.param('id');
+    const whiteboardId = requireRouteParam(c, 'id');
     const body = await c.req.json();
 
     const validation = validateBody(updateWhiteboardSchema, body);
@@ -102,7 +103,7 @@ whiteboards.patch('/:id', async (c) => {
 whiteboards.delete('/:id', async (c) => {
   try {
     const user = c.get('user');
-    const whiteboardId = c.req.param('id');
+    const whiteboardId = requireRouteParam(c, 'id');
 
     const deleted = await whiteboardService.deleteWhiteboard(whiteboardId, user);
 
