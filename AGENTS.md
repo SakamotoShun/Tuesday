@@ -390,7 +390,7 @@ app.use('*', async (c, next) => {
 });
 ```
 
-- Set `TRUST_PROXY=true` only behind a reverse proxy that strips client-supplied `X-Forwarded-*` headers. This is required before trusting forwarded host/protocol data for same-origin checks and forwarded client IPs for rate limiting.
+- Set `TRUST_PROXY=true` only behind a reverse proxy that strips client-supplied `X-Forwarded-*` headers. This is required before trusting forwarded host/protocol data for same-origin checks, forwarded client IPs for rate limiting, and forwarded client IPs in session audit records.
 - When `NODE_ENV=development`, localhost browser origins (`http://localhost:*`, `http://127.0.0.1:*`, and `http://[::1]:*`) are auto-allowed for CORS. Production still requires explicit `CORS_ORIGIN` entries for public origins.
 
 ### SQL Injection Prevention

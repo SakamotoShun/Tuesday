@@ -57,10 +57,12 @@ const client = async (strings: TemplateStringsArray, ...values: unknown[]) => {
 mock.module('../config', () => ({ config }));
 mock.module('../db/client', () => ({ client }));
 
+const { requestContext } = await import('./request-context');
 const { rateLimit } = await import('./ratelimit');
 
 function createApp(name: string) {
   const app = new Hono();
+  app.use('*', requestContext);
   app.use(
     '*',
     rateLimit({

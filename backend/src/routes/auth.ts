@@ -11,6 +11,7 @@ import {
 } from '../utils/validation';
 import { success, errors } from '../utils/response';
 import { auth, authRateLimit } from '../middleware';
+import { getRequestClientIp } from '../middleware/request-context';
 import { config } from '../config';
 import type { User } from '../types';
 
@@ -76,7 +77,7 @@ authRouter.post('/login', authRateLimit, async (c) => {
     }
 
     // Get client info
-    const ip = c.req.header('X-Forwarded-For') || c.req.header('X-Real-IP');
+    const ip = getRequestClientIp(c);
     const userAgent = c.req.header('User-Agent');
 
     // Login

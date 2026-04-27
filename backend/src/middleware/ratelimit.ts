@@ -1,9 +1,9 @@
 import type { Context, Next } from 'hono';
-import { getConnInfo } from 'hono/bun';
 import { errors } from '../utils/response';
 import { config } from '../config';
 import { client } from '../db/client';
 import { log } from '../utils/logger';
+import { getRequestClientIp } from './request-context';
 
 interface RateLimitEntry {
   count: number;
@@ -30,66 +30,8 @@ interface RateLimitResult {
   resetTime: number;
 }
 
-function normalizeIp(value: string) {
-  const trimmed = value.trim();
-
-  if (!trimmed || trimmed.toLowerCase() === 'unknown') {
-    return null;
-  }
-
-  if (trimmed.startsWith('[')) {
-    const closingIndex = trimmed.indexOf(']');
-    if (closingIndex > 1) {
-      return trimmed.slice(1, closingIndex);
-    }
-  }
-
-  const ipv4WithPort = trimmed.match(/^(\d{1,3}(?:\.\d{1,3}){3}):(\d+)$/);
-  if (ipv4WithPort) {
-    return ipv4WithPort[1];
-  }
-
-  return trimmed;
-}
-
-function getForwardedClientIp(c: Context) {
-  if (!config.trustProxy) {
-    return null;
-  }
-
-  const forwardedFor = c.req.header('X-Forwarded-For');
-  if (forwardedFor) {
-    for (const entry of forwardedFor.split(',')) {
-      const normalized = normalizeIp(entry);
-      if (normalized) {
-        return normalized;
-      }
-    }
-  }
-
-  const realIp = normalizeIp(c.req.header('X-Real-IP') || '');
-  if (realIp) {
-    return realIp;
-  }
-
-  return null;
-}
-
-function getSocketClientIp(c: Context) {
-  try {
-    const info = getConnInfo(c);
-    return info.remote.address ? normalizeIp(info.remote.address) : null;
-  } catch {
-    return null;
-  }
-}
-
-function getClientIp(c: Context) {
-  return getForwardedClientIp(c) ?? getSocketClientIp(c);
-}
-
 function getRateLimitKey(c: Context, requireIp: boolean) {
-  const clientIp = getClientIp(c);
+  const clientIp = getRequestClientIp(c);
   if (clientIp) {
     return clientIp;
   }
