@@ -33,6 +33,14 @@ function isSameOrigin(origin: string, requestUrl: string) {
   }
 }
 
+function isSameOriginWithPublicBaseUrl(origin: string) {
+  if (!config.publicBaseUrl) {
+    return false;
+  }
+
+  return isSameOrigin(origin, config.publicBaseUrl);
+}
+
 function isAllowedDevelopmentOrigin(origin: string) {
   if (config.nodeEnv !== 'development') {
     return false;
@@ -56,7 +64,9 @@ function isAllowedDevelopmentOrigin(origin: string) {
 export async function cors(c: Context, next: Next) {
   const origin = c.req.header('Origin');
   const allowOrigin = origin && (config.corsOrigins.includes(origin) || isAllowedDevelopmentOrigin(origin)) ? origin : null;
-  const sameOrigin = origin ? isSameOrigin(origin, getEffectiveRequestUrl(c)) : false;
+  const sameOrigin = origin
+    ? isSameOrigin(origin, getEffectiveRequestUrl(c)) || isSameOriginWithPublicBaseUrl(origin)
+    : false;
 
   c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Request-Id');

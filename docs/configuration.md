@@ -7,7 +7,7 @@ Tuesday is configured via environment variables. All settings have sensible defa
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `TUESDAY_PORT` | `7002` | Host port to expose (used in docker-compose.yml) |
-| `TUESDAY_BASE_URL` | `http://localhost:7002` | Public URL for the instance |
+| `TUESDAY_BASE_URL` | `http://localhost:7002` | Public URL for the instance, used for links and same-origin checks behind proxies |
 | `PORT` | `8080` | Internal server listening port |
 | `NODE_ENV` | `production` | Environment mode (`development`, `production`, `test`) |
 
