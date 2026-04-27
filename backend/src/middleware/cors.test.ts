@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 const config = {
   corsOrigins: ['https://allowed.example'],
   nodeEnv: 'production',
+  publicBaseUrl: undefined as string | undefined,
   trustProxy: false,
 };
 
@@ -16,6 +17,7 @@ const { cors } = await import('./cors');
 describe('cors middleware', () => {
   beforeEach(() => {
     config.nodeEnv = 'production';
+    config.publicBaseUrl = undefined;
     config.trustProxy = false;
   });
 
@@ -132,6 +134,30 @@ describe('cors middleware', () => {
 
     const response = await app.request('http://internal.service/', {
       method: 'POST',
+      headers: {
+        Origin: 'https://workhub.example.com',
+        Host: 'internal.service',
+        'X-Forwarded-Host': 'workhub.example.com',
+        'X-Forwarded-Proto': 'https',
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(handlerReached).toBe(true);
+  });
+
+  it('allows same-origin requests via configured public base URL without trusting proxy headers', async () => {
+    config.publicBaseUrl = 'https://workhub.example.com';
+
+    let handlerReached = false;
+    const app = new Hono();
+    app.use('*', cors);
+    app.get('/', (c) => {
+      handlerReached = true;
+      return c.text('ok');
+    });
+
+    const response = await app.request('http://internal.service/', {
       headers: {
         Origin: 'https://workhub.example.com',
         Host: 'internal.service',

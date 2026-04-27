@@ -224,7 +224,7 @@ All settings are optional with sensible defaults.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `TUESDAY_PORT` | `7002` | Host port mapping |
-| `TUESDAY_BASE_URL` | `http://localhost:7002` | Public URL |
+| `TUESDAY_BASE_URL` | `http://localhost:7002` | Public URL for links and proxied same-origin checks |
 | `SESSION_SECRET` | Auto-generated | Session signing key (min 32 chars) |
 | `SESSION_DURATION_HOURS` | `24` | Session expiry |
 | `UPLOAD_MAX_SIZE_MB` | `10` | Max upload size |

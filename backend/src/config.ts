@@ -5,6 +5,7 @@ const configSchema = z.object({
   databaseUrl: z.string().min(1),
   port: z.number().int().min(1).max(65535),
   nodeEnv: z.enum(['development', 'production', 'test']),
+  publicBaseUrl: z.string().url().optional(),
   sessionSecret: z.string().min(32),
   sessionDurationHours: z.number().int().min(1).max(720),
   corsOrigin: z.string().min(1),
@@ -31,6 +32,7 @@ function loadConfig(): Config {
     .split(',')
     .map((entry) => entry.trim())
     .filter(Boolean);
+  const publicBaseUrl = process.env.TUESDAY_BASE_URL?.trim().replace(/\/+$/, '') || undefined;
 
   if (nodeEnv === 'production' && corsOrigins.length === 0) {
     console.error('Configuration validation failed: CORS_ORIGIN must be set in production');
@@ -41,6 +43,7 @@ function loadConfig(): Config {
     databaseUrl: process.env.DATABASE_URL || 'postgresql://tuesday:tuesday@localhost:5432/tuesday',
     port: parseInt(process.env.PORT || '8080', 10),
     nodeEnv,
+    publicBaseUrl,
     sessionSecret: process.env.SESSION_SECRET || 'default-secret-change-in-production-min-32-chars',
     sessionDurationHours: parseInt(process.env.SESSION_DURATION_HOURS || '24', 10),
     corsOrigin: corsOrigins[0] || 'http://localhost:5173',
