@@ -343,7 +343,7 @@ describe('AuthService', () => {
   });
 
   it('creates and emails a password reset token', async () => {
-    let deletedArgs: { userId: string; type: string } | null = null;
+    let deletedArgs: { userId: string; type: string } | undefined;
     let createdToken: any = null;
     let emailInput: any = null;
 
@@ -373,7 +373,8 @@ describe('AuthService', () => {
 
     await authService.requestPasswordReset('test@example.com');
 
-    expect(deletedArgs).toEqual({ userId: 'user-1', type: TokenType.PASSWORD_RESET });
+    expect(deletedArgs).toBeDefined();
+    expect(deletedArgs!).toEqual({ userId: 'user-1', type: TokenType.PASSWORD_RESET });
     expect(createdToken).toMatchObject({
       userId: 'user-1',
       type: TokenType.PASSWORD_RESET,
@@ -424,9 +425,9 @@ describe('AuthService', () => {
   it('consumes a reset token, updates the password, and invalidates sessions', async () => {
     const token = 'reset-token';
     const tokenHash = createHash('sha256').update(token).digest('hex');
-    let lookupArgs: { tokenHash: string; type: string } | null = null;
+    let lookupArgs: { tokenHash: string; type: string } | undefined;
     let markedUsedId = '';
-    let updatedUser: { id: string; data: any } | null = null;
+    let updatedUser: { id: string; data: any } | undefined;
     let invalidatedUserId = '';
     let emailInput: any = null;
 
@@ -463,11 +464,13 @@ describe('AuthService', () => {
 
     await authService.resetPassword(token, 'new-password-123');
 
-    expect(lookupArgs).toEqual({ tokenHash, type: TokenType.PASSWORD_RESET });
+    expect(lookupArgs).toBeDefined();
+    expect(lookupArgs!).toEqual({ tokenHash, type: TokenType.PASSWORD_RESET });
     expect(markedUsedId).toBe('token-1');
-    expect(updatedUser?.id).toBe('user-1');
-    expect(updatedUser?.data.passwordHash).not.toBe('new-password-123');
-    expect(updatedUser?.data.passwordHash.startsWith('$2')).toBe(true);
+    expect(updatedUser).toBeDefined();
+    expect(updatedUser!.id).toBe('user-1');
+    expect(updatedUser!.data.passwordHash).not.toBe('new-password-123');
+    expect(updatedUser!.data.passwordHash.startsWith('$2')).toBe(true);
     expect(invalidatedUserId).toBe('user-1');
     expect(emailInput).toEqual({
       to: 'test@example.com',
