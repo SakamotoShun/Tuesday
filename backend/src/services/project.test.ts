@@ -96,7 +96,7 @@ mock.module('./file', () => ({
   },
 }));
 
-const { projectService } = await import('./project.ts');
+const { projectService } = await import('./project');
 const { activityService } = await import('./activity');
 const originalRecord = activityService.record.bind(activityService);
 

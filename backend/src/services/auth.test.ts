@@ -69,7 +69,7 @@ mock.module('./email', () => ({
   },
 }));
 
-const { authService } = await import('./auth.ts');
+const { authService } = await import('./auth');
 
 describe('AuthService', () => {
   beforeEach(() => {
