@@ -1,9 +1,14 @@
 import { Hono } from 'hono';
 import { upgradeWebSocket } from '../websocket';
-import { docCollabRepository, docRepository, whiteboardCollabRepository, whiteboardRepository } from '../repositories';
-import { docCollabHub } from '../collab/hub';
+import {
+  docCollabRepository as defaultDocCollabRepository,
+  docRepository as defaultDocRepository,
+  whiteboardCollabRepository as defaultWhiteboardCollabRepository,
+  whiteboardRepository as defaultWhiteboardRepository,
+} from '../repositories';
+import { docCollabHub as defaultDocCollabHub } from '../collab/hub';
 import { resolveDocSnapshotSeq, shouldPersistCanonicalDocContent } from '../collab/docSnapshot';
-import { whiteboardCollabHub } from '../collab/whiteboardHub';
+import { whiteboardCollabHub as defaultWhiteboardCollabHub } from '../collab/whiteboardHub';
 import type { User } from '../types';
 import { extractSearchTextFromDocContent } from '../utils/doc-search';
 import { requireRouteParam } from '../utils/route-params';
@@ -67,15 +72,33 @@ const defaultGetWhiteboard: GetWhiteboard = async (whiteboardId, user) => {
 let validateSession: ValidateSession = defaultValidateSession;
 let getDoc: GetDoc = defaultGetDoc;
 let getWhiteboard: GetWhiteboard = defaultGetWhiteboard;
+let docCollabRepository = defaultDocCollabRepository;
+let docRepository = defaultDocRepository;
+let whiteboardCollabRepository = defaultWhiteboardCollabRepository;
+let whiteboardRepository = defaultWhiteboardRepository;
+let docCollabHub = defaultDocCollabHub;
+let whiteboardCollabHub = defaultWhiteboardCollabHub;
 
 export function setCollabDependenciesForTests(deps: {
   validateSession?: ValidateSession;
   getDoc?: GetDoc;
   getWhiteboard?: GetWhiteboard;
+  docCollabRepository?: typeof defaultDocCollabRepository;
+  docRepository?: typeof defaultDocRepository;
+  whiteboardCollabRepository?: typeof defaultWhiteboardCollabRepository;
+  whiteboardRepository?: typeof defaultWhiteboardRepository;
+  docCollabHub?: typeof defaultDocCollabHub;
+  whiteboardCollabHub?: typeof defaultWhiteboardCollabHub;
 } | null): void {
   validateSession = deps?.validateSession ?? defaultValidateSession;
   getDoc = deps?.getDoc ?? defaultGetDoc;
   getWhiteboard = deps?.getWhiteboard ?? defaultGetWhiteboard;
+  docCollabRepository = deps?.docCollabRepository ?? defaultDocCollabRepository;
+  docRepository = deps?.docRepository ?? defaultDocRepository;
+  whiteboardCollabRepository = deps?.whiteboardCollabRepository ?? defaultWhiteboardCollabRepository;
+  whiteboardRepository = deps?.whiteboardRepository ?? defaultWhiteboardRepository;
+  docCollabHub = deps?.docCollabHub ?? defaultDocCollabHub;
+  whiteboardCollabHub = deps?.whiteboardCollabHub ?? defaultWhiteboardCollabHub;
 }
 
 function sendReadOnlyError(

@@ -5,6 +5,7 @@ let findById: (...args: any[]) => Promise<any> = async () => null;
 let createWhiteboard: (...args: any[]) => Promise<any> = async (data) => ({ id: 'whiteboard-1', ...data });
 let updateWhiteboard: (...args: any[]) => Promise<any> = async (_id, data) => ({ id: 'whiteboard-1', ...data });
 let deleteWhiteboard: (...args: any[]) => Promise<any> = async () => true;
+let hasProjectAccess: (...args: any[]) => Promise<any> = async () => true;
 
 mock.module('../repositories/whiteboard', () => ({
   WhiteboardRepository: class {},
@@ -17,17 +18,12 @@ mock.module('../repositories/whiteboard', () => ({
   },
 }));
 
-mock.module('./project', () => ({
-  ProjectService: class {},
-  projectService: {
-    hasAccess: async () => true,
-    isOwner: async () => false,
-  },
-}));
-
-const { whiteboardService } = await import('./whiteboard');
+const { WhiteboardService } = await import('./whiteboard');
 const { activityService } = await import('./activity');
 const originalRecord = activityService.record.bind(activityService);
+const whiteboardService = new WhiteboardService({
+  hasAccess: (projectId: string, user: typeof memberUser) => hasProjectAccess(projectId, user),
+});
 
 const memberUser = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -57,6 +53,7 @@ describe('WhiteboardService', () => {
     createWhiteboard = async (data) => ({ id: 'whiteboard-1', ...data });
     updateWhiteboard = async (_id, data) => ({ id: 'whiteboard-1', ...data });
     deleteWhiteboard = async () => true;
+    hasProjectAccess = async () => true;
     activityService.record = async () => {};
   });
 

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, mock } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { Hono } from 'hono';
 
 // Mutable mock returns — reassigned per test group
@@ -12,48 +12,6 @@ const freelancerUser = {
   createdAt: new Date(),
   updatedAt: new Date(),
 };
-
-mock.module('../repositories', () => ({
-  docCollabRepository: {
-    getLatestSnapshot: async () => null,
-    getUpdatesSince: async () => [],
-    getLatestSeq: async () => 0,
-    appendUpdate: async () => 1,
-    createSnapshot: async () => {},
-    compactHistory: async () => {},
-  },
-  docRepository: { update: async () => ({}) },
-  whiteboardCollabRepository: {
-    getLatestSnapshot: async () => null,
-    getUpdatesSince: async () => [],
-    getLatestSeq: async () => 0,
-    appendUpdate: async () => 1,
-    createSnapshot: async () => {},
-    compactHistory: async () => {},
-  },
-  whiteboardRepository: { update: async () => ({}) },
-}));
-
-mock.module('../collab/hub', () => ({
-  docCollabHub: {
-    join: () => true,
-    leave: () => {},
-    broadcast: () => {},
-    shouldRequestSnapshot: () => false,
-    getStats: () => ({ activeRooms: 0, clients: 0 }),
-  },
-}));
-
-mock.module('../collab/whiteboardHub', () => ({
-  whiteboardCollabHub: {
-    join: () => true,
-    leave: () => {},
-    broadcast: () => {},
-    shouldRequestSnapshot: () => false,
-    listCollaborators: () => [],
-    getStats: () => ({ activeRooms: 0, clients: 0 }),
-  },
-}));
 
 const { collab, setCollabDependenciesForTests } = await import('./collab');
 const { websocket } = await import('../websocket');
@@ -69,6 +27,39 @@ beforeAll(() => {
     validateSession: async () => freelancerUser,
     getDoc: async () => ({ id: 'doc-1', projectId: 'proj-1', title: 'Test', createdBy: 'admin-1' } as any),
     getWhiteboard: async () => ({ id: 'wb-1', projectId: 'proj-1', title: 'Test WB', data: null } as any),
+    docCollabRepository: {
+      getLatestSnapshot: async () => null,
+      getUpdatesSince: async () => [],
+      getLatestSeq: async () => 0,
+      appendUpdate: async () => 1,
+      createSnapshot: async () => {},
+      compactHistory: async () => {},
+    } as any,
+    docRepository: { update: async () => ({}) } as any,
+    whiteboardCollabRepository: {
+      getLatestSnapshot: async () => null,
+      getUpdatesSince: async () => [],
+      getLatestSeq: async () => 0,
+      appendUpdate: async () => 1,
+      createSnapshot: async () => {},
+      compactHistory: async () => {},
+    } as any,
+    whiteboardRepository: { update: async () => ({}) } as any,
+    docCollabHub: {
+      join: () => true,
+      leave: () => {},
+      broadcast: () => {},
+      shouldRequestSnapshot: () => false,
+      getStats: () => ({ activeRooms: 0, clients: 0 }),
+    } as any,
+    whiteboardCollabHub: {
+      join: () => true,
+      leave: () => {},
+      broadcast: () => {},
+      shouldRequestSnapshot: () => false,
+      listCollaborators: () => [],
+      getStats: () => ({ activeRooms: 0, clients: 0 }),
+    } as any,
   });
 
   server = Bun.serve({

@@ -5,6 +5,8 @@ import { client } from '../db/client';
 import { log } from '../utils/logger';
 import { getRequestClientIp } from './request-context';
 
+type PostgresRateLimitClient = typeof client;
+
 interface RateLimitEntry {
   count: number;
   resetTime: number;
@@ -23,6 +25,7 @@ interface RateLimitOptions {
   maxRequests: number;
   requireIp?: boolean;
   missingIpMessage?: string;
+  postgresClient?: PostgresRateLimitClient;
 }
 
 interface RateLimitResult {
@@ -93,7 +96,7 @@ function consumeMemoryRateLimit(key: string, options: RateLimitOptions, now: num
   return entry;
 }
 
-async function maybeSweepPostgresEntries(now: number) {
+async function maybeSweepPostgresEntries(now: number, postgresClient: PostgresRateLimitClient) {
   if (now - lastPostgresSweepAt < POSTGRES_SWEEP_INTERVAL_MS) {
     return;
   }
@@ -101,7 +104,7 @@ async function maybeSweepPostgresEntries(now: number) {
   lastPostgresSweepAt = now;
 
   try {
-    await client`DELETE FROM rate_limit_entries WHERE expires_at <= NOW()`;
+    await postgresClient`DELETE FROM rate_limit_entries WHERE expires_at <= NOW()`;
   } catch (error) {
     log('warn', 'rate_limit.cleanup_failed', {
       backend: 'postgres',
@@ -111,12 +114,13 @@ async function maybeSweepPostgresEntries(now: number) {
 }
 
 async function consumePostgresRateLimit(key: string, options: RateLimitOptions, now: number): Promise<RateLimitResult> {
-  await maybeSweepPostgresEntries(now);
+  const postgresClient = options.postgresClient ?? client;
+  await maybeSweepPostgresEntries(now, postgresClient);
 
   const currentTime = new Date(now);
   const nextResetTime = new Date(now + options.windowMs);
 
-  const [row] = await client<{ count: number; reset_time: number }[]>`
+  const rows = await postgresClient`
     INSERT INTO rate_limit_entries (scope, client_key, first_request_at, request_count, expires_at, updated_at)
     VALUES (
       ${options.name},
@@ -142,7 +146,8 @@ async function consumePostgresRateLimit(key: string, options: RateLimitOptions, 
       END,
       updated_at = NOW()
     RETURNING request_count::int AS count, (EXTRACT(EPOCH FROM expires_at) * 1000)::bigint AS reset_time
-  `;
+  ` as Array<{ count: number; reset_time: number }>;
+  const [row] = rows;
 
   return {
     count: Number(row?.count ?? 1),

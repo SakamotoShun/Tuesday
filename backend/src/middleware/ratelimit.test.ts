@@ -1,11 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { Hono } from 'hono';
-
-const config = {
-  rateLimitEnabled: true,
-  rateLimitBackend: 'memory' as 'memory' | 'postgres',
-  trustProxy: false,
-};
+import { config } from '../config';
 
 type PostgresRateLimitState = {
   count: number;
@@ -54,11 +49,13 @@ const client = async (strings: TemplateStringsArray, ...values: unknown[]) => {
   throw new Error(`Unexpected query: ${statement}`);
 };
 
-mock.module('../config', () => ({ config }));
-mock.module('../db/client', () => ({ client }));
-
 const { requestContext } = await import('./request-context');
 const { rateLimit } = await import('./ratelimit');
+
+const originalRateLimitEnabled = config.rateLimitEnabled;
+const originalRateLimitBackend = config.rateLimitBackend;
+const originalTrustProxy = config.trustProxy;
+const originalTrustedProxyHops = config.trustedProxyHops;
 
 function createApp(name: string) {
   const app = new Hono();
@@ -70,6 +67,7 @@ function createApp(name: string) {
       windowMs: 1_000,
       maxRequests: 1,
       requireIp: true,
+      postgresClient: client as never,
     })
   );
   app.get('/', (c) => c.text('ok'));
@@ -91,11 +89,18 @@ describe('rateLimit middleware', () => {
 
   beforeEach(() => {
     postgresState.clear();
+    config.rateLimitEnabled = true;
+    config.rateLimitBackend = 'memory';
     config.trustProxy = false;
+    config.trustedProxyHops = 1;
   });
 
   afterEach(() => {
     Date.now = originalDateNow;
+    config.rateLimitEnabled = originalRateLimitEnabled;
+    config.rateLimitBackend = originalRateLimitBackend;
+    config.trustProxy = originalTrustProxy;
+    config.trustedProxyHops = originalTrustedProxyHops;
   });
 
   it('resets the in-memory window exactly at the reset boundary', async () => {
