@@ -13,16 +13,6 @@ const freelancerUser = {
   updatedAt: new Date(),
 };
 
-mock.module('../services', () => ({
-  authService: { validateSession: async () => freelancerUser },
-  docService: {
-    getDoc: async () => ({ id: 'doc-1', projectId: 'proj-1', title: 'Test', createdBy: 'admin-1' }),
-  },
-  whiteboardService: {
-    getWhiteboard: async () => ({ id: 'wb-1', projectId: 'proj-1', title: 'Test WB', data: null }),
-  },
-}));
-
 mock.module('../repositories', () => ({
   docCollabRepository: {
     getLatestSnapshot: async () => null,
@@ -68,7 +58,7 @@ mock.module('../collab/docSnapshot', () => ({
   shouldPersistCanonicalDocContent: () => false,
 }));
 
-const { collab } = await import('./collab');
+const { collab, setCollabDependenciesForTests } = await import('./collab');
 const { websocket } = await import('../websocket');
 
 const app = new Hono();
@@ -78,6 +68,12 @@ let server: ReturnType<typeof Bun.serve>;
 let wsBase: string;
 
 beforeAll(() => {
+  setCollabDependenciesForTests({
+    validateSession: async () => freelancerUser,
+    getDoc: async () => ({ id: 'doc-1', projectId: 'proj-1', title: 'Test', createdBy: 'admin-1' } as any),
+    getWhiteboard: async () => ({ id: 'wb-1', projectId: 'proj-1', title: 'Test WB', data: null } as any),
+  });
+
   server = Bun.serve({
     port: 0,
     fetch: (req, srv) => app.fetch(req, { server: srv }),
@@ -87,6 +83,7 @@ beforeAll(() => {
 });
 
 afterAll(() => {
+  setCollabDependenciesForTests(null);
   server.stop(true);
 });
 

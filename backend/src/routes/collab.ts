@@ -1,6 +1,5 @@
 import { Hono } from 'hono';
 import { upgradeWebSocket } from '../websocket';
-import { authService, docService, whiteboardService } from '../services';
 import { docCollabRepository, docRepository, whiteboardCollabRepository, whiteboardRepository } from '../repositories';
 import { docCollabHub } from '../collab/hub';
 import { resolveDocSnapshotSeq, shouldPersistCanonicalDocContent } from '../collab/docSnapshot';
@@ -46,6 +45,39 @@ const decodeBase64 = (data: string) => Uint8Array.from(Buffer.from(data, 'base64
 
 type ReadOnlyContext = Record<string, unknown>;
 
+type ValidateSession = (sessionId: string) => Promise<User | null>;
+type GetDoc = (docId: string, user: User) => Promise<Awaited<ReturnType<typeof import('../services/doc').docService.getDoc>>>;
+type GetWhiteboard = (whiteboardId: string, user: User) => Promise<Awaited<ReturnType<typeof import('../services/whiteboard').whiteboardService.getWhiteboard>>>;
+
+const defaultValidateSession: ValidateSession = async (sessionId) => {
+  const { authService } = await import('../services/auth');
+  return authService.validateSession(sessionId);
+};
+
+const defaultGetDoc: GetDoc = async (docId, user) => {
+  const { docService } = await import('../services/doc');
+  return docService.getDoc(docId, user);
+};
+
+const defaultGetWhiteboard: GetWhiteboard = async (whiteboardId, user) => {
+  const { whiteboardService } = await import('../services/whiteboard');
+  return whiteboardService.getWhiteboard(whiteboardId, user);
+};
+
+let validateSession: ValidateSession = defaultValidateSession;
+let getDoc: GetDoc = defaultGetDoc;
+let getWhiteboard: GetWhiteboard = defaultGetWhiteboard;
+
+export function setCollabDependenciesForTests(deps: {
+  validateSession?: ValidateSession;
+  getDoc?: GetDoc;
+  getWhiteboard?: GetWhiteboard;
+} | null): void {
+  validateSession = deps?.validateSession ?? defaultValidateSession;
+  getDoc = deps?.getDoc ?? defaultGetDoc;
+  getWhiteboard = deps?.getWhiteboard ?? defaultGetWhiteboard;
+}
+
 function sendReadOnlyError(
   ws: Parameters<typeof sendWebSocketMessage>[0],
   op: string,
@@ -74,13 +106,13 @@ collab.get(
             return;
           }
 
-          user = await authService.validateSession(sessionId);
+          user = await validateSession(sessionId);
           if (!user) {
             safeCloseWebSocket(ws, 1008, 'Unauthorized');
             return;
           }
 
-          const doc = await docService.getDoc(docId, user);
+          const doc = await getDoc(docId, user);
           if (!doc) {
             safeCloseWebSocket(ws, 1008, 'Doc not found');
             return;
@@ -224,13 +256,13 @@ collab.get(
             safeCloseWebSocket(ws, 1008, 'Unauthorized');
             return;
           }
-          user = await authService.validateSession(sessionId);
+          user = await validateSession(sessionId);
           if (!user) {
             safeCloseWebSocket(ws, 1008, 'Unauthorized');
             return;
           }
 
-          const whiteboard = await whiteboardService.getWhiteboard(whiteboardId, user);
+          const whiteboard = await getWhiteboard(whiteboardId, user);
           if (!whiteboard) {
             safeCloseWebSocket(ws, 1008, 'Whiteboard not found');
             return;
