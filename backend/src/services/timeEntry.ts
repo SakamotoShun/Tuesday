@@ -1,4 +1,6 @@
-import { timeEntryRepository, projectMemberRepository, teamMemberRepository } from '../repositories';
+import { timeEntryRepository } from '../repositories/timeEntry';
+import { projectMemberRepository } from '../repositories/projectMember';
+import { teamMemberRepository } from '../repositories/teamMember';
 import { projectService } from './project';
 import { type TimeEntry, type NewTimeEntry } from '../db/schema';
 import type { User } from '../types';

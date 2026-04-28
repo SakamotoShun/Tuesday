@@ -1,4 +1,6 @@
-import { taskRepository, taskAssigneeRepository, taskStatusRepository } from '../repositories';
+import { taskRepository } from '../repositories/task';
+import { taskAssigneeRepository } from '../repositories/taskAssignee';
+import { taskStatusRepository } from '../repositories/taskStatus';
 import { projectService } from './project';
 import { activityService } from './activity';
 import { type Task, type NewTask } from '../db/schema';

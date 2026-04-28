@@ -6,14 +6,23 @@ let deleteTimeEntry: (...args: any[]) => Promise<any> = async () => true;
 let findByUserAndDateRange: (...args: any[]) => Promise<any> = async () => [];
 let hasProjectAccess: (...args: any[]) => Promise<any> = async () => true;
 
-mock.module('../repositories', () => ({
+mock.module('../repositories/timeEntry', () => ({
+  TimeEntryRepository: class {},
   timeEntryRepository: {
     upsert: (data: any) => upsertTimeEntry(data),
     findById: (id: string) => findTimeEntryById(id),
     delete: (id: string) => deleteTimeEntry(id),
     findByUserAndDateRange: (userId: string, start: string, end: string) => findByUserAndDateRange(userId, start, end),
   },
+}));
+
+mock.module('../repositories/projectMember', () => ({
+  ProjectMemberRepository: class {},
   projectMemberRepository: {},
+}));
+
+mock.module('../repositories/teamMember', () => ({
+  TeamMemberRepository: class {},
   teamMemberRepository: {},
 }));
 

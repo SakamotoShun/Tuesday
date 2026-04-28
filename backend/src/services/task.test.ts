@@ -12,6 +12,7 @@ let deleteTask: (...args: any[]) => Promise<any> = async () => true;
 let setAssignees: (...args: any[]) => Promise<any> = async () => {};
 let findDefaultStatus: (...args: any[]) => Promise<any> = async () => ({ id: 'status-default' });
 let findStatusById: (...args: any[]) => Promise<any> = async (id) => ({ id, name: 'Status' });
+let isProjectMember: (...args: any[]) => Promise<any> = async () => true;
 
 
 mock.module('../repositories/task', () => ({
@@ -40,6 +41,13 @@ mock.module('../repositories/taskStatus', () => ({
   taskStatusRepository: {
     findDefault: () => findDefaultStatus(),
     findById: (id: string) => findStatusById(id),
+  },
+}));
+
+mock.module('../repositories/projectMember', () => ({
+  ProjectMemberRepository: class {},
+  projectMemberRepository: {
+    isMember: (projectId: string, userId: string) => isProjectMember(projectId, userId),
   },
 }));
 
@@ -81,6 +89,7 @@ describe('TaskService', () => {
     setAssignees = async () => {};
     findDefaultStatus = async () => ({ id: 'status-default' });
     findStatusById = async (id) => ({ id, name: 'Status' });
+    isProjectMember = async () => true;
     activityService.record = async () => {};
   });
 

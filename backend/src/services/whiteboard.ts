@@ -1,4 +1,4 @@
-import { whiteboardRepository } from '../repositories';
+import { whiteboardRepository } from '../repositories/whiteboard';
 import { projectService } from './project';
 import { activityService } from './activity';
 import { type Whiteboard, type NewWhiteboard } from '../db/schema';

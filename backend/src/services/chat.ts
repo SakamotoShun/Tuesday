@@ -1,4 +1,11 @@
-import { channelRepository, messageRepository, channelMemberRepository, userRepository, projectMemberRepository, fileRepository, reactionRepository, botRepository } from '../repositories';
+import { channelRepository } from '../repositories/channel';
+import { messageRepository } from '../repositories/message';
+import { channelMemberRepository } from '../repositories/channelMember';
+import { userRepository } from '../repositories/user';
+import { projectMemberRepository } from '../repositories/projectMember';
+import { fileRepository } from '../repositories/file';
+import { reactionRepository } from '../repositories/reaction';
+import { botRepository } from '../repositories/bot';
 import { projectService } from './project';
 import { fileService } from './file';
 import { chatHub, type ChatHub } from '../collab/chatHub';

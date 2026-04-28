@@ -1,5 +1,8 @@
 import { randomBytes } from 'node:crypto';
-import { docRepository, docShareRepository, sharedLinkRepository, userRepository, type DocShareWithUser } from '../repositories';
+import { docRepository } from '../repositories/doc';
+import { docShareRepository, type DocShareWithUser } from '../repositories/docShare';
+import { sharedLinkRepository } from '../repositories/sharedLink';
+import { userRepository } from '../repositories/user';
 import { projectService } from './project';
 import { activityService } from './activity';
 import { type Doc, type NewDoc, type SharedLink } from '../db/schema';

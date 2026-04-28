@@ -1,4 +1,6 @@
-import { meetingRepository, meetingAttendeeRepository, teamMemberRepository } from '../repositories';
+import { meetingRepository } from '../repositories/meeting';
+import { meetingAttendeeRepository } from '../repositories/meetingAttendee';
+import { teamMemberRepository } from '../repositories/teamMember';
 import { projectService } from './project';
 import { activityService } from './activity';
 import { type Meeting, type NewMeeting } from '../db/schema';

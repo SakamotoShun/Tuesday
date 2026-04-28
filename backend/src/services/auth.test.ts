@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, mock } from 'bun:test';
 import { hashPassword } from '../utils/password';
 
 let findByEmail: (email: string) => Promise<any> = async () => null;
+let findByUserId: (id: string) => Promise<any> = async () => null;
 let createUser: (data: any) => Promise<any> = async (data) => ({
   id: 'user-1',
   avatarUrl: null,
@@ -9,15 +10,27 @@ let createUser: (data: any) => Promise<any> = async (data) => ({
   updatedAt: new Date(),
   ...data,
 });
+let updateUser: (id: string, data: any) => Promise<any> = async (_id, data) => ({ id: 'user-1', ...data });
 let sessionCreate: (data: any) => Promise<void> = async () => {};
 let sessionDelete: (id: string) => Promise<boolean> = async () => true;
+let sessionDeleteByUserId: (userId: string) => Promise<number> = async () => 0;
 let sessionFind: (id: string) => Promise<any> = async () => null;
+let getSetting: (key: string) => Promise<any> = async () => null;
+let tokenCreate: (data: any) => Promise<any> = async () => ({ id: 'token-1', ...data });
+let tokenDeleteByUserAndType: (userId: string, type: string) => Promise<number> = async () => 0;
+let tokenFindActiveByTokenHash: (tokenHash: string, type: string) => Promise<any> = async () => null;
+let tokenMarkUsed: (id: string) => Promise<boolean> = async () => false;
+let tokenDeleteExpiredOrUsed: () => Promise<number> = async () => 0;
+let sendPasswordResetEmail: (input: any) => Promise<boolean> = async () => true;
+let sendPasswordChangedEmail: (input: any) => Promise<boolean> = async () => true;
 
 mock.module('../repositories/user', () => ({
   UserRepository: class {},
   userRepository: {
     findByEmail: (email: string) => findByEmail(email),
+    findById: (id: string) => findByUserId(id),
     create: (data: any) => createUser(data),
+    update: (id: string, data: any) => updateUser(id, data),
   },
 }));
 
@@ -26,7 +39,33 @@ mock.module('../repositories/session', () => ({
   sessionRepository: {
     create: (data: any) => sessionCreate(data),
     delete: (id: string) => sessionDelete(id),
+    deleteByUserId: (userId: string) => sessionDeleteByUserId(userId),
     findByIdWithUser: (id: string) => sessionFind(id),
+  },
+}));
+
+mock.module('../repositories/settings', () => ({
+  SettingsRepository: class {},
+  settingsRepository: {
+    get: (key: string) => getSetting(key),
+  },
+}));
+
+mock.module('../repositories/token', () => ({
+  TokenRepository: class {},
+  tokenRepository: {
+    create: (data: any) => tokenCreate(data),
+    deleteByUserAndType: (userId: string, type: string) => tokenDeleteByUserAndType(userId, type),
+    findActiveByTokenHash: (tokenHash: string, type: string) => tokenFindActiveByTokenHash(tokenHash, type),
+    markUsed: (id: string) => tokenMarkUsed(id),
+    deleteExpiredOrUsed: () => tokenDeleteExpiredOrUsed(),
+  },
+}));
+
+mock.module('./email', () => ({
+  emailService: {
+    sendPasswordResetEmail: (input: any) => sendPasswordResetEmail(input),
+    sendPasswordChangedEmail: (input: any) => sendPasswordChangedEmail(input),
   },
 }));
 
@@ -35,6 +74,7 @@ const { authService } = await import('./auth');
 describe('AuthService', () => {
   beforeEach(() => {
     findByEmail = async () => null;
+    findByUserId = async () => null;
     createUser = async (data) => ({
       id: 'user-1',
       avatarUrl: null,
@@ -42,9 +82,19 @@ describe('AuthService', () => {
       updatedAt: new Date(),
       ...data,
     });
+    updateUser = async (_id, data) => ({ id: 'user-1', ...data });
     sessionCreate = async () => {};
     sessionDelete = async () => true;
+    sessionDeleteByUserId = async () => 0;
     sessionFind = async () => null;
+    getSetting = async () => null;
+    tokenCreate = async (data) => ({ id: 'token-1', ...data });
+    tokenDeleteByUserAndType = async () => 0;
+    tokenFindActiveByTokenHash = async () => null;
+    tokenMarkUsed = async () => false;
+    tokenDeleteExpiredOrUsed = async () => 0;
+    sendPasswordResetEmail = async () => true;
+    sendPasswordChangedEmail = async () => true;
   });
 
   it('registers a new user with hashed password', async () => {

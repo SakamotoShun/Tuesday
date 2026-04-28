@@ -1,6 +1,9 @@
 import { createHash, randomBytes } from 'crypto';
 import { TokenType, UserRole } from '../db/schema';
-import { sessionRepository, settingsRepository, tokenRepository, userRepository } from '../repositories';
+import { sessionRepository } from '../repositories/session';
+import { settingsRepository } from '../repositories/settings';
+import { tokenRepository } from '../repositories/token';
+import { userRepository } from '../repositories/user';
 import { hashPassword, verifyPassword } from '../utils/password';
 import { log } from '../utils/logger';
 import { config } from '../config';

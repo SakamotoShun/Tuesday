@@ -1,4 +1,4 @@
-import { notificationRepository } from '../repositories';
+import { notificationRepository } from '../repositories/notification';
 import { chatHub, type ChatHub } from '../collab/chatHub';
 import type { Notification } from '../db/schema';
 

@@ -1,4 +1,8 @@
-import { projectRepository, projectMemberRepository, projectStatusRepository, teamProjectRepository, userRepository } from '../repositories';
+import { projectRepository } from '../repositories/project';
+import { projectMemberRepository } from '../repositories/projectMember';
+import { projectStatusRepository } from '../repositories/projectStatus';
+import { teamProjectRepository } from '../repositories/teamProject';
+import { userRepository } from '../repositories/user';
 import { fileService } from './file';
 import { activityService } from './activity';
 import { db } from '../db/client';

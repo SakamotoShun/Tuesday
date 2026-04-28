@@ -1,5 +1,6 @@
 import { UserRole } from '../db/schema';
-import { userRepository, settingsRepository } from '../repositories';
+import { userRepository } from '../repositories/user';
+import { settingsRepository } from '../repositories/settings';
 import { authService } from './auth';
 
 export interface SetupInput {
