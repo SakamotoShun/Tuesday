@@ -280,6 +280,8 @@ export class DocService {
    * Delete a doc
    */
   async deleteDoc(docId: string, user: User): Promise<boolean> {
+    assertNotFreelancer(user, 'Freelancers cannot delete docs');
+
     const doc = await docRepository.findById(docId);
 
     if (!doc) {

@@ -26,7 +26,7 @@ timeEntries.get('/my', async (c) => {
       return errors.badRequest(c, 'Invalid week format. Use YYYY-MM-DD');
     }
 
-    const timesheet = await timeEntryService.getMyWeeklyTimesheet(user.id, week);
+    const timesheet = await timeEntryService.getMyWeeklyTimesheet(user, week);
     return success(c, timesheet);
   } catch (error) {
     if (error instanceof Error) {
@@ -119,7 +119,7 @@ timeEntries.delete('/:id', async (c) => {
     const user = c.get('user');
     const entryId = c.req.param('id');
 
-    const deleted = await timeEntryService.deleteEntry(user.id, entryId);
+    const deleted = await timeEntryService.deleteEntry(user, entryId);
 
     if (!deleted) {
       return errors.notFound(c, 'Time entry not found');

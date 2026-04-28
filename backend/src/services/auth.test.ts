@@ -201,6 +201,46 @@ describe('AuthService', () => {
     expect(deleted).toBe(true);
   });
 
+  it('registers a new user with freelancer role', async () => {
+    let createdInput: any;
+    createUser = async (data) => {
+      createdInput = data;
+      return { id: 'user-2', avatarUrl: null, createdAt: new Date(), updatedAt: new Date(), ...data };
+    };
+
+    const user = await authService.register({
+      email: 'freelancer@example.com',
+      password: 'password-123',
+      name: 'Freelance User',
+      role: 'freelancer',
+    });
+
+    expect(createdInput.role).toBe('freelancer');
+    expect(user.role).toBe('freelancer');
+    expect('passwordHash' in user).toBe(false);
+  });
+
+  it('rejects disabled account with wrong password as Invalid credentials', async () => {
+    const passwordHash = await hashPassword('correct-password');
+    findByEmail = async () => ({
+      id: 'user-1',
+      email: 'test@example.com',
+      passwordHash,
+      name: 'Test User',
+      role: 'member',
+      isDisabled: true,
+      avatarUrl: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    // Wrong password on disabled account → 'Invalid credentials', not 'Account has been disabled'
+    // This prevents enumerating disabled accounts via error message
+    await expect(
+      authService.login({ email: 'test@example.com', password: 'wrong-password' })
+    ).rejects.toThrow('Invalid credentials');
+  });
+
   it('cleans up sessions for disabled users', async () => {
     let deleted = false;
     sessionFind = async () => ({

@@ -1,13 +1,26 @@
 import { Badge } from "@/components/ui/badge"
-import type { User } from "@/api/types"
+import type { User, UserRole } from "@/api/types"
+import type { BadgeProps } from "@/components/ui/badge"
 
 interface AccountInfoProps {
   user: User
 }
 
+const ROLE_LABELS: Record<UserRole, string> = {
+  admin: "Admin",
+  member: "Member",
+  freelancer: "Freelancer",
+}
+
+const ROLE_VARIANTS: Record<UserRole, BadgeProps["variant"]> = {
+  admin: "default",
+  member: "secondary",
+  freelancer: "outline",
+}
+
 export function AccountInfo({ user }: AccountInfoProps) {
-  const roleLabel = user.role === "admin" ? "Admin" : user.role === "freelancer" ? "Freelancer" : "Member"
-  const roleVariant = user.role === "admin" ? "default" : "secondary"
+  const roleLabel = ROLE_LABELS[user.role]
+  const roleVariant = ROLE_VARIANTS[user.role]
 
   const formatDate = (value: string) =>
     new Intl.DateTimeFormat(undefined, {

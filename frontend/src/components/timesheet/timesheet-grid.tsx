@@ -16,10 +16,11 @@ interface TimesheetGridProps {
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 function getWeekDates(weekStart: string): string[] {
-  const start = new Date(weekStart)
+  const [y, m, d] = weekStart.split("-").map(Number) as [number, number, number]
+  const start = new Date(Date.UTC(y, m - 1, d))
   return Array.from({ length: 7 }, (_, i) => {
     const date = new Date(start)
-    date.setDate(date.getDate() + i)
+    date.setUTCDate(date.getUTCDate() + i)
     return date.toISOString().slice(0, 10)
   })
 }
@@ -128,9 +129,10 @@ export function TimesheetGrid({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-5 w-5 opacity-0 group-hover:opacity-100 shrink-0"
+                    className="h-5 w-5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 shrink-0"
                     onClick={() => handleHideProject(project.id)}
                     title="Hide from timesheet"
+                    aria-label={`Hide ${project.name} from timesheet`}
                   >
                     <X className="h-3 w-3" />
                   </Button>
@@ -187,7 +189,7 @@ export function TimesheetGrid({
 
           {availableProjects.length > 0 && (
             <tr className="border-b">
-              <td colSpan={9} className="py-1.5 px-2">
+              <td colSpan={2 + weekDates.length} className="py-1.5 px-2">
                 <div className="flex items-center gap-2">
                   <ItemCombobox
                     items={availableProjects}

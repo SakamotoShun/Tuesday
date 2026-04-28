@@ -177,4 +177,25 @@ describe('DocService', () => {
     const result = await docService.deleteDoc('doc-1', adminUser);
     expect(result).toBe(true);
   });
+
+  it('rejects freelancer from deleting docs', async () => {
+    findById = async () => ({ id: 'doc-1', projectId: 'project-1', createdBy: 'user-1' });
+    await expect(docService.deleteDoc('doc-1', freelancerUser)).rejects.toThrow(
+      'Freelancers cannot delete docs'
+    );
+  });
+
+  it('rejects freelancer from managing doc shares', async () => {
+    findById = async () => ({ id: 'doc-1', projectId: 'project-1', createdBy: 'user-1' });
+
+    await expect(docService.updateDocShares('doc-1', ['user-2'], freelancerUser)).rejects.toThrow(
+      'Access denied to manage doc shares'
+    );
+    await expect(docService.createDocPublicShareLink('doc-1', freelancerUser)).rejects.toThrow(
+      'Access denied to manage doc shares'
+    );
+    await expect(docService.deleteDocPublicShareLink('doc-1', freelancerUser)).rejects.toThrow(
+      'Access denied to manage doc shares'
+    );
+  });
 });

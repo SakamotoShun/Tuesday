@@ -1,14 +1,16 @@
 import type { Block } from "@blocknote/core"
 
 // User types
+export type UserRole = "admin" | "member" | "freelancer"
+
 export interface User {
   id: string
   email: string
   name: string
   avatarUrl: string | null
-  role: "admin" | "member" | "freelancer"
-  employmentType: "hourly" | "full_time"
-  hourlyRate: number | null
+  role: UserRole
+  employmentType?: "hourly" | "full_time"
+  hourlyRate: string | null
   isDisabled: boolean
   onboardingCompletedAt: string | null
   createdAt: string
@@ -453,14 +455,14 @@ export interface UpdateAdminSettingsInput {
 export interface AdminCreateUserInput {
   email: string
   name: string
-  role?: "admin" | "member" | "freelancer"
+  role?: UserRole
   employmentType?: "hourly" | "full_time"
   hourlyRate?: number
   password?: string
 }
 
 export interface AdminUpdateUserInput {
-  role?: "admin" | "member" | "freelancer"
+  role?: UserRole
   employmentType?: "hourly" | "full_time"
   hourlyRate?: number | null
   isDisabled?: boolean

@@ -7,18 +7,9 @@ import type {
   User,
 } from "./types"
 
-type BackendUser = Omit<User, "hourlyRate"> & { hourlyRate: string | number | null }
-
-function normalizeUser(user: BackendUser): User {
-  return {
-    ...user,
-    hourlyRate: user.hourlyRate === null ? null : Number(user.hourlyRate),
-  }
-}
-
 export async function login(data: LoginInput): Promise<User> {
-  const response = await api.post<{ user: BackendUser }>("/auth/login", data)
-  return normalizeUser(response.user)
+  const response = await api.post<{ user: User }>("/auth/login", data)
+  return response.user
 }
 
 export async function logout(): Promise<void> {
@@ -26,13 +17,13 @@ export async function logout(): Promise<void> {
 }
 
 export async function register(data: RegisterInput): Promise<User> {
-  const response = await api.post<{ user: BackendUser }>("/auth/register", data)
-  return normalizeUser(response.user)
+  const response = await api.post<{ user: User }>("/auth/register", data)
+  return response.user
 }
 
 export async function getCurrentUser(): Promise<User> {
-  const response = await api.get<{ user: BackendUser }>("/auth/me")
-  return normalizeUser(response.user)
+  const response = await api.get<{ user: User }>("/auth/me")
+  return response.user
 }
 
 export async function forgotPassword(data: ForgotPasswordInput): Promise<{ message: string }> {

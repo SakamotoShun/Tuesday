@@ -143,7 +143,7 @@ describe('TaskService', () => {
       assignees: [{ userId: 'someone-else' }],
     });
     await expect(taskService.updateTaskStatus('task-1', 'status-1', freelancerUser)).rejects.toThrow(
-      'Freelancers can only update status on tasks assigned to them'
+      'Freelancers cannot update tasks they are not assigned to'
     );
   });
 
@@ -158,7 +158,7 @@ describe('TaskService', () => {
     findById = async () => ({ id: 'task-1', projectId: 'project-1', assignees: [] });
 
     await expect(taskService.updateTask('task-1', { title: 'Updated' }, freelancerUser)).rejects.toThrow(
-      'Freelancers can only update task status'
+      'Freelancers cannot edit tasks (status only)'
     );
     await expect(taskService.updateTaskAssignees('task-1', ['user-2'], freelancerUser)).rejects.toThrow(
       'Freelancers cannot update task assignees'

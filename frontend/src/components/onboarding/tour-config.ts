@@ -1,6 +1,5 @@
 import type { Alignment, DriveStep, DriverHook, Side } from "driver.js"
-
-type UserRole = "admin" | "member" | "freelancer"
+import type { UserRole } from "@/api/types"
 
 interface TourStepDefinition {
   selector: string

@@ -44,6 +44,21 @@ const MAX_WHITEBOARD_MESSAGE_BYTES = 1024 * 1024;
 const encodeBase64 = (data: Uint8Array) => Buffer.from(data).toString('base64');
 const decodeBase64 = (data: string) => Uint8Array.from(Buffer.from(data, 'base64'));
 
+type ReadOnlyContext = Record<string, unknown>;
+
+function sendReadOnlyError(
+  ws: Parameters<typeof sendWebSocketMessage>[0],
+  op: string,
+  context: ReadOnlyContext
+) {
+  sendWebSocketMessage(
+    ws,
+    JSON.stringify({ type: 'error', code: 'read_only', op }),
+    { ...context, event: 'read_only_blocked', op },
+    { closeOnFailure: false }
+  );
+}
+
 collab.get(
   '/docs/:id',
   upgradeWebSocket((c) => {
@@ -114,6 +129,7 @@ collab.get(
 
         if (message.type === 'doc.update') {
           if (isFreelancer(user)) {
+            sendReadOnlyError(ws, 'doc.update', { hub: 'doc_collab', doc_id: docId, user_id: user.id });
             return;
           }
 
@@ -149,6 +165,11 @@ collab.get(
         }
 
         if (message.type === 'presence.update') {
+          if (isFreelancer(user)) {
+            sendReadOnlyError(ws, 'presence.update', { hub: 'doc_collab', doc_id: docId, user_id: user.id });
+            return;
+          }
+
           docCollabHub.broadcast(
             docId,
             JSON.stringify({ type: 'presence.broadcast', update: message.update }),
@@ -159,6 +180,7 @@ collab.get(
 
         if (message.type === 'doc.snapshot') {
           if (isFreelancer(user)) {
+            sendReadOnlyError(ws, 'doc.snapshot', { hub: 'doc_collab', doc_id: docId, user_id: user.id });
             return;
           }
 
@@ -276,6 +298,7 @@ collab.get(
 
         if (message.type === 'whiteboard.update') {
           if (isFreelancer(user)) {
+            sendReadOnlyError(ws, 'whiteboard.update', { hub: 'whiteboard_collab', whiteboard_id: whiteboardId, user_id: user.id });
             return;
           }
 
@@ -311,6 +334,11 @@ collab.get(
         }
 
         if (message.type === 'whiteboard.presence') {
+          if (isFreelancer(user)) {
+            sendReadOnlyError(ws, 'whiteboard.presence', { hub: 'whiteboard_collab', whiteboard_id: whiteboardId, user_id: user.id });
+            return;
+          }
+
           whiteboardCollabHub.broadcast(
             whiteboardId,
             JSON.stringify({
@@ -329,6 +357,7 @@ collab.get(
 
         if (message.type === 'whiteboard.snapshot') {
           if (isFreelancer(user)) {
+            sendReadOnlyError(ws, 'whiteboard.snapshot', { hub: 'whiteboard_collab', whiteboard_id: whiteboardId, user_id: user.id });
             return;
           }
 

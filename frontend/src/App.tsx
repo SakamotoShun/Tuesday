@@ -1,6 +1,7 @@
 import { lazy, Suspense, type ReactNode } from "react"
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom"
 import { ProtectedRoute } from "@/components/auth/protected-route"
+import { RequireRole } from "@/components/auth/require-role"
 import { ErrorBoundary } from "@/components/common/error-boundary"
 import { LoadingSpinner } from "@/components/common/loading-spinner"
 import { AppLayout } from "@/components/layout/app-layout"
@@ -326,34 +327,40 @@ function AppRoutes() {
           <Route
             path="admin"
             element={
-              <RouteBoundary
-                title="Admin unavailable"
-                message="This admin page hit a rendering issue. Try reloading the page."
-              >
-                <AdminPage />
-              </RouteBoundary>
+              <RequireRole role="admin">
+                <RouteBoundary
+                  title="Admin unavailable"
+                  message="This admin page hit a rendering issue. Try reloading the page."
+                >
+                  <AdminPage />
+                </RouteBoundary>
+              </RequireRole>
             }
           />
           <Route
             path="admin/payroll"
             element={
-              <RouteBoundary
-                title="Payroll unavailable"
-                message="This payroll view hit a rendering issue. Try reloading the page."
-              >
-                <AdminPayrollPage />
-              </RouteBoundary>
+              <RequireRole role="admin">
+                <RouteBoundary
+                  title="Payroll unavailable"
+                  message="This payroll view hit a rendering issue. Try reloading the page."
+                >
+                  <AdminPayrollPage />
+                </RouteBoundary>
+              </RequireRole>
             }
           />
           <Route
             path="admin/developer"
             element={
-              <RouteBoundary
-                title="Developer settings unavailable"
-                message="This developer settings view hit a rendering issue. Try reloading the page."
-              >
-                <AdminDeveloperPage />
-              </RouteBoundary>
+              <RequireRole role="admin">
+                <RouteBoundary
+                  title="Developer settings unavailable"
+                  message="This developer settings view hit a rendering issue. Try reloading the page."
+                >
+                  <AdminDeveloperPage />
+                </RouteBoundary>
+              </RequireRole>
             }
           />
         </Route>

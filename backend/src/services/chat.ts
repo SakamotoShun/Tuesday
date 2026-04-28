@@ -765,7 +765,7 @@ export class ChatService {
 
   private async ensureAccess(channel: ChannelWithProject, user: User) {
     if (isFreelancer(user) && channel.type !== 'project') {
-      throw new Error('Freelancers can only access project channels');
+      throw new Error('Freelancers cannot access non-project channels');
     }
 
     if (channel.type === 'dm') {

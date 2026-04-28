@@ -14,7 +14,7 @@ import { InviteUserDialog } from "@/components/admin/invite-user-dialog"
 import { DeleteUserDialog } from "@/components/admin/delete-user-dialog"
 import { useAdminUsers } from "@/hooks/use-admin"
 import { useAuth } from "@/hooks/use-auth"
-import type { AdminDeleteUserInput, User } from "@/api/types"
+import type { AdminDeleteUserInput, User, UserRole } from "@/api/types"
 
 export function UserManagement() {
   const { users, isLoading, updateUser, deleteUser } = useAdminUsers()
@@ -48,7 +48,7 @@ export function UserManagement() {
                 <Select
                   value={user.role}
                   onValueChange={(value) =>
-                    updateUser.mutate({ userId: user.id, data: { role: value as "admin" | "member" | "freelancer" } })
+                    updateUser.mutate({ userId: user.id, data: { role: value as UserRole } })
                   }
                 >
                   <SelectTrigger className="w-32">
@@ -61,7 +61,7 @@ export function UserManagement() {
                   </SelectContent>
                 </Select>
                 <Select
-                  value={user.employmentType}
+                  value={user.employmentType ?? "full_time"}
                   onValueChange={(value) =>
                     updateUser.mutate({ userId: user.id, data: { employmentType: value as "hourly" | "full_time" } })
                   }

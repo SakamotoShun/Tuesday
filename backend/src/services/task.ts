@@ -35,7 +35,7 @@ export class TaskService {
 
     const isAssigned = task.assignees?.some((assignee) => assignee.userId === user.id) ?? false;
     if (!isAssigned) {
-      throw new Error('Freelancers can only update status on tasks assigned to them');
+      throw new Error('Freelancers cannot update tasks they are not assigned to');
     }
   }
 
@@ -173,7 +173,7 @@ export class TaskService {
    * Update a task
    */
   async updateTask(taskId: string, input: UpdateTaskInput, user: User): Promise<Task | null> {
-    assertNotFreelancer(user, 'Freelancers can only update task status');
+    assertNotFreelancer(user, 'Freelancers cannot edit tasks (status only)');
 
     const task = await taskRepository.findById(taskId) as TaskWithAssignees | null;
 
@@ -287,7 +287,7 @@ export class TaskService {
    * Update task sort order (for kanban reordering)
    */
   async updateTaskOrder(taskId: string, sortOrder: number, user: User): Promise<Task | null> {
-    assertNotFreelancer(user, 'Freelancers can only update task status');
+    assertNotFreelancer(user, 'Freelancers cannot edit tasks (status only)');
 
     const task = await taskRepository.findById(taskId);
 

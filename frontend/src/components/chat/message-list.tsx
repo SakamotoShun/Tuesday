@@ -1,4 +1,4 @@
-import type { Message } from "@/api/types"
+import type { Message, UserRole } from "@/api/types"
 import { Button } from "@/components/ui/button"
 import { MessageItem } from "@/components/chat/message-item"
 
@@ -9,7 +9,7 @@ interface MessageListProps {
   isFetchingNextPage?: boolean
   onLoadMore?: () => void
   currentUserId?: string
-  currentUserRole?: "admin" | "member" | "freelancer"
+  currentUserRole?: UserRole
   onUpdateMessage?: (messageId: string, content: string) => Promise<unknown>
   onDeleteMessage?: (messageId: string) => Promise<unknown>
   onAddReaction?: (messageId: string, emoji: string) => Promise<unknown>

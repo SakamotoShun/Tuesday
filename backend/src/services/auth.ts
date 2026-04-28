@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'crypto';
 import { TokenType, UserRole } from '../db/schema';
 import { sessionRepository, settingsRepository, tokenRepository, userRepository } from '../repositories';
 import { hashPassword, verifyPassword } from '../utils/password';
+import { log } from '../utils/logger';
 import { config } from '../config';
 import { emailService } from './email';
 import type { User } from '../types';
@@ -10,6 +11,11 @@ const PASSWORD_RESET_TOKEN_BYTES = 32;
 const PASSWORD_RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 const PASSWORD_RESET_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 const PASSWORD_RESET_RATE_LIMIT_MAX = 5;
+
+// Real bcrypt hash of a random string, generated once at module load. Used to
+// equalize login response time when the email doesn't exist so attackers can't
+// enumerate registered users via timing.
+const dummyPasswordHashPromise = hashPassword(randomBytes(32).toString('hex'));
 
 interface PasswordResetRateEntry {
   count: number;
@@ -66,6 +72,14 @@ export class AuthService {
   private isPasswordResetRateLimited(email: string): boolean {
     const key = email.trim().toLowerCase();
     const now = Date.now();
+
+    // Sweep stale entries so the map size stays bounded by active senders.
+    for (const [otherKey, otherEntry] of this.passwordResetRateLimits) {
+      if (now > otherEntry.resetAt) {
+        this.passwordResetRateLimits.delete(otherKey);
+      }
+    }
+
     const entry = this.passwordResetRateLimits.get(key);
 
     if (!entry || now > entry.resetAt) {
@@ -131,21 +145,25 @@ export class AuthService {
    * Login user and create session
    */
   async login(input: LoginInput): Promise<SessionResult> {
-    // Find user by email
     const user = await userRepository.findByEmail(input.email);
+
+    // When the email isn't found, run a bcrypt comparison against a dummy hash
+    // so the response time matches the user-found path. This blocks attackers
+    // from enumerating registered emails via timing.
     if (!user) {
+      await verifyPassword(input.password, await dummyPasswordHashPromise);
       throw new Error('Invalid credentials');
     }
 
-    // Check if user is disabled
-    if (user.isDisabled) {
-      throw new Error('Account has been disabled');
-    }
-
-    // Verify password
     const isValidPassword = await verifyPassword(input.password, user.passwordHash);
     if (!isValidPassword) {
       throw new Error('Invalid credentials');
+    }
+
+    // Disabled-state check happens after password verification so attackers
+    // can't enumerate disabled accounts via the distinct error message.
+    if (user.isDisabled) {
+      throw new Error('Account has been disabled');
     }
 
     // Create session
@@ -265,12 +283,14 @@ export class AuthService {
     const siteUrl = this.getPublicSiteUrl(siteUrlSetting);
     const resetUrl = `${siteUrl}/reset-password?token=${encodeURIComponent(token)}`;
 
-    void emailService.sendPasswordResetEmail({
-      to: user.email,
-      name: user.name,
-      resetUrl,
-      workspaceName,
-    });
+    emailService
+      .sendPasswordResetEmail({
+        to: user.email,
+        name: user.name,
+        resetUrl,
+        workspaceName,
+      })
+      .catch((err) => log('error', 'email_send_failed', { kind: 'password_reset', userId: user.id, err }));
   }
 
   async resetPassword(token: string, password: string): Promise<void> {
@@ -295,11 +315,13 @@ export class AuthService {
     await sessionRepository.deleteByUserId(user.id);
 
     const workspaceName = this.getWorkspaceName(await settingsRepository.get<string>('workspace_name'));
-    void emailService.sendPasswordChangedEmail({
-      to: user.email,
-      name: user.name,
-      workspaceName,
-    });
+    emailService
+      .sendPasswordChangedEmail({
+        to: user.email,
+        name: user.name,
+        workspaceName,
+      })
+      .catch((err) => log('error', 'email_send_failed', { kind: 'password_changed', userId: user.id, err }));
   }
 
   async cleanupExpiredTokens(): Promise<number> {
