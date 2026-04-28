@@ -17,6 +17,14 @@ mock.module('../repositories/whiteboard', () => ({
   },
 }));
 
+mock.module('./project', () => ({
+  ProjectService: class {},
+  projectService: {
+    hasAccess: async () => true,
+    isOwner: async () => false,
+  },
+}));
+
 const { whiteboardService } = await import('./whiteboard');
 const { activityService } = await import('./activity');
 const originalRecord = activityService.record.bind(activityService);

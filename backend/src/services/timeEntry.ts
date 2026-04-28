@@ -5,6 +5,7 @@ import { projectService } from './project';
 import { type TimeEntry, type NewTimeEntry } from '../db/schema';
 import type { User } from '../types';
 import { isFreelancer } from '../utils/permissions';
+import { ValidationError } from '../utils/errors';
 
 // Sentinel used as the grouping key/display name for time entries that aren't
 // attached to a project. The id is intentionally non-UUID so it can't collide
@@ -443,7 +444,7 @@ export class TimeEntryService {
 
   async upsertEntry(userId: string, input: UpsertTimeEntryInput, user: User): Promise<TimeEntry> {
     if (isFreelancer(user) && !input.projectId) {
-      throw new Error('Freelancers cannot log unassigned time');
+      throw new ValidationError('Freelancers cannot log unassigned time');
     }
 
     if (input.projectId) {
