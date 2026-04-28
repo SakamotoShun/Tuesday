@@ -26,7 +26,8 @@ interface KanbanBoardProps {
   onAddTask: (title: string, statusId: string) => void
   onTaskClick: (task: Task) => void
   canAddTask?: boolean
-  readOnly?: boolean
+  canDragTask?: (task: Task) => boolean
+  canEditTask?: (task: Task) => boolean
   isLoading?: boolean
 }
 
@@ -38,7 +39,8 @@ export function KanbanBoard({
   onAddTask,
   onTaskClick,
   canAddTask = true,
-  readOnly = false,
+  canDragTask = () => true,
+  canEditTask = () => true,
   isLoading,
 }: KanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -210,9 +212,9 @@ export function KanbanBoard({
     <DndContext
       sensors={sensors}
       collisionDetection={collisionDetectionStrategy}
-      onDragStart={readOnly ? undefined : handleDragStart}
-      onDragOver={readOnly ? undefined : handleDragOver}
-      onDragEnd={readOnly ? undefined : handleDragEnd}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragEnd={handleDragEnd}
     >
       <div className="flex gap-4 h-full overflow-x-auto pb-4">
         {statuses
@@ -225,7 +227,8 @@ export function KanbanBoard({
               onTaskClick={onTaskClick}
               onAddTask={onAddTask}
               canAddTask={canAddTask}
-              readOnly={readOnly}
+              canDragTask={canDragTask}
+              canEditTask={canEditTask}
               isLoading={isLoading}
             />
           ))}

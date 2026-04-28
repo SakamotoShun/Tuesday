@@ -14,6 +14,7 @@ const PASSWORD_RESET_TOKEN_BYTES = 32;
 const PASSWORD_RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 const PASSWORD_RESET_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 const PASSWORD_RESET_RATE_LIMIT_MAX = 5;
+const PASSWORD_RESET_SWEEP_INTERVAL_MS = 60 * 1000;
 
 // Real bcrypt hash of a random string, generated once at module load. Used to
 // equalize login response time when the email doesn't exist so attackers can't
@@ -47,6 +48,7 @@ export interface SessionResult {
 
 export class AuthService {
   private passwordResetRateLimits = new Map<string, PasswordResetRateEntry>();
+  private lastPasswordResetSweepAt = 0;
 
   /**
    * Generate a cryptographically secure session ID
@@ -72,16 +74,25 @@ export class AuthService {
     return candidate.replace(/\/+$/, '');
   }
 
-  private isPasswordResetRateLimited(email: string): boolean {
-    const key = email.trim().toLowerCase();
-    const now = Date.now();
+  private sweepPasswordResetRateLimits(now: number): void {
+    if (now - this.lastPasswordResetSweepAt < PASSWORD_RESET_SWEEP_INTERVAL_MS) {
+      return;
+    }
 
-    // Sweep stale entries so the map size stays bounded by active senders.
+    this.lastPasswordResetSweepAt = now;
+
     for (const [otherKey, otherEntry] of this.passwordResetRateLimits) {
       if (now > otherEntry.resetAt) {
         this.passwordResetRateLimits.delete(otherKey);
       }
     }
+  }
+
+  private isPasswordResetRateLimited(email: string): boolean {
+    const key = email.trim().toLowerCase();
+    const now = Date.now();
+
+    this.sweepPasswordResetRateLimits(now);
 
     const entry = this.passwordResetRateLimits.get(key);
 

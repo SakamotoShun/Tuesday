@@ -3,7 +3,7 @@ import { db } from '../db/client';
 import { channelMembers, type ChannelMember, type NewChannelMember } from '../db/schema';
 
 export type ChannelMemberWithUser = ChannelMember & {
-  user: { id: string; name: string; email: string; avatarUrl: string | null };
+  user: { id: string; name: string; email: string; avatarUrl: string | null; role: string };
 };
 
 export class ChannelMemberRepository {
@@ -26,6 +26,7 @@ export class ChannelMemberRepository {
             name: true,
             email: true,
             avatarUrl: true,
+            role: true,
           },
         },
       },

@@ -69,7 +69,26 @@ export function ProjectDetailPage() {
     setIsTaskDialogOpen(true)
   }
 
+  const canChangeTaskStatus = (task: Task) => {
+    if (!isFreelancer) {
+      return true
+    }
+
+    return task.assignees?.some((assignee) => assignee.id === user?.id) ?? false
+  }
+
+  const canEditTask = (_task: Task) => !isFreelancer
+
   const handleUpdateTask = async (taskId: string, data: UpdateTaskInput) => {
+    if (isFreelancer) {
+      if (!data.statusId) {
+        return
+      }
+
+      await updateTaskStatus.mutateAsync({ taskId, data: { statusId: data.statusId } })
+      return
+    }
+
     const { assigneeIds, ...taskData } = data
     await updateTask.mutateAsync({ taskId, data: taskData })
     if (assigneeIds) {
@@ -331,7 +350,8 @@ export function ProjectDetailPage() {
                   onAddTask={handleAddTask}
                   onTaskClick={handleTaskClick}
                   canAddTask={!isFreelancer}
-                  readOnly={isFreelancer}
+                  canDragTask={canChangeTaskStatus}
+                  canEditTask={canEditTask}
                   isLoading={createTask.isPending || updateTaskStatus.isPending}
                 />
               </div>
@@ -411,7 +431,8 @@ export function ProjectDetailPage() {
         }}
         onDelete={selectedTask ? () => handleDeleteTask(selectedTask.id) : null}
         isSubmitting={updateTask.isPending || deleteTask.isPending}
-        readOnly={isFreelancer}
+        canEdit={selectedTask ? canEditTask(selectedTask) : false}
+        canChangeStatus={selectedTask ? canChangeTaskStatus(selectedTask) : false}
       />
     </div>
   )

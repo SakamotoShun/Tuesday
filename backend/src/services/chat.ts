@@ -94,6 +94,10 @@ type ChatHubNotifier = Pick<ChatHub, 'broadcastToAll' | 'broadcastToChannel' | '
 export class ChatService {
   constructor(private readonly hub: ChatHubNotifier = chatHub) {}
 
+  private shouldNotifyUserAboutChannel(channel: ChannelWithProject, userRole: string): boolean {
+    return channel.type === 'project' || userRole !== 'freelancer';
+  }
+
   async getChannels(user: User): Promise<ChannelWithState[]> {
     const channels = await channelRepository.findUserChannels(user.id);
     const memberships = await channelMemberRepository.findByUserId(user.id);
@@ -990,6 +994,11 @@ export class ChatService {
     if (!channel) return;
 
     for (const userId of userIds) {
+      const targetUser = await userRepository.findById(userId);
+      if (!targetUser || !this.shouldNotifyUserAboutChannel(channel, targetUser.role)) {
+        continue;
+      }
+
       const membership = await channelMemberRepository.findMembership(channelId, userId);
       if (!membership) continue;
 
@@ -1022,7 +1031,12 @@ export class ChatService {
     });
 
     if (channel.type === 'workspace') {
-      this.hub.broadcastToAll(payload);
+      const users = await userRepository.findAll();
+      for (const user of users) {
+        if (this.shouldNotifyUserAboutChannel(channel, user.role)) {
+          this.hub.sendToUser(user.id, payload);
+        }
+      }
       return;
     }
 
@@ -1109,10 +1123,14 @@ export class ChatService {
   }
 
   private async notifyChannelMembers(channel: ChannelWithProject, payload: Record<string, unknown>) {
+    const message = JSON.stringify(payload);
+
     if (channel.type === 'dm') {
       const members = await channelMemberRepository.findByChannelId(channel.id);
       for (const member of members) {
-        this.hub.sendToUser(member.userId, JSON.stringify(payload));
+        if (this.shouldNotifyUserAboutChannel(channel, member.user.role)) {
+          this.hub.sendToUser(member.userId, message);
+        }
       }
       return;
     }
@@ -1121,14 +1139,18 @@ export class ChatService {
       if (isPrivateAccess(channel.access)) {
         const members = await channelMemberRepository.findByChannelId(channel.id);
         for (const member of members) {
-          this.hub.sendToUser(member.userId, JSON.stringify(payload));
+          if (this.shouldNotifyUserAboutChannel(channel, member.user.role)) {
+            this.hub.sendToUser(member.userId, message);
+          }
         }
         return;
       }
 
       const users = await userRepository.findAll();
       for (const user of users) {
-        this.hub.sendToUser(user.id, JSON.stringify(payload));
+        if (this.shouldNotifyUserAboutChannel(channel, user.role)) {
+          this.hub.sendToUser(user.id, message);
+        }
       }
       return;
     }
@@ -1137,14 +1159,18 @@ export class ChatService {
       if (isPrivateAccess(channel.access)) {
         const members = await channelMemberRepository.findByChannelId(channel.id);
         for (const member of members) {
-          this.hub.sendToUser(member.userId, JSON.stringify(payload));
+          if (this.shouldNotifyUserAboutChannel(channel, member.user.role)) {
+            this.hub.sendToUser(member.userId, message);
+          }
         }
         return;
       }
 
       const members = await projectMemberRepository.findByProjectId(channel.projectId);
       for (const member of members) {
-        this.hub.sendToUser(member.user.id, JSON.stringify(payload));
+        if (this.shouldNotifyUserAboutChannel(channel, member.user.role)) {
+          this.hub.sendToUser(member.user.id, message);
+        }
       }
     }
   }

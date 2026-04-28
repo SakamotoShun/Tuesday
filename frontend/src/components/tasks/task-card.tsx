@@ -54,7 +54,7 @@ export function TaskCard({ task, onClick, canDrag = true, canEdit = true }: Task
     <div ref={setNodeRef} style={style} {...attributes} className="group relative">
       <Card
         className={canDrag ? "cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow" : onClick ? "cursor-pointer hover:shadow-md transition-shadow" : "hover:shadow-md transition-shadow"}
-        onClick={canEdit ? undefined : onClick}
+        onClick={onClick}
       >
         <CardContent className="p-3">
           <div className="space-y-2">
@@ -82,7 +82,7 @@ export function TaskCard({ task, onClick, canDrag = true, canEdit = true }: Task
               </div>
               {canEdit ? (
                 <div
-                  className="opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
                   onClick={(e) => {
                     e.stopPropagation()
                     onClick?.()
@@ -91,6 +91,8 @@ export function TaskCard({ task, onClick, canDrag = true, canEdit = true }: Task
                   <Button
                     variant="ghost"
                     size="icon"
+                    type="button"
+                    aria-label={`Edit ${task.title}`}
                     className="h-6 w-6 bg-background/80 hover:bg-background shadow-sm"
                   >
                     <Pencil className="h-3 w-3" />

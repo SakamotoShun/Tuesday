@@ -13,6 +13,8 @@ let findMembership: (...args: any[]) => Promise<any> = async () => ({ channelId:
 
 let countUnread: (...args: any[]) => Promise<any> = async () => 0;
 let findUserById: (...args: any[]) => Promise<any> = async () => null;
+let findAllUsers: (...args: any[]) => Promise<any> = async () => [];
+let findProjectMembers: (...args: any[]) => Promise<any> = async () => [];
 
 mock.module('../repositories/channel', () => ({
   ChannelRepository: class {},
@@ -46,6 +48,7 @@ mock.module('../repositories/user', () => ({
   UserRepository: class {},
   userRepository: {
     findById: (userId: string) => findUserById(userId),
+    findAll: () => findAllUsers(),
   },
 }));
 
@@ -53,6 +56,7 @@ mock.module('../repositories/projectMember', () => ({
   ProjectMemberRepository: class {},
   projectMemberRepository: {
     findMembership: async () => null,
+    findByProjectId: (projectId: string) => findProjectMembers(projectId),
   },
 }));
 
@@ -102,6 +106,8 @@ const freelancerUser = {
 
 describe('ChatService', () => {
   let chatService: InstanceType<typeof ChatService>;
+  let sendToUser: ReturnType<typeof mock>;
+  let broadcastToAll: ReturnType<typeof mock>;
 
   beforeEach(() => {
     findUserChannels = async () => [];
@@ -115,7 +121,15 @@ describe('ChatService', () => {
     findMembership = async () => ({ channelId: 'channel-1', userId: 'user-1', lastReadAt: new Date() });
     countUnread = async () => 0;
     findUserById = async () => null;
-    chatService = new ChatService(chatHubStub);
+    findAllUsers = async () => [];
+    findProjectMembers = async () => [];
+    sendToUser = mock(() => {});
+    broadcastToAll = mock(() => {});
+    chatService = new ChatService({
+      ...chatHubStub,
+      sendToUser,
+      broadcastToAll,
+    });
   });
 
   it('returns channels with unread counts', async () => {
@@ -157,5 +171,35 @@ describe('ChatService', () => {
     await expect(chatService.createChannel({ name: 'test' }, freelancerUser)).rejects.toThrow(
       'Freelancers cannot create channels'
     );
+  });
+
+  it('skips freelancers when notifying workspace public channels', async () => {
+    findAllUsers = async () => [memberUser, freelancerUser];
+
+    await (chatService as any).notifyPublicChannelCreated({
+      id: 'channel-1',
+      type: 'workspace',
+      access: 'public',
+      name: 'workspace',
+    });
+
+    expect(broadcastToAll).not.toHaveBeenCalled();
+    expect(sendToUser).toHaveBeenCalledTimes(1);
+    expect(sendToUser).toHaveBeenCalledWith('user-1', expect.any(String));
+  });
+
+  it('skips freelancers when notifying workspace private members', async () => {
+    findByChannelId = async () => [
+      { userId: memberUser.id, user: memberUser },
+      { userId: freelancerUser.id, user: freelancerUser },
+    ];
+
+    await (chatService as any).notifyChannelMembers(
+      { id: 'channel-1', type: 'workspace', access: 'private', name: 'private-workspace' },
+      { type: 'channel_updated' }
+    );
+
+    expect(sendToUser).toHaveBeenCalledTimes(1);
+    expect(sendToUser).toHaveBeenCalledWith('user-1', JSON.stringify({ type: 'channel_updated' }));
   });
 });

@@ -101,10 +101,6 @@ export function NewProjectDialog() {
     },
   })
 
-  if (isFreelancer) {
-    return null
-  }
-
   useEffect(() => {
     if (!open) {
       setError(null)
@@ -115,6 +111,10 @@ export function NewProjectDialog() {
       reset()
     }
   }, [open, templates, reset])
+
+  if (isFreelancer) {
+    return null
+  }
 
   const handleSelectTemplate = (template: ProjectTemplate | null) => {
     setSelectedTemplate(template)

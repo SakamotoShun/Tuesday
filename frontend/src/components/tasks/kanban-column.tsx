@@ -10,7 +10,8 @@ interface KanbanColumnProps {
   onTaskClick: (task: Task) => void
   onAddTask: (title: string, statusId: string) => void
   canAddTask?: boolean
-  readOnly?: boolean
+  canDragTask?: (task: Task) => boolean
+  canEditTask?: (task: Task) => boolean
   isLoading?: boolean
 }
 
@@ -20,7 +21,8 @@ export function KanbanColumn({
   onTaskClick,
   onAddTask,
   canAddTask = true,
-  readOnly = false,
+  canDragTask = () => true,
+  canEditTask = () => true,
   isLoading,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
@@ -60,8 +62,8 @@ export function KanbanColumn({
               key={task.id}
               task={task}
               onClick={() => onTaskClick(task)}
-              canDrag={!readOnly}
-              canEdit={!readOnly}
+              canDrag={canDragTask(task)}
+              canEdit={canEditTask(task)}
             />
           ))}
         </SortableContext>
