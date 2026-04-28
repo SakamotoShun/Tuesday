@@ -4,7 +4,7 @@ let upsertTimeEntry: (...args: any[]) => Promise<any> = async (data) => ({ id: '
 let findTimeEntryById: (...args: any[]) => Promise<any> = async () => null;
 let deleteTimeEntry: (...args: any[]) => Promise<any> = async () => true;
 let findByUserAndDateRange: (...args: any[]) => Promise<any> = async () => [];
-let hasProjectAccess: (...args: any[]) => Promise<any> = async () => true;
+let isProjectMember: (...args: any[]) => Promise<any> = async () => true;
 
 mock.module('../repositories/timeEntry', () => ({
   TimeEntryRepository: class {},
@@ -18,18 +18,14 @@ mock.module('../repositories/timeEntry', () => ({
 
 mock.module('../repositories/projectMember', () => ({
   ProjectMemberRepository: class {},
-  projectMemberRepository: {},
+  projectMemberRepository: {
+    isMember: (projectId: string, userId: string) => isProjectMember(projectId, userId),
+  },
 }));
 
 mock.module('../repositories/teamMember', () => ({
   TeamMemberRepository: class {},
   teamMemberRepository: {},
-}));
-
-mock.module('./project', () => ({
-  projectService: {
-    hasAccess: (projectId: string, user: any) => hasProjectAccess(projectId, user),
-  },
 }));
 
 const { timeEntryService } = await import('./timeEntry');
@@ -56,7 +52,7 @@ describe('TimeEntryService', () => {
     findTimeEntryById = async () => null;
     deleteTimeEntry = async () => true;
     findByUserAndDateRange = async () => [];
-    hasProjectAccess = async () => true;
+    isProjectMember = async () => true;
   });
 
   it('allows freelancers to upsert project-linked entries', async () => {
@@ -80,7 +76,7 @@ describe('TimeEntryService', () => {
   });
 
   it('rejects entries for inaccessible projects', async () => {
-    hasProjectAccess = async () => false;
+    isProjectMember = async () => false;
     await expect(
       timeEntryService.upsertEntry(
         memberUser.id,

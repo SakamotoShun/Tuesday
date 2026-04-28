@@ -1,7 +1,24 @@
 import { UserRole } from '../db/schema';
 import { userRepository } from '../repositories/user';
 import { settingsRepository } from '../repositories/settings';
-import { authService } from './auth';
+
+type RegisterAdminUser = (input: {
+  email: string;
+  password: string;
+  name: string;
+  role: typeof UserRole.ADMIN;
+}) => Promise<unknown>;
+
+const defaultRegisterAdminUser: RegisterAdminUser = async (input) => {
+  const { authService } = await import('./auth');
+  return authService.register(input);
+};
+
+let registerAdminUser: RegisterAdminUser = defaultRegisterAdminUser;
+
+export function setRegisterAdminUserForTests(register: RegisterAdminUser | null): void {
+  registerAdminUser = register ?? defaultRegisterAdminUser;
+}
 
 export interface SetupInput {
   workspaceName: string;
@@ -32,7 +49,7 @@ export class SetupService {
     }
 
     // Create admin user
-    await authService.register({
+    await registerAdminUser({
       email: input.adminEmail,
       password: input.adminPassword,
       name: input.adminName,
