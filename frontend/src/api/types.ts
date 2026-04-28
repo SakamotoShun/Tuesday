@@ -10,7 +10,7 @@ export interface User {
   avatarUrl: string | null
   role: UserRole
   employmentType?: "hourly" | "full_time"
-  hourlyRate: string | null
+  hourlyRate: number | null
   isDisabled: boolean
   onboardingCompletedAt: string | null
   createdAt: string

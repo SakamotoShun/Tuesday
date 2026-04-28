@@ -110,4 +110,34 @@ describe('TimeEntryService', () => {
     expect(ok).toBe(true);
     expect(deletedId).toBe('e-1');
   });
+
+  describe('getWeekDate (UTC consistency)', () => {
+    // Tests that dates are computed in UTC so the output is stable regardless of
+    // server timezone. The pre-fix code used local Date methods, which shifted the
+    // date string by the server's UTC offset when crossing midnight.
+    const getWeekDate = (week: number, year: number) =>
+      (timeEntryService as any).getWeekDate(week, year);
+
+    it('week 1 of 2023 starts on Monday 2023-01-02', () => {
+      // 2023-01-01 is a Sunday; ISO week 1 therefore starts 2023-01-02.
+      const { start, end } = getWeekDate(1, 2023);
+      expect(start).toBe('2023-01-02');
+      expect(end).toBe('2023-01-08');
+    });
+
+    it('week 1 of 2024 starts on Monday 2024-01-01', () => {
+      // 2024-01-01 is a Monday — first day IS the week start.
+      const { start, end } = getWeekDate(1, 2024);
+      expect(start).toBe('2024-01-01');
+      expect(end).toBe('2024-01-07');
+    });
+
+    it('end date is always 6 days after start', () => {
+      for (const [week, year] of [[1, 2023], [26, 2023], [52, 2022]] as const) {
+        const { start, end } = getWeekDate(week, year);
+        const diff = (new Date(end).getTime() - new Date(start).getTime()) / 86_400_000;
+        expect(diff).toBe(6);
+      }
+    });
+  });
 });
