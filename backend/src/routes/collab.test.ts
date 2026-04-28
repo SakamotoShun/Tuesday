@@ -40,6 +40,7 @@ mock.module('../collab/hub', () => ({
     leave: () => {},
     broadcast: () => {},
     shouldRequestSnapshot: () => false,
+    getStats: () => ({ activeRooms: 0, clients: 0 }),
   },
 }));
 
@@ -50,6 +51,7 @@ mock.module('../collab/whiteboardHub', () => ({
     broadcast: () => {},
     shouldRequestSnapshot: () => false,
     listCollaborators: () => [],
+    getStats: () => ({ activeRooms: 0, clients: 0 }),
   },
 }));
 

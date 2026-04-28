@@ -169,6 +169,9 @@ describe('TaskService', () => {
     await expect(taskService.updateTask('task-1', { title: 'Updated' }, freelancerUser)).rejects.toThrow(
       'Freelancers cannot edit tasks (status only)'
     );
+    await expect(taskService.updateTaskOrder('task-1', 1, freelancerUser)).rejects.toThrow(
+      'Freelancers cannot edit tasks (status only)'
+    );
     await expect(taskService.updateTaskAssignees('task-1', ['user-2'], freelancerUser)).rejects.toThrow(
       'Freelancers cannot update task assignees'
     );

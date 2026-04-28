@@ -100,8 +100,14 @@ const memberUser = {
 };
 
 const freelancerUser = {
-  ...memberUser,
+  id: 'user-2',
+  email: 'freelancer@example.com',
+  name: 'Freelancer',
   role: 'freelancer' as const,
+  isDisabled: false,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  avatarUrl: null,
 };
 
 describe('ChatService', () => {

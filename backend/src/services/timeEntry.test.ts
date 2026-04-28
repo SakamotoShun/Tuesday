@@ -137,6 +137,13 @@ describe('TimeEntryService', () => {
       expect(end).toBe('2024-01-07');
     });
 
+    it('week 1 of 2022 starts on Monday 2022-01-03', () => {
+      // 2022-01-01 is a Saturday, so ISO week 1 starts on the following Monday.
+      const { start, end } = getWeekDate(1, 2022);
+      expect(start).toBe('2022-01-03');
+      expect(end).toBe('2022-01-09');
+    });
+
     it('end date is always 6 days after start', () => {
       for (const [week, year] of [[1, 2023], [26, 2023], [52, 2022]] as const) {
         const { start, end } = getWeekDate(week, year);

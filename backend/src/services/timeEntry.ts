@@ -713,10 +713,13 @@ export class TimeEntryService {
   }
 
   private getWeekDate(weekNumber: number, year: number): { start: string; end: string } {
-    const firstDayOfYear = new Date(Date.UTC(year, 0, 1));
-    const daysOffset = (weekNumber - 1) * 7;
-    const firstDayOfWeek = new Date(firstDayOfYear);
-    firstDayOfWeek.setUTCDate(firstDayOfYear.getUTCDate() + daysOffset - firstDayOfYear.getUTCDay() + 1);
+    const janFourth = new Date(Date.UTC(year, 0, 4));
+    const janFourthDay = janFourth.getUTCDay() || 7;
+    const isoWeekOneMonday = new Date(janFourth);
+    isoWeekOneMonday.setUTCDate(janFourth.getUTCDate() - janFourthDay + 1);
+
+    const firstDayOfWeek = new Date(isoWeekOneMonday);
+    firstDayOfWeek.setUTCDate(isoWeekOneMonday.getUTCDate() + (weekNumber - 1) * 7);
 
     const lastDayOfWeek = new Date(firstDayOfWeek);
     lastDayOfWeek.setUTCDate(firstDayOfWeek.getUTCDate() + 6);

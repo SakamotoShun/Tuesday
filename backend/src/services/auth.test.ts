@@ -1,4 +1,6 @@
+import { createHash } from 'crypto';
 import { describe, it, expect, beforeEach, mock } from 'bun:test';
+import { TokenType } from '../db/schema';
 import { hashPassword } from '../utils/password';
 
 let findByEmail: (email: string) => Promise<any> = async () => null;
@@ -95,6 +97,8 @@ describe('AuthService', () => {
     tokenDeleteExpiredOrUsed = async () => 0;
     sendPasswordResetEmail = async () => true;
     sendPasswordChangedEmail = async () => true;
+    (authService as any).passwordResetRateLimits.clear();
+    (authService as any).lastPasswordResetSweepAt = 0;
   });
 
   it('registers a new user with hashed password', async () => {
@@ -336,5 +340,169 @@ describe('AuthService', () => {
     const user = await authService.validateSession('session-1');
     expect(user?.email).toBe('test@example.com');
     expect(user && 'passwordHash' in user).toBe(false);
+  });
+
+  it('creates and emails a password reset token', async () => {
+    let deletedArgs: { userId: string; type: string } | null = null;
+    let createdToken: any = null;
+    let emailInput: any = null;
+
+    findByEmail = async (email) => ({
+      id: 'user-1',
+      email,
+      name: 'Test User',
+      isDisabled: false,
+    });
+    tokenDeleteByUserAndType = async (userId, type) => {
+      deletedArgs = { userId, type };
+      return 1;
+    };
+    tokenCreate = async (data) => {
+      createdToken = data;
+      return { id: 'token-1', ...data };
+    };
+    getSetting = async (key) => {
+      if (key === 'workspace_name') return 'Acme Workspace';
+      if (key === 'site_url') return 'https://example.com/';
+      return null;
+    };
+    sendPasswordResetEmail = async (input) => {
+      emailInput = input;
+      return true;
+    };
+
+    await authService.requestPasswordReset('test@example.com');
+
+    expect(deletedArgs).toEqual({ userId: 'user-1', type: TokenType.PASSWORD_RESET });
+    expect(createdToken).toMatchObject({
+      userId: 'user-1',
+      type: TokenType.PASSWORD_RESET,
+      extra: {},
+    });
+    expect(createdToken.tokenHash).toHaveLength(64);
+    expect(createdToken.expiresAt instanceof Date).toBe(true);
+    expect(emailInput.to).toBe('test@example.com');
+    expect(emailInput.name).toBe('Test User');
+    expect(emailInput.workspaceName).toBe('Acme Workspace');
+    expect(emailInput.resetUrl.startsWith('https://example.com/reset-password?token=')).toBe(true);
+
+    const resetToken = new URL(emailInput.resetUrl).searchParams.get('token');
+    expect(resetToken).not.toBeNull();
+    expect(createdToken.tokenHash).toBe(createHash('sha256').update(resetToken!).digest('hex'));
+  });
+
+  it('swallows password reset email send failures after creating the token', async () => {
+    let createdToken: any = null;
+    let sendAttempts = 0;
+
+    findByEmail = async () => ({
+      id: 'user-1',
+      email: 'test@example.com',
+      name: 'Test User',
+      isDisabled: false,
+    });
+    tokenCreate = async (data) => {
+      createdToken = data;
+      return { id: 'token-1', ...data };
+    };
+    getSetting = async (key) => {
+      if (key === 'workspace_name') return 'Acme Workspace';
+      if (key === 'site_url') return 'https://example.com';
+      return null;
+    };
+    sendPasswordResetEmail = async () => {
+      sendAttempts += 1;
+      throw new Error('SMTP unavailable');
+    };
+
+    await authService.requestPasswordReset('test@example.com');
+
+    expect(createdToken).toBeTruthy();
+    expect(sendAttempts).toBe(1);
+  });
+
+  it('consumes a reset token, updates the password, and invalidates sessions', async () => {
+    const token = 'reset-token';
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+    let lookupArgs: { tokenHash: string; type: string } | null = null;
+    let markedUsedId = '';
+    let updatedUser: { id: string; data: any } | null = null;
+    let invalidatedUserId = '';
+    let emailInput: any = null;
+
+    tokenFindActiveByTokenHash = async (receivedTokenHash, type) => {
+      lookupArgs = { tokenHash: receivedTokenHash, type };
+      return {
+        id: 'token-1',
+        userId: 'user-1',
+      };
+    };
+    tokenMarkUsed = async (id) => {
+      markedUsedId = id;
+      return true;
+    };
+    findByUserId = async () => ({
+      id: 'user-1',
+      email: 'test@example.com',
+      name: 'Test User',
+      isDisabled: false,
+    });
+    updateUser = async (id, data) => {
+      updatedUser = { id, data };
+      return { id, ...data };
+    };
+    sessionDeleteByUserId = async (userId) => {
+      invalidatedUserId = userId;
+      return 2;
+    };
+    getSetting = async (key) => (key === 'workspace_name' ? 'Acme Workspace' : null);
+    sendPasswordChangedEmail = async (input) => {
+      emailInput = input;
+      return true;
+    };
+
+    await authService.resetPassword(token, 'new-password-123');
+
+    expect(lookupArgs).toEqual({ tokenHash, type: TokenType.PASSWORD_RESET });
+    expect(markedUsedId).toBe('token-1');
+    expect(updatedUser?.id).toBe('user-1');
+    expect(updatedUser?.data.passwordHash).not.toBe('new-password-123');
+    expect(updatedUser?.data.passwordHash.startsWith('$2')).toBe(true);
+    expect(invalidatedUserId).toBe('user-1');
+    expect(emailInput).toEqual({
+      to: 'test@example.com',
+      name: 'Test User',
+      workspaceName: 'Acme Workspace',
+    });
+  });
+
+  it('rejects resetPassword for invalid or expired tokens', async () => {
+    tokenFindActiveByTokenHash = async () => null;
+
+    await expect(authService.resetPassword('bad-token', 'new-password-123')).rejects.toThrow(
+      'Invalid or expired reset token'
+    );
+  });
+
+  it('rejects resetPassword when the token cannot be marked used', async () => {
+    let updated = false;
+    let invalidated = false;
+
+    tokenFindActiveByTokenHash = async () => ({ id: 'token-1', userId: 'user-1' });
+    tokenMarkUsed = async () => false;
+    updateUser = async (_id, data) => {
+      updated = true;
+      return { id: 'user-1', ...data };
+    };
+    sessionDeleteByUserId = async () => {
+      invalidated = true;
+      return 0;
+    };
+
+    await expect(authService.resetPassword('used-token', 'new-password-123')).rejects.toThrow(
+      'Invalid or expired reset token'
+    );
+    expect(updated).toBe(false);
+    expect(invalidated).toBe(false);
   });
 });

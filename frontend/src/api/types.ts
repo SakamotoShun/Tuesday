@@ -9,7 +9,7 @@ export interface User {
   name: string
   avatarUrl: string | null
   role: UserRole
-  employmentType?: "hourly" | "full_time"
+  employmentType: "hourly" | "full_time"
   hourlyRate: number | null
   isDisabled: boolean
   onboardingCompletedAt: string | null
