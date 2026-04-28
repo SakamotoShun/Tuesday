@@ -48,7 +48,7 @@ export function UserManagement() {
                 <Select
                   value={user.role}
                   onValueChange={(value) =>
-                    updateUser.mutate({ userId: user.id, data: { role: value as "admin" | "member" } })
+                    updateUser.mutate({ userId: user.id, data: { role: value as "admin" | "member" | "freelancer" } })
                   }
                 >
                   <SelectTrigger className="w-32">
@@ -56,6 +56,7 @@ export function UserManagement() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="member">Member</SelectItem>
+                    <SelectItem value="freelancer">Freelancer</SelectItem>
                     <SelectItem value="admin">Admin</SelectItem>
                   </SelectContent>
                 </Select>

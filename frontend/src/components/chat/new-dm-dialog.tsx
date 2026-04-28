@@ -30,6 +30,10 @@ export function NewDmDialog({ onCreated, trigger }: NewDmDialogProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
 
+  if (user?.role === "freelancer") {
+    return null
+  }
+
   const availableUsers = useMemo(() => {
     return (usersQuery.data ?? []).filter(
       (workspaceUser) => workspaceUser.id !== user?.id && !workspaceUser.isDisabled

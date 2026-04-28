@@ -3,6 +3,7 @@ import { projectService } from './project';
 import { activityService } from './activity';
 import { type Task, type NewTask } from '../db/schema';
 import type { User } from '../types';
+import { assertNotFreelancer, isFreelancer } from '../utils/permissions';
 
 export interface CreateTaskInput {
   title: string;
@@ -27,6 +28,17 @@ export interface TaskWithAssignees extends Task {
 }
 
 export class TaskService {
+  private ensureFreelancerAssigned(task: TaskWithAssignees, user: User) {
+    if (!isFreelancer(user)) {
+      return;
+    }
+
+    const isAssigned = task.assignees?.some((assignee) => assignee.userId === user.id) ?? false;
+    if (!isAssigned) {
+      throw new Error('Freelancers can only update status on tasks assigned to them');
+    }
+  }
+
   /**
    * Get all tasks in a project
    */
@@ -84,6 +96,8 @@ export class TaskService {
    * Create a new task
    */
   async createTask(projectId: string, input: CreateTaskInput, user: User): Promise<Task> {
+    assertNotFreelancer(user, 'Freelancers cannot create tasks');
+
     // Verify access
     const hasAccess = await projectService.hasAccess(projectId, user);
     if (!hasAccess) {
@@ -159,6 +173,8 @@ export class TaskService {
    * Update a task
    */
   async updateTask(taskId: string, input: UpdateTaskInput, user: User): Promise<Task | null> {
+    assertNotFreelancer(user, 'Freelancers can only update task status');
+
     const task = await taskRepository.findById(taskId) as TaskWithAssignees | null;
 
     if (!task) {
@@ -240,6 +256,8 @@ export class TaskService {
       throw new Error('Access denied to this task');
     }
 
+    this.ensureFreelancerAssigned(task, user);
+
     // Validate status exists
     const status = await taskStatusRepository.findById(statusId);
     if (!status) {
@@ -269,6 +287,8 @@ export class TaskService {
    * Update task sort order (for kanban reordering)
    */
   async updateTaskOrder(taskId: string, sortOrder: number, user: User): Promise<Task | null> {
+    assertNotFreelancer(user, 'Freelancers can only update task status');
+
     const task = await taskRepository.findById(taskId);
 
     if (!task) {
@@ -288,6 +308,8 @@ export class TaskService {
    * Update task assignees
    */
   async updateTaskAssignees(taskId: string, assigneeIds: string[], user: User): Promise<Task | null> {
+    assertNotFreelancer(user, 'Freelancers cannot update task assignees');
+
     const task = await taskRepository.findById(taskId) as TaskWithAssignees | null;
 
     if (!task) {
@@ -336,6 +358,8 @@ export class TaskService {
    * Delete a task
    */
   async deleteTask(taskId: string, user: User): Promise<boolean> {
+    assertNotFreelancer(user, 'Freelancers cannot delete tasks');
+
     const task = await taskRepository.findById(taskId);
 
     if (!task) {

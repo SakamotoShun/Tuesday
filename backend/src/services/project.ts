@@ -8,6 +8,7 @@ import { eq, sql } from 'drizzle-orm';
 import type { Project, ProjectMember, ProjectStatus, NewProject, NewProjectMember } from '../db/schema';
 import type { ProjectWithRelations } from '../repositories/project';
 import type { User } from '../types';
+import { assertNotFreelancer } from '../utils/permissions';
 
 export interface CreateProjectInput {
   name: string;
@@ -102,6 +103,8 @@ export class ProjectService {
    * - If templateId is provided, clones template content
    */
   async createProject(input: CreateProjectInput, user: User): Promise<Project> {
+    assertNotFreelancer(user, 'Freelancers cannot create projects');
+
     // Validate required fields
     if (!input.name || input.name.trim() === '') {
       throw new Error('Project name is required');
@@ -387,6 +390,8 @@ export class ProjectService {
    * - Only owner can update
    */
   async updateProject(projectId: string, input: UpdateProjectInput, user: User): Promise<Project | null> {
+    assertNotFreelancer(user, 'Freelancers cannot edit projects');
+
     // Check ownership
     const isOwner = await projectMemberRepository.isOwner(projectId, user.id);
     if (!isOwner && user.role !== UserRole.ADMIN) {
@@ -458,6 +463,8 @@ export class ProjectService {
    * - Cleans up all attached files before deletion
    */
   async deleteProject(projectId: string, user: User): Promise<boolean> {
+    assertNotFreelancer(user, 'Freelancers cannot delete projects');
+
     // Check ownership
     const isOwner = await projectMemberRepository.isOwner(projectId, user.id);
     if (!isOwner && user.role !== UserRole.ADMIN) {
@@ -489,6 +496,8 @@ export class ProjectService {
    * Get teams assigned to a project
    */
   async getAssignedTeams(projectId: string, user: User) {
+    assertNotFreelancer(user, 'Freelancers cannot manage project teams');
+
     if (user.role !== UserRole.ADMIN) {
       const isOwner = await projectMemberRepository.isOwner(projectId, user.id);
       if (!isOwner) {
@@ -504,6 +513,8 @@ export class ProjectService {
    * - Only owner can add members
    */
   async addMember(projectId: string, userId: string, role: string = ProjectMemberRole.MEMBER, currentUser: User): Promise<ProjectMember> {
+    assertNotFreelancer(currentUser, 'Freelancers cannot manage project members');
+
     // Check ownership
     const isOwner = await projectMemberRepository.isOwner(projectId, currentUser.id);
     if (!isOwner && currentUser.role !== UserRole.ADMIN) {
@@ -566,6 +577,8 @@ export class ProjectService {
    * - Only owner can update roles
    */
   async updateMemberRole(projectId: string, userId: string, role: string, currentUser: User): Promise<ProjectMember | null> {
+    assertNotFreelancer(currentUser, 'Freelancers cannot manage project members');
+
     // Check ownership
     const isOwner = await projectMemberRepository.isOwner(projectId, currentUser.id);
     if (!isOwner && currentUser.role !== UserRole.ADMIN) {
@@ -623,6 +636,8 @@ export class ProjectService {
    * - Cannot remove yourself if you're the only owner
    */
   async removeMember(projectId: string, userId: string, currentUser: User): Promise<boolean> {
+    assertNotFreelancer(currentUser, 'Freelancers cannot manage project members');
+
     // Check ownership
     const isOwner = await projectMemberRepository.isOwner(projectId, currentUser.id);
     if (!isOwner && currentUser.role !== UserRole.ADMIN) {

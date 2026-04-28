@@ -63,6 +63,11 @@ const adminUser = {
   role: 'admin' as const,
 };
 
+const freelancerUser = {
+  ...memberUser,
+  role: 'freelancer' as const,
+};
+
 describe('TaskService', () => {
   beforeEach(() => {
     findByProjectId = async () => [];
@@ -108,11 +113,38 @@ describe('TaskService', () => {
     ).rejects.toThrow('Invalid status ID');
   });
 
+  it('rejects task creation for freelancers', async () => {
+    await expect(taskService.createTask('project-1', { title: 'Task A' }, freelancerUser)).rejects.toThrow(
+      'Freelancers cannot create tasks'
+    );
+  });
+
 
   it('updates task status', async () => {
-    findById = async () => ({ id: 'task-1', projectId: 'project-1' });
+    findById = async () => ({ id: 'task-1', projectId: 'project-1', assignees: [] });
     const task = await taskService.updateTaskStatus('task-1', 'status-1', adminUser);
     expect(task?.id).toBe('task-1');
+  });
+
+  it('allows freelancer to update status on assigned tasks', async () => {
+    findById = async () => ({
+      id: 'task-1',
+      projectId: 'project-1',
+      assignees: [{ userId: freelancerUser.id }],
+    });
+    const task = await taskService.updateTaskStatus('task-1', 'status-1', freelancerUser);
+    expect(task?.id).toBe('task-1');
+  });
+
+  it('rejects freelancer status updates for unassigned tasks', async () => {
+    findById = async () => ({
+      id: 'task-1',
+      projectId: 'project-1',
+      assignees: [{ userId: 'someone-else' }],
+    });
+    await expect(taskService.updateTaskStatus('task-1', 'status-1', freelancerUser)).rejects.toThrow(
+      'Freelancers can only update status on tasks assigned to them'
+    );
   });
 
 
@@ -120,6 +152,20 @@ describe('TaskService', () => {
     findById = async () => ({ id: 'task-1', projectId: 'project-1' });
     const ok = await taskService.deleteTask('task-1', adminUser);
     expect(ok).toBe(true);
+  });
+
+  it('rejects task edits for freelancers', async () => {
+    findById = async () => ({ id: 'task-1', projectId: 'project-1', assignees: [] });
+
+    await expect(taskService.updateTask('task-1', { title: 'Updated' }, freelancerUser)).rejects.toThrow(
+      'Freelancers can only update task status'
+    );
+    await expect(taskService.updateTaskAssignees('task-1', ['user-2'], freelancerUser)).rejects.toThrow(
+      'Freelancers cannot update task assignees'
+    );
+    await expect(taskService.deleteTask('task-1', freelancerUser)).rejects.toThrow(
+      'Freelancers cannot delete tasks'
+    );
   });
 
   it('allows admin to view other user tasks', async () => {

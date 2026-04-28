@@ -4,6 +4,7 @@ import type { Task } from "@/api/types"
 import { useMyTasks, useTaskStatuses } from "@/hooks/use-tasks"
 import { useProjects } from "@/hooks/use-projects"
 import { useMyTimesheet, useMyMonthlyOverview } from "@/hooks/use-time-entries"
+import { useAuth } from "@/hooks/use-auth"
 import { TaskFilters } from "@/components/mywork/task-filters"
 import { TaskGroupList } from "@/components/mywork/task-group-list"
 import { EmptyState } from "@/components/common/empty-state"
@@ -59,6 +60,7 @@ type TaskSortMode = "urgency" | "dueDate" | "updated" | "alphabetical"
 export function MyWorkPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
+  const { user } = useAuth()
   const { data: statuses } = useTaskStatuses()
   const { projects } = useProjects()
   const { data: tasks, isLoading: isTasksLoading } = useMyTasks()
@@ -543,6 +545,7 @@ export function MyWorkPage() {
                     entries={timesheetData.entries}
                     projects={projects}
                     weekStart={timesheetData.weekStart}
+                    allowMisc={user?.role !== "freelancer"}
                   />
                 </div>
               ) : (

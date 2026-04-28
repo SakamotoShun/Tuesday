@@ -107,6 +107,11 @@ const adminUser = {
   role: UserRole.ADMIN,
 };
 
+const freelancerUser = {
+  ...memberUser,
+  role: UserRole.FREELANCER,
+};
+
 describe('ProjectService', () => {
   beforeEach(() => {
     findAll = async () => [];
@@ -149,6 +154,12 @@ describe('ProjectService', () => {
 
   it('rejects project creation without name', async () => {
     await expect(projectService.createProject({ name: '' }, memberUser)).rejects.toThrow('Project name is required');
+  });
+
+  it('rejects project creation for freelancers', async () => {
+    await expect(projectService.createProject({ name: 'Freelance Project' }, freelancerUser)).rejects.toThrow(
+      'Freelancers cannot create projects'
+    );
   });
 
   it('creates project with default status and owner membership', async () => {

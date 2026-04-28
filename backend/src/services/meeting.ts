@@ -3,6 +3,7 @@ import { projectService } from './project';
 import { activityService } from './activity';
 import { type Meeting, type NewMeeting } from '../db/schema';
 import type { User } from '../types';
+import { assertNotFreelancer } from '../utils/permissions';
 
 export interface CreateMeetingInput {
   title: string;
@@ -64,6 +65,8 @@ export class MeetingService {
   }
 
   async createMeeting(projectId: string | null, input: CreateMeetingInput, user: User): Promise<Meeting> {
+    assertNotFreelancer(user, 'Freelancers cannot create meetings');
+
     if (projectId) {
       const hasAccess = await projectService.hasAccess(projectId, user);
       if (!hasAccess) {
@@ -129,6 +132,8 @@ export class MeetingService {
   }
 
   async updateMeeting(meetingId: string, input: UpdateMeetingInput, user: User): Promise<Meeting | null> {
+    assertNotFreelancer(user, 'Freelancers cannot edit meetings');
+
     const meeting = await meetingRepository.findById(meetingId);
 
     if (!meeting) {
@@ -226,6 +231,8 @@ export class MeetingService {
   }
 
   async deleteMeeting(meetingId: string, user: User): Promise<boolean> {
+    assertNotFreelancer(user, 'Freelancers cannot delete meetings');
+
     const meeting = await meetingRepository.findById(meetingId);
 
     if (!meeting) {

@@ -10,6 +10,7 @@ interface TimesheetGridProps {
   entries: TimeEntry[]
   projects: Project[]
   weekStart: string
+  allowMisc?: boolean
 }
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -32,6 +33,7 @@ export function TimesheetGrid({
   entries,
   projects,
   weekStart,
+  allowMisc = true,
 }: TimesheetGridProps) {
   const upsertMutation = useUpsertTimeEntry()
   const weekDates = useMemo(() => getWeekDates(weekStart), [weekStart])
@@ -156,30 +158,32 @@ export function TimesheetGrid({
             </tr>
           ))}
 
-          <tr className="border-b bg-muted/20">
-            <td className="py-0.5 px-2">
-              <span className="font-medium text-sm text-muted-foreground">Misc</span>
-            </td>
-            {weekDates.map((date) => {
-              const entry = getEntry(null, date)
-              return (
-                <td key={date} className="p-0">
-                  <TimesheetCell
-                    value={entry?.hours || 0}
-                    note={entry?.note}
-                    onChange={(hours) => handleHoursChange(null, date, hours)}
-                    disabled={upsertMutation.isPending}
-                  />
-                </td>
-              )
-            })}
-            <td className="p-0">
-              <TimesheetCell
-                value={calculateProjectTotal(null)}
-                isTotal
-              />
-            </td>
-          </tr>
+          {allowMisc && (
+            <tr className="border-b bg-muted/20">
+              <td className="py-0.5 px-2">
+                <span className="font-medium text-sm text-muted-foreground">Misc</span>
+              </td>
+              {weekDates.map((date) => {
+                const entry = getEntry(null, date)
+                return (
+                  <td key={date} className="p-0">
+                    <TimesheetCell
+                      value={entry?.hours || 0}
+                      note={entry?.note}
+                      onChange={(hours) => handleHoursChange(null, date, hours)}
+                      disabled={upsertMutation.isPending}
+                    />
+                  </td>
+                )
+              })}
+              <td className="p-0">
+                <TimesheetCell
+                  value={calculateProjectTotal(null)}
+                  isTotal
+                />
+              </td>
+            </tr>
+          )}
 
           {availableProjects.length > 0 && (
             <tr className="border-b">

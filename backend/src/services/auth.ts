@@ -20,7 +20,7 @@ export interface RegisterInput {
   email: string;
   password: string;
   name: string;
-  role?: 'admin' | 'member';
+  role?: User['role'];
 }
 
 export interface LoginInput {
@@ -117,7 +117,7 @@ export class AuthService {
       email: user.email,
       name: user.name,
       avatarUrl: user.avatarUrl,
-      role: user.role as 'admin' | 'member',
+      role: user.role as User['role'],
       employmentType: user.employmentType as 'hourly' | 'full_time',
       hourlyRate: user.hourlyRate,
       isDisabled: user.isDisabled,
@@ -168,7 +168,7 @@ export class AuthService {
         email: user.email,
         name: user.name,
         avatarUrl: user.avatarUrl,
-        role: user.role as 'admin' | 'member',
+        role: user.role as User['role'],
         employmentType: user.employmentType as 'hourly' | 'full_time',
         hourlyRate: user.hourlyRate,
         isDisabled: user.isDisabled,
@@ -215,7 +215,7 @@ export class AuthService {
       email: result.user.email,
       name: result.user.name,
       avatarUrl: result.user.avatarUrl,
-      role: result.user.role as 'admin' | 'member',
+      role: result.user.role as User['role'],
       employmentType: result.user.employmentType as 'hourly' | 'full_time',
       hourlyRate: result.user.hourlyRate,
       isDisabled: result.user.isDisabled,

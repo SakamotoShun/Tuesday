@@ -9,7 +9,7 @@ interface MessageListProps {
   isFetchingNextPage?: boolean
   onLoadMore?: () => void
   currentUserId?: string
-  currentUserRole?: "admin" | "member"
+  currentUserRole?: "admin" | "member" | "freelancer"
   onUpdateMessage?: (messageId: string, content: string) => Promise<unknown>
   onDeleteMessage?: (messageId: string) => Promise<unknown>
   onAddReaction?: (messageId: string, emoji: string) => Promise<unknown>

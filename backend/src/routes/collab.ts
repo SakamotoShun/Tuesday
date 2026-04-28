@@ -9,6 +9,7 @@ import type { User } from '../types';
 import { extractSearchTextFromDocContent } from '../utils/doc-search';
 import { requireRouteParam } from '../utils/route-params';
 import { sendWebSocketMessage, safeCloseWebSocket } from '../utils/websocket';
+import { isFreelancer } from '../utils/permissions';
 
 type CollabMessage =
   | { type: 'doc.update'; update: string }
@@ -112,6 +113,10 @@ collab.get(
         }
 
         if (message.type === 'doc.update') {
+          if (isFreelancer(user)) {
+            return;
+          }
+
           const update = decodeBase64(message.update);
           const seq = await docCollabRepository.appendUpdate(docId, update, user.id);
           docCollabHub.broadcast(
@@ -153,6 +158,10 @@ collab.get(
         }
 
         if (message.type === 'doc.snapshot') {
+          if (isFreelancer(user)) {
+            return;
+          }
+
           const snapshot = decodeBase64(message.snapshot);
           const latestSeq = await docCollabRepository.getLatestSeq(docId);
           const snapshotSeq = resolveDocSnapshotSeq(message.seq, latestSeq);
@@ -266,6 +275,10 @@ collab.get(
         }
 
         if (message.type === 'whiteboard.update') {
+          if (isFreelancer(user)) {
+            return;
+          }
+
           if (!message.update?.elements) return;
           const seq = await whiteboardCollabRepository.appendUpdate(whiteboardId, message.update as Record<string, unknown>, user.id);
           whiteboardCollabHub.broadcast(
@@ -315,6 +328,10 @@ collab.get(
         }
 
         if (message.type === 'whiteboard.snapshot') {
+          if (isFreelancer(user)) {
+            return;
+          }
+
           const latestSeq = await whiteboardCollabRepository.getLatestSeq(whiteboardId);
           await whiteboardCollabRepository.createSnapshot(whiteboardId, message.snapshot as Record<string, unknown>, latestSeq);
           await whiteboardCollabRepository.compactHistory(whiteboardId, latestSeq);

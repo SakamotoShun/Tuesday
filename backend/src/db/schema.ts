@@ -5,6 +5,7 @@ import { relations } from 'drizzle-orm';
 export const UserRole = {
   ADMIN: 'admin',
   MEMBER: 'member',
+  FREELANCER: 'freelancer',
 } as const;
 
 export type UserRole = typeof UserRole[keyof typeof UserRole];

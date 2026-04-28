@@ -95,6 +95,11 @@ const memberUser = {
   avatarUrl: null,
 };
 
+const freelancerUser = {
+  ...memberUser,
+  role: 'freelancer' as const,
+};
+
 describe('ChatService', () => {
   let chatService: InstanceType<typeof ChatService>;
 
@@ -132,5 +137,25 @@ describe('ChatService', () => {
   it('rejects DM creation for missing user', async () => {
     findUserById = async () => null;
     await expect(chatService.getOrCreateDM('user-2', memberUser)).rejects.toThrow('User not found');
+  });
+
+  it('limits freelancer channels to project channels', async () => {
+    findUserChannels = async () => [
+      { id: 'project-1', type: 'project', access: 'public', name: 'project' },
+      { id: 'workspace-1', type: 'workspace', access: 'public', name: 'workspace' },
+    ];
+
+    const channels = await chatService.getChannels(freelancerUser);
+    expect(channels).toHaveLength(1);
+    expect(channels[0]?.type).toBe('project');
+  });
+
+  it('rejects freelancer DM and channel creation', async () => {
+    await expect(chatService.getOrCreateDM('user-2', freelancerUser)).rejects.toThrow(
+      'Freelancers cannot create direct messages'
+    );
+    await expect(chatService.createChannel({ name: 'test' }, freelancerUser)).rejects.toThrow(
+      'Freelancers cannot create channels'
+    );
   });
 });

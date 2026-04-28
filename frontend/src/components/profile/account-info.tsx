@@ -6,7 +6,7 @@ interface AccountInfoProps {
 }
 
 export function AccountInfo({ user }: AccountInfoProps) {
-  const roleLabel = user.role === "admin" ? "Admin" : "Member"
+  const roleLabel = user.role === "admin" ? "Admin" : user.role === "freelancer" ? "Freelancer" : "Member"
   const roleVariant = user.role === "admin" ? "default" : "secondary"
 
   const formatDate = (value: string) =>

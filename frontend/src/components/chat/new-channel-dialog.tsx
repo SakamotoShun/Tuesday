@@ -60,6 +60,10 @@ export function NewChannelDialog({ projectId, onCreated, trigger }: NewChannelDi
 
   const canCreatePublic = Boolean(projectId) || user?.role === "admin"
 
+  if (user?.role === "freelancer") {
+    return null
+  }
+
   useEffect(() => {
     if (!canCreatePublic && access === "public") {
       setAccess("private")

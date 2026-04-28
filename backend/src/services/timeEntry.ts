@@ -1,7 +1,8 @@
 import { timeEntryRepository, projectMemberRepository, teamMemberRepository } from '../repositories';
 import { projectService } from './project';
-import { type TimeEntry, type NewTimeEntry, UserRole } from '../db/schema';
+import { type TimeEntry, type NewTimeEntry } from '../db/schema';
 import type { User } from '../types';
+import { isFreelancer } from '../utils/permissions';
 
 const MISC_PROJECT_ID = '__misc__';
 const MISC_PROJECT_NAME = 'Misc';
@@ -435,6 +436,10 @@ export class TimeEntryService {
   }
 
   async upsertEntry(userId: string, input: UpsertTimeEntryInput, user: User): Promise<TimeEntry> {
+    if (isFreelancer(user) && !input.projectId) {
+      throw new Error('Freelancers must log time against a project');
+    }
+
     if (input.projectId) {
       const hasAccess = await projectService.hasAccess(input.projectId, user);
       if (!hasAccess) {

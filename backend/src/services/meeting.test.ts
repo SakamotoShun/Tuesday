@@ -51,6 +51,11 @@ const adminUser = {
   role: 'admin' as const,
 };
 
+const freelancerUser = {
+  ...memberUser,
+  role: 'freelancer' as const,
+};
+
 describe('MeetingService', () => {
   beforeEach(() => {
     findByProjectId = async () => [];
@@ -78,6 +83,27 @@ describe('MeetingService', () => {
     await expect(
       meetingService.createMeeting('project-1', { title: 'Meet', startTime: '2024-01-02', endTime: '2024-01-01' }, adminUser)
     ).rejects.toThrow('Meeting end time must be after start time');
+  });
+
+  it('rejects meeting mutations for freelancers', async () => {
+    findById = async () => ({
+      id: 'meeting-1',
+      title: 'Meet',
+      projectId: 'project-1',
+      createdBy: adminUser.id,
+      startTime: new Date('2024-01-01T00:00:00.000Z'),
+      endTime: new Date('2024-01-01T01:00:00.000Z'),
+    });
+
+    await expect(
+      meetingService.createMeeting('project-1', { title: 'Meet', startTime: '2024-01-01', endTime: '2024-01-02' }, freelancerUser)
+    ).rejects.toThrow('Freelancers cannot create meetings');
+    await expect(meetingService.updateMeeting('meeting-1', { title: 'Updated' }, freelancerUser)).rejects.toThrow(
+      'Freelancers cannot edit meetings'
+    );
+    await expect(meetingService.deleteMeeting('meeting-1', freelancerUser)).rejects.toThrow(
+      'Freelancers cannot delete meetings'
+    );
   });
 
   it('adds attendees including creator', async () => {
