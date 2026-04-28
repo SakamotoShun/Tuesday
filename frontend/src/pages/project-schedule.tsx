@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useMeetings } from "@/hooks/use-meetings"
 import { useWorkspaceUsers } from "@/hooks/use-project-members"
 import { useTeams } from "@/hooks/use-teams"
+import { useAuth } from "@/hooks/use-auth"
 import type { Meeting, CreateMeetingInput, UpdateMeetingInput } from "@/api/types"
 
 interface ProjectSchedulePageProps {
@@ -20,9 +21,11 @@ const withHourOffset = (date: Date, hours: number) => {
 }
 
 export function ProjectSchedulePage({ projectId }: ProjectSchedulePageProps) {
+  const { user } = useAuth()
   const { meetings, isLoading, createMeeting, updateMeeting, deleteMeeting } = useMeetings(projectId)
   const { data: users = [], isLoading: isUsersLoading } = useWorkspaceUsers()
   const { teams, isLoading: isTeamsLoading } = useTeams()
+  const isFreelancer = user?.role === "freelancer"
 
   const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -67,17 +70,20 @@ export function ProjectSchedulePage({ projectId }: ProjectSchedulePageProps) {
           <h2 className="text-lg font-semibold">Project Schedule</h2>
           <p className="text-sm text-muted-foreground">Plan meetings with your team.</p>
         </div>
-        <Button onClick={() => openCreateDialog()}>Schedule Meeting</Button>
+        {!isFreelancer && <Button onClick={() => openCreateDialog()}>Schedule Meeting</Button>}
       </div>
 
       <CalendarView
         meetings={meetings}
-        onSelectDate={(date, allDay) => openCreateDialog(date, allDay)}
+        onSelectDate={(date, allDay) => {
+          if (isFreelancer) return
+          openCreateDialog(date, allDay)
+        }}
         onSelectMeeting={handleSelectMeeting}
       />
 
       {selectedMeeting ? (
-        <MeetingDetail meeting={selectedMeeting} onEdit={() => setDialogOpen(true)} />
+        <MeetingDetail meeting={selectedMeeting} onEdit={isFreelancer ? undefined : () => setDialogOpen(true)} />
       ) : null}
 
       <MeetingDialog

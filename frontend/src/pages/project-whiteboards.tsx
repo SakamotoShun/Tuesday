@@ -3,14 +3,17 @@ import { NewWhiteboardDialog } from "@/components/whiteboard/new-whiteboard-dial
 import { WhiteboardCard } from "@/components/whiteboard/whiteboard-card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useWhiteboards } from "@/hooks/use-whiteboards"
+import { useAuth } from "@/hooks/use-auth"
 
 interface ProjectWhiteboardsPageProps {
   projectId: string
 }
 
 export function ProjectWhiteboardsPage({ projectId }: ProjectWhiteboardsPageProps) {
+  const { user } = useAuth()
   const { whiteboards, isLoading, createWhiteboard, deleteWhiteboard } = useWhiteboards(projectId)
   const [isDeleting, setIsDeleting] = useState<string | null>(null)
+  const isFreelancer = user?.role === "freelancer"
 
   if (isLoading) {
     return (
@@ -28,14 +31,18 @@ export function ProjectWhiteboardsPage({ projectId }: ProjectWhiteboardsPageProp
           <h2 className="text-lg font-semibold">Whiteboards</h2>
           <p className="text-sm text-muted-foreground">Sketch and brainstorm with your team.</p>
         </div>
-        <NewWhiteboardDialog
-          onCreate={(name) => createWhiteboard.mutateAsync({ name })}
-        />
+        {!isFreelancer && (
+          <NewWhiteboardDialog
+            onCreate={(name) => createWhiteboard.mutateAsync({ name })}
+          />
+        )}
       </div>
 
       {whiteboards.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-10 text-center text-muted-foreground">
-          Create your first whiteboard to start sketching.
+          {isFreelancer
+            ? "No whiteboards yet."
+            : "Create your first whiteboard to start sketching."}
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
@@ -43,6 +50,7 @@ export function ProjectWhiteboardsPage({ projectId }: ProjectWhiteboardsPageProp
             <WhiteboardCard
               key={whiteboard.id}
               whiteboard={whiteboard}
+              canDelete={!isFreelancer}
               onDelete={async (id) => {
                 setIsDeleting(id)
                 await deleteWhiteboard.mutateAsync(id)

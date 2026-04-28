@@ -36,6 +36,7 @@ let findStatusById: (...args: any[]) => Promise<any> = async (id) => ({ id, name
 
 let findTeamsByProjectId: (...args: any[]) => Promise<any> = async () => [];
 let findTeamIdsForUserProject: (...args: any[]) => Promise<any> = async () => [];
+let findUserById: (...args: any[]) => Promise<any> = async () => memberUser;
 
 let cleanupProjectFiles: (...args: any[]) => Promise<any> = async () => 0;
 
@@ -79,6 +80,13 @@ mock.module('../repositories/teamProject', () => ({
   teamProjectRepository: {
     findTeamsByProjectId: (projectId: string) => findTeamsByProjectId(projectId),
     findTeamIdsForUserProject: (userId: string, projectId: string) => findTeamIdsForUserProject(userId, projectId),
+  },
+}));
+
+mock.module('../repositories/user', () => ({
+  UserRepository: class {},
+  userRepository: {
+    findById: (userId: string) => findUserById(userId),
   },
 }));
 
@@ -132,6 +140,7 @@ describe('ProjectService', () => {
     findStatusById = async (id) => ({ id, name: 'Status' });
     findTeamsByProjectId = async () => [];
     findTeamIdsForUserProject = async () => [];
+    findUserById = async () => memberUser;
     cleanupProjectFiles = async () => 0;
     activityService.record = async () => {};
   });
@@ -249,6 +258,21 @@ describe('ProjectService', () => {
     await expect(
       projectService.addMember('project-1', 'user-2', 'invalid', memberUser)
     ).rejects.toThrow('Invalid role');
+  });
+
+  it('rejects adding freelancer as project owner', async () => {
+    findUserById = async () => ({ ...freelancerUser, id: 'user-2' });
+    await expect(
+      projectService.addMember('project-1', 'user-2', ProjectMemberRole.OWNER, memberUser)
+    ).rejects.toThrow('Freelancers cannot be project owners');
+  });
+
+  it('rejects promoting freelancer to project owner', async () => {
+    findMembership = async () => ({ source: ProjectMemberSource.DIRECT, role: ProjectMemberRole.MEMBER, userId: 'user-2' });
+    findUserById = async () => ({ ...freelancerUser, id: 'user-2' });
+    await expect(
+      projectService.updateMemberRole('project-1', 'user-2', ProjectMemberRole.OWNER, memberUser)
+    ).rejects.toThrow('Freelancers cannot be project owners');
   });
 
   it('rejects role changes for team members', async () => {

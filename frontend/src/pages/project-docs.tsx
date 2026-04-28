@@ -6,6 +6,7 @@ import { DocSortControl } from "@/components/docs/doc-sort-control"
 import { NewDocDialog } from "@/components/docs/new-doc-dialog"
 import { useDocSort } from "@/hooks/use-doc-sort"
 import { useDocs } from "@/hooks/use-docs"
+import { useAuth } from "@/hooks/use-auth"
 import { ApiErrorResponse } from "@/api/client"
 
 interface ProjectDocsPageProps {
@@ -13,8 +14,10 @@ interface ProjectDocsPageProps {
 }
 
 export function ProjectDocsPage({ projectId }: ProjectDocsPageProps) {
+  const { user } = useAuth()
   const { docs, isLoading, error, createDoc, updateDoc, deleteDoc } = useDocs(projectId)
   const { sort, setSort } = useDocSort(`workhub:doc-tree-sort:${projectId}`)
+  const isFreelancer = user?.role === "freelancer"
 
   if (isLoading) {
     return (
@@ -54,11 +57,13 @@ export function ProjectDocsPage({ projectId }: ProjectDocsPageProps) {
         </div>
         <div className="flex items-center gap-2">
           <DocSortControl value={sort} onChange={setSort} />
-          <NewDocDialog
-            parentOptions={parentOptions}
-            onCreate={(data) => createDoc.mutateAsync(data)}
-            isSubmitting={createDoc.isPending}
-          />
+          {!isFreelancer && (
+            <NewDocDialog
+              parentOptions={parentOptions}
+              onCreate={(data) => createDoc.mutateAsync(data)}
+              isSubmitting={createDoc.isPending}
+            />
+          )}
         </div>
       </div>
 
@@ -66,7 +71,11 @@ export function ProjectDocsPage({ projectId }: ProjectDocsPageProps) {
         {docs.length === 0 ? (
           <div className="py-10 text-center text-muted-foreground">
             <p>No docs yet</p>
-            <p className="text-sm">Create your first doc to start organizing your project.</p>
+            <p className="text-sm">
+              {isFreelancer
+                ? "Project docs will appear here."
+                : "Create your first doc to start organizing your project."}
+            </p>
           </div>
         ) : (
           <DocList
@@ -76,6 +85,7 @@ export function ProjectDocsPage({ projectId }: ProjectDocsPageProps) {
             sortDirection={sort.direction}
             onRename={(docId, title) => updateDoc.mutateAsync({ docId, data: { title } })}
             onDelete={(docId) => deleteDoc.mutateAsync(docId)}
+            canManage={!isFreelancer}
           />
         )}
       </Card>

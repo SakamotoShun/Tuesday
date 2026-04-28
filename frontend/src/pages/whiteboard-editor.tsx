@@ -108,6 +108,7 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { user } = useAuth()
+  const isFreelancer = user?.role === "freelancer"
   const excalidrawAPI = useRef<any>(null)
   const sceneRef = useRef<WhiteboardScene>(blankScene)
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -231,6 +232,7 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
   }, [])
 
   const saveName = async () => {
+    if (isFreelancer) return
     if (!name.trim()) return
     await updateWhiteboard.mutateAsync({ name: name.trim() })
   }
@@ -300,12 +302,16 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
           >
             Back
           </Button>
-          <Input
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            onBlur={saveName}
-            className="w-64"
-          />
+          {isFreelancer ? (
+            <div className="text-lg font-semibold">{name}</div>
+          ) : (
+            <Input
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              onBlur={saveName}
+              className="w-64"
+            />
+          )}
         </div>
         <div className="flex items-center gap-3">
           <Button variant="outline" onClick={() => setIsChatOpen(!isChatOpen)}>
@@ -333,11 +339,15 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
           <Excalidraw
             initialData={initialData}
             isCollaborating
+            viewModeEnabled={isFreelancer}
             excalidrawAPI={(api: unknown) => {
               excalidrawAPI.current = api
               setIsApiReady(true)
             }}
             onChange={(elements, _appState, files) => {
+              if (isFreelancer) {
+                return
+              }
               if (ignoreAppStateChangeRef.current) {
                 ignoreAppStateChangeRef.current = false
                 return

@@ -46,6 +46,7 @@ interface TaskDetailDialogProps {
   onSubmit: (data: UpdateTaskInput) => Promise<void>
   onDelete?: (() => Promise<void>) | null
   isSubmitting?: boolean
+  readOnly?: boolean
 }
 
 export function TaskDetailDialog({
@@ -57,6 +58,7 @@ export function TaskDetailDialog({
   onSubmit,
   onDelete,
   isSubmitting = false,
+  readOnly = false,
 }: TaskDetailDialogProps) {
   const [error, setError] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -146,7 +148,7 @@ export function TaskDetailDialog({
             Task Details
           </DialogTitle>
           <DialogDescription>
-            View and edit task details below.
+            {readOnly ? "View task details below." : "View and edit task details below."}
           </DialogDescription>
         </DialogHeader>
 
@@ -165,6 +167,8 @@ export function TaskDetailDialog({
               placeholder="Enter task title..."
               {...register("title")}
               className={errors.title ? "border-destructive" : ""}
+              readOnly={readOnly}
+              disabled={readOnly}
             />
             {errors.title && (
               <p className="text-sm text-destructive">{errors.title.message}</p>
@@ -181,6 +185,8 @@ export function TaskDetailDialog({
               value={watch("description") || ""}
               onChange={(e) => setValue("description", e.target.value || null)}
               className="min-h-[100px]"
+              readOnly={readOnly}
+              disabled={readOnly}
             />
             <p className="text-xs text-muted-foreground">
               Markdown formatting supported
@@ -193,6 +199,7 @@ export function TaskDetailDialog({
             <Select
               value={watch("statusId")}
               onValueChange={(value) => setValue("statusId", value)}
+              disabled={readOnly}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select a status" />
@@ -223,7 +230,7 @@ export function TaskDetailDialog({
               members={members}
               selectedIds={watch("assigneeIds")}
               onChange={(ids) => setValue("assigneeIds", ids)}
-              disabled={isSubmitting || formIsSubmitting}
+              disabled={readOnly || isSubmitting || formIsSubmitting}
             />
           </div>
 
@@ -242,6 +249,8 @@ export function TaskDetailDialog({
                 onChange={(e) =>
                   setValue("startDate", e.target.value || null)
                 }
+                readOnly={readOnly}
+                disabled={readOnly}
               />
             </div>
 
@@ -258,12 +267,14 @@ export function TaskDetailDialog({
                 onChange={(e) =>
                   setValue("dueDate", e.target.value || null)
                 }
+                readOnly={readOnly}
+                disabled={readOnly}
               />
             </div>
           </div>
 
           {/* Delete confirmation */}
-          {showDeleteConfirm && onDelete && (
+          {showDeleteConfirm && onDelete && !readOnly && (
             <div className="p-4 rounded-md bg-destructive/10 border border-destructive/20">
               <p className="text-sm text-destructive mb-3">
                 Are you sure you want to delete this task? This action cannot be undone.
@@ -292,7 +303,7 @@ export function TaskDetailDialog({
           )}
 
           <DialogFooter className="gap-2">
-            {onDelete && !showDeleteConfirm && (
+            {onDelete && !showDeleteConfirm && !readOnly && (
               <Button
                 type="button"
                 variant="outline"
@@ -310,14 +321,16 @@ export function TaskDetailDialog({
               onClick={() => onOpenChange(false)}
               disabled={isSubmitting || formIsSubmitting || isDeleting}
             >
-              Cancel
+              {readOnly ? "Close" : "Cancel"}
             </Button>
-            <Button
-              type="submit"
-              disabled={isSubmitting || formIsSubmitting || isDeleting}
-            >
-              {isSubmitting || formIsSubmitting ? "Saving..." : "Save Changes"}
-            </Button>
+            {!readOnly && (
+              <Button
+                type="submit"
+                disabled={isSubmitting || formIsSubmitting || isDeleting}
+              >
+                {isSubmitting || formIsSubmitting ? "Saving..." : "Save Changes"}
+              </Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

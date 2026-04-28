@@ -33,6 +33,7 @@ interface DocTreeItemProps {
   level?: number
   onRename: (docId: string, title: string) => Promise<unknown>
   onDelete: (docId: string) => Promise<unknown>
+  canManage?: boolean
 }
 
 export function DocTreeItem({
@@ -44,6 +45,7 @@ export function DocTreeItem({
   level = 0,
   onRename,
   onDelete,
+  canManage = true,
 }: DocTreeItemProps) {
   const navigate = useNavigate()
   const [isExpanded, setIsExpanded] = useState(children.length > 0)
@@ -189,7 +191,7 @@ export function DocTreeItem({
           <span className="flex-1 truncate leading-6 font-medium">{doc.title}</span>
         )}
 
-        {!isEditing && (
+        {!isEditing && canManage && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -249,6 +251,7 @@ export function DocTreeItem({
               level={level + 1}
               onRename={onRename}
               onDelete={onDelete}
+              canManage={canManage}
             />
           ))}
         </div>

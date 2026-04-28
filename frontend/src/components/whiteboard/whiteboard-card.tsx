@@ -6,9 +6,10 @@ import type { Whiteboard } from "@/api/types"
 interface WhiteboardCardProps {
   whiteboard: Whiteboard
   onDelete: (id: string) => Promise<void>
+  canDelete?: boolean
 }
 
-export function WhiteboardCard({ whiteboard, onDelete }: WhiteboardCardProps) {
+export function WhiteboardCard({ whiteboard, onDelete, canDelete = true }: WhiteboardCardProps) {
   return (
     <Card className="p-4 flex flex-col justify-between gap-4">
       <div>
@@ -22,13 +23,15 @@ export function WhiteboardCard({ whiteboard, onDelete }: WhiteboardCardProps) {
         <Button asChild size="sm">
           <Link to={`/whiteboards/${whiteboard.id}`}>Open</Link>
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => onDelete(whiteboard.id)}
-        >
-          Delete
-        </Button>
+        {canDelete ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onDelete(whiteboard.id)}
+          >
+            Delete
+          </Button>
+        ) : null}
       </div>
     </Card>
   )

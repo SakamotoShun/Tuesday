@@ -25,6 +25,8 @@ interface KanbanBoardProps {
   onTaskReorder: (taskId: string, sortOrder: number) => void
   onAddTask: (title: string, statusId: string) => void
   onTaskClick: (task: Task) => void
+  canAddTask?: boolean
+  readOnly?: boolean
   isLoading?: boolean
 }
 
@@ -35,6 +37,8 @@ export function KanbanBoard({
   onTaskReorder,
   onAddTask,
   onTaskClick,
+  canAddTask = true,
+  readOnly = false,
   isLoading,
 }: KanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -206,9 +210,9 @@ export function KanbanBoard({
     <DndContext
       sensors={sensors}
       collisionDetection={collisionDetectionStrategy}
-      onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
-      onDragEnd={handleDragEnd}
+      onDragStart={readOnly ? undefined : handleDragStart}
+      onDragOver={readOnly ? undefined : handleDragOver}
+      onDragEnd={readOnly ? undefined : handleDragEnd}
     >
       <div className="flex gap-4 h-full overflow-x-auto pb-4">
         {statuses
@@ -220,6 +224,8 @@ export function KanbanBoard({
               tasks={tasksByStatus[status.id] || []}
               onTaskClick={onTaskClick}
               onAddTask={onAddTask}
+              canAddTask={canAddTask}
+              readOnly={readOnly}
               isLoading={isLoading}
             />
           ))}
@@ -228,7 +234,7 @@ export function KanbanBoard({
       <DragOverlay>
         {activeTask ? (
           <div className="w-[264px]">
-            <TaskCard task={activeTask} />
+            <TaskCard task={activeTask} canEdit={false} />
           </div>
         ) : null}
       </DragOverlay>

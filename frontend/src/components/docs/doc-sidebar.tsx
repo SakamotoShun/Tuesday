@@ -7,6 +7,7 @@ import { DocSortControl } from "@/components/docs/doc-sort-control"
 import { NewDocDialog } from "@/components/docs/new-doc-dialog"
 import { useDocs } from "@/hooks/use-docs"
 import { useDocSort } from "@/hooks/use-doc-sort"
+import { useAuth } from "@/hooks/use-auth"
 import { ApiErrorResponse } from "@/api/client"
 
 interface DocSidebarProps {
@@ -16,8 +17,10 @@ interface DocSidebarProps {
 }
 
 export function DocSidebar({ projectId, activeDocId, width = 260 }: DocSidebarProps) {
+  const { user } = useAuth()
   const { docs, isLoading, error, createDoc, updateDoc, deleteDoc } = useDocs(projectId)
   const { sort, setSort } = useDocSort(`workhub:doc-tree-sort:${projectId}`)
+  const isFreelancer = user?.role === "freelancer"
 
   const parentOptions = docs.filter((doc) => !doc.parentId)
 
@@ -33,16 +36,18 @@ export function DocSidebar({ projectId, activeDocId, width = 260 }: DocSidebarPr
         </div>
         <div className="flex items-center gap-1">
           <DocSortControl value={sort} onChange={setSort} />
-          <NewDocDialog
-            parentOptions={parentOptions}
-            onCreate={(data) => createDoc.mutateAsync(data)}
-            isSubmitting={createDoc.isPending}
-            trigger={(
-              <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Create doc">
-                <Plus className="h-4 w-4" />
-              </Button>
-            )}
-          />
+          {!isFreelancer && (
+            <NewDocDialog
+              parentOptions={parentOptions}
+              onCreate={(data) => createDoc.mutateAsync(data)}
+              isSubmitting={createDoc.isPending}
+              trigger={(
+                <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Create doc">
+                  <Plus className="h-4 w-4" />
+                </Button>
+              )}
+            />
+          )}
         </div>
       </div>
 
@@ -68,6 +73,7 @@ export function DocSidebar({ projectId, activeDocId, width = 260 }: DocSidebarPr
             activeDocId={activeDocId}
             onRename={(docId, title) => updateDoc.mutateAsync({ docId, data: { title } })}
             onDelete={(docId) => deleteDoc.mutateAsync(docId)}
+            canManage={!isFreelancer}
           />
         )}
       </div>

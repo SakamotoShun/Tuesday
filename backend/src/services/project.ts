@@ -1,4 +1,4 @@
-import { projectRepository, projectMemberRepository, projectStatusRepository, teamProjectRepository } from '../repositories';
+import { projectRepository, projectMemberRepository, projectStatusRepository, teamProjectRepository, userRepository } from '../repositories';
 import { fileService } from './file';
 import { activityService } from './activity';
 import { db } from '../db/client';
@@ -32,7 +32,7 @@ export interface UpdateProjectInput {
 }
 
 export interface ProjectWithMembers extends ProjectWithRelations {
-  members?: (ProjectMember & { user: { id: string; name: string; email: string; avatarUrl: string | null } })[];
+  members?: (ProjectMember & { user: { id: string; name: string; email: string; avatarUrl: string | null; role: string } })[];
 }
 
 export interface ProjectTemplateWithCounts extends ProjectWithRelations {
@@ -55,6 +55,21 @@ function normalizeBudgetHours(value: number | null | undefined): string | null |
 }
 
 export class ProjectService {
+  private async assertAssignableProjectRole(userId: string, role: string): Promise<void> {
+    if (role !== ProjectMemberRole.OWNER) {
+      return;
+    }
+
+    const targetUser = await userRepository.findById(userId);
+    if (!targetUser) {
+      throw new Error('User not found');
+    }
+
+    if (targetUser.role === UserRole.FREELANCER) {
+      throw new Error('Freelancers cannot be project owners');
+    }
+  }
+
   /**
    * Get all projects accessible to a user
    * - Members see only their projects
@@ -480,7 +495,7 @@ export class ProjectService {
   /**
    * Get project members
    */
-  async getMembers(projectId: string, user: User): Promise<(ProjectMember & { user: { id: string; name: string; email: string; avatarUrl: string | null } })[]> {
+  async getMembers(projectId: string, user: User): Promise<(ProjectMember & { user: { id: string; name: string; email: string; avatarUrl: string | null; role: string } })[]> {
     // Check access
     if (user.role !== UserRole.ADMIN) {
       const isMember = await projectMemberRepository.isMember(projectId, user.id);
@@ -542,6 +557,8 @@ export class ProjectService {
     if (role !== ProjectMemberRole.OWNER && role !== ProjectMemberRole.MEMBER) {
       throw new Error('Invalid role');
     }
+
+    await this.assertAssignableProjectRole(userId, role);
 
     const member = await projectMemberRepository.addMember(projectId, userId, role, ProjectMemberSource.DIRECT, null);
 
@@ -607,6 +624,8 @@ export class ProjectService {
     if (role !== ProjectMemberRole.OWNER && role !== ProjectMemberRole.MEMBER) {
       throw new Error('Invalid role');
     }
+
+    await this.assertAssignableProjectRole(userId, role);
 
     const updated = await projectMemberRepository.updateRole(projectId, userId, role);
     if (updated) {

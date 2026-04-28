@@ -83,6 +83,14 @@ export function ManageMembersDialog({
   }, [members, usersQuery.data])
 
   const selectedUserId = selectedUserIds[0]
+  const selectedUser = availableUsers.find((user) => user.id === selectedUserId)
+  const selectedUserIsFreelancer = selectedUser?.role === "freelancer"
+
+  useEffect(() => {
+    if (selectedUserIsFreelancer && newRole === "owner") {
+      setNewRole("member")
+    }
+  }, [newRole, selectedUserIsFreelancer])
 
   const handleAddMember = async () => {
     if (!selectedUserId) return
@@ -168,7 +176,7 @@ export function ManageMembersDialog({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="member">Member</SelectItem>
-                    <SelectItem value="owner">Owner</SelectItem>
+                    {!selectedUserIsFreelancer && <SelectItem value="owner">Owner</SelectItem>}
                   </SelectContent>
                 </Select>
                 <Button
@@ -183,6 +191,11 @@ export function ManageMembersDialog({
               <p className="text-xs text-muted-foreground">
                 Owners can manage members and update project settings.
               </p>
+              {selectedUserIsFreelancer && (
+                <p className="text-xs text-muted-foreground">
+                  Freelancers can only join projects as members.
+                </p>
+              )}
             </div>
           )}
 
@@ -216,6 +229,7 @@ export function ManageMembersDialog({
                     isLastOwner={member.role === "owner" && ownerCount === 1}
                     isSelf={member.userId === currentUserId}
                     isTeamMember={member.source === "team"}
+                    isFreelancer={member.user?.role === "freelancer"}
                     sourceTeamName={member.sourceTeam?.name ?? undefined}
                     canManage={canManage}
                     isMutating={isMutating}
@@ -244,6 +258,7 @@ interface MemberRowProps {
   isLastOwner: boolean
   isSelf: boolean
   isTeamMember: boolean
+  isFreelancer: boolean
   sourceTeamName?: string
   canManage: boolean
   isMutating: boolean
@@ -257,6 +272,7 @@ function MemberRow({
   isLastOwner,
   isSelf,
   isTeamMember,
+  isFreelancer,
   sourceTeamName,
   canManage,
   isMutating,
@@ -278,6 +294,7 @@ function MemberRow({
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">{displayName}</span>
             {isSelf && <Badge variant="secondary">You</Badge>}
+            {isFreelancer && <Badge variant="outline">Freelancer</Badge>}
             {isTeamMember && (
               <Badge variant="outline">
                 {sourceTeamName ? `Team: ${sourceTeamName}` : "Team"}
@@ -300,7 +317,7 @@ function MemberRow({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="member">Member</SelectItem>
-              <SelectItem value="owner">Owner</SelectItem>
+              {!isFreelancer && <SelectItem value="owner">Owner</SelectItem>}
             </SelectContent>
           </Select>
         ) : (
