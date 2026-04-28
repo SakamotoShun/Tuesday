@@ -1,8 +1,8 @@
-import { whiteboardRepository } from '../repositories';
-import { projectService } from './project';
+import { whiteboardRepository } from '../repositories/whiteboard';
 import { activityService } from './activity';
 import { type Whiteboard, type NewWhiteboard } from '../db/schema';
 import type { User } from '../types';
+import { assertNotFreelancer } from '../utils/permissions';
 
 export interface CreateWhiteboardInput {
   name: string;
@@ -14,9 +14,22 @@ export interface UpdateWhiteboardInput {
   data?: Record<string, unknown> | null;
 }
 
+interface ProjectAccessService {
+  hasAccess(projectId: string, user: User): Promise<boolean>;
+}
+
+const defaultProjectAccess: ProjectAccessService = {
+  async hasAccess(projectId, user) {
+    const { projectService } = await import('./project');
+    return projectService.hasAccess(projectId, user);
+  },
+};
+
 export class WhiteboardService {
+  constructor(private readonly projectAccess: ProjectAccessService = defaultProjectAccess) {}
+
   async getProjectWhiteboards(projectId: string, user: User): Promise<Whiteboard[]> {
-    const hasAccess = await projectService.hasAccess(projectId, user);
+    const hasAccess = await this.projectAccess.hasAccess(projectId, user);
     if (!hasAccess) {
       throw new Error('Access denied to this project');
     }
@@ -31,7 +44,7 @@ export class WhiteboardService {
       return null;
     }
 
-    const hasAccess = await projectService.hasAccess(whiteboard.projectId, user);
+    const hasAccess = await this.projectAccess.hasAccess(whiteboard.projectId, user);
     if (!hasAccess) {
       throw new Error('Access denied to this whiteboard');
     }
@@ -40,7 +53,9 @@ export class WhiteboardService {
   }
 
   async createWhiteboard(projectId: string, input: CreateWhiteboardInput, user: User): Promise<Whiteboard> {
-    const hasAccess = await projectService.hasAccess(projectId, user);
+    assertNotFreelancer(user, 'Freelancers cannot create whiteboards');
+
+    const hasAccess = await this.projectAccess.hasAccess(projectId, user);
     if (!hasAccess) {
       throw new Error('Access denied to this project');
     }
@@ -69,13 +84,15 @@ export class WhiteboardService {
   }
 
   async updateWhiteboard(whiteboardId: string, input: UpdateWhiteboardInput, user: User): Promise<Whiteboard | null> {
+    assertNotFreelancer(user, 'Freelancers cannot edit whiteboards');
+
     const whiteboard = await whiteboardRepository.findById(whiteboardId);
 
     if (!whiteboard) {
       return null;
     }
 
-    const hasAccess = await projectService.hasAccess(whiteboard.projectId, user);
+    const hasAccess = await this.projectAccess.hasAccess(whiteboard.projectId, user);
     if (!hasAccess) {
       throw new Error('Access denied to this whiteboard');
     }
@@ -109,13 +126,15 @@ export class WhiteboardService {
   }
 
   async deleteWhiteboard(whiteboardId: string, user: User): Promise<boolean> {
+    assertNotFreelancer(user, 'Freelancers cannot delete whiteboards');
+
     const whiteboard = await whiteboardRepository.findById(whiteboardId);
 
     if (!whiteboard) {
       return false;
     }
 
-    const hasAccess = await projectService.hasAccess(whiteboard.projectId, user);
+    const hasAccess = await this.projectAccess.hasAccess(whiteboard.projectId, user);
     if (!hasAccess) {
       throw new Error('Access denied to this whiteboard');
     }

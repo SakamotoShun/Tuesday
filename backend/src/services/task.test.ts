@@ -12,6 +12,7 @@ let deleteTask: (...args: any[]) => Promise<any> = async () => true;
 let setAssignees: (...args: any[]) => Promise<any> = async () => {};
 let findDefaultStatus: (...args: any[]) => Promise<any> = async () => ({ id: 'status-default' });
 let findStatusById: (...args: any[]) => Promise<any> = async (id) => ({ id, name: 'Status' });
+let isProjectMember: (...args: any[]) => Promise<any> = async () => true;
 
 
 mock.module('../repositories/task', () => ({
@@ -43,6 +44,13 @@ mock.module('../repositories/taskStatus', () => ({
   },
 }));
 
+mock.module('../repositories/projectMember', () => ({
+  ProjectMemberRepository: class {},
+  projectMemberRepository: {
+    isMember: (projectId: string, userId: string) => isProjectMember(projectId, userId),
+  },
+}));
+
 const { taskService } = await import('./task');
 const { activityService } = await import('./activity');
 const originalRecord = activityService.record.bind(activityService);
@@ -63,6 +71,11 @@ const adminUser = {
   role: 'admin' as const,
 };
 
+const freelancerUser = {
+  ...memberUser,
+  role: 'freelancer' as const,
+};
+
 describe('TaskService', () => {
   beforeEach(() => {
     findByProjectId = async () => [];
@@ -76,6 +89,7 @@ describe('TaskService', () => {
     setAssignees = async () => {};
     findDefaultStatus = async () => ({ id: 'status-default' });
     findStatusById = async (id) => ({ id, name: 'Status' });
+    isProjectMember = async () => true;
     activityService.record = async () => {};
   });
 
@@ -108,11 +122,38 @@ describe('TaskService', () => {
     ).rejects.toThrow('Invalid status ID');
   });
 
+  it('rejects task creation for freelancers', async () => {
+    await expect(taskService.createTask('project-1', { title: 'Task A' }, freelancerUser)).rejects.toThrow(
+      'Freelancers cannot create tasks'
+    );
+  });
+
 
   it('updates task status', async () => {
-    findById = async () => ({ id: 'task-1', projectId: 'project-1' });
+    findById = async () => ({ id: 'task-1', projectId: 'project-1', assignees: [] });
     const task = await taskService.updateTaskStatus('task-1', 'status-1', adminUser);
     expect(task?.id).toBe('task-1');
+  });
+
+  it('allows freelancer to update status on assigned tasks', async () => {
+    findById = async () => ({
+      id: 'task-1',
+      projectId: 'project-1',
+      assignees: [{ userId: freelancerUser.id }],
+    });
+    const task = await taskService.updateTaskStatus('task-1', 'status-1', freelancerUser);
+    expect(task?.id).toBe('task-1');
+  });
+
+  it('rejects freelancer status updates for unassigned tasks', async () => {
+    findById = async () => ({
+      id: 'task-1',
+      projectId: 'project-1',
+      assignees: [{ userId: 'someone-else' }],
+    });
+    await expect(taskService.updateTaskStatus('task-1', 'status-1', freelancerUser)).rejects.toThrow(
+      'Freelancers cannot update tasks they are not assigned to'
+    );
   });
 
 
@@ -120,6 +161,23 @@ describe('TaskService', () => {
     findById = async () => ({ id: 'task-1', projectId: 'project-1' });
     const ok = await taskService.deleteTask('task-1', adminUser);
     expect(ok).toBe(true);
+  });
+
+  it('rejects task edits for freelancers', async () => {
+    findById = async () => ({ id: 'task-1', projectId: 'project-1', assignees: [] });
+
+    await expect(taskService.updateTask('task-1', { title: 'Updated' }, freelancerUser)).rejects.toThrow(
+      'Freelancers cannot edit tasks (status only)'
+    );
+    await expect(taskService.updateTaskOrder('task-1', 1, freelancerUser)).rejects.toThrow(
+      'Freelancers cannot edit tasks (status only)'
+    );
+    await expect(taskService.updateTaskAssignees('task-1', ['user-2'], freelancerUser)).rejects.toThrow(
+      'Freelancers cannot update task assignees'
+    );
+    await expect(taskService.deleteTask('task-1', freelancerUser)).rejects.toThrow(
+      'Freelancers cannot delete tasks'
+    );
   });
 
   it('allows admin to view other user tasks', async () => {

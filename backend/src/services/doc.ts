@@ -1,10 +1,14 @@
 import { randomBytes } from 'node:crypto';
-import { docRepository, docShareRepository, sharedLinkRepository, userRepository, type DocShareWithUser } from '../repositories';
+import { docRepository } from '../repositories/doc';
+import { docShareRepository, type DocShareWithUser } from '../repositories/docShare';
+import { sharedLinkRepository } from '../repositories/sharedLink';
+import { userRepository } from '../repositories/user';
 import { projectService } from './project';
 import { activityService } from './activity';
 import { type Doc, type NewDoc, type SharedLink } from '../db/schema';
 import type { User } from '../types';
 import { extractSearchTextFromDocContent } from '../utils/doc-search';
+import { assertNotFreelancer, isFreelancer } from '../utils/permissions';
 
 export interface CreateDocInput {
   title: string;
@@ -47,6 +51,10 @@ export interface SharedDocView {
 
 export class DocService {
   private async canManageShares(doc: Doc, user: User): Promise<boolean> {
+    if (isFreelancer(user)) {
+      return false;
+    }
+
     if (user.role === 'admin' || doc.createdBy === user.id) {
       return true;
     }
@@ -143,6 +151,8 @@ export class DocService {
    * Create a new doc
    */
   async createDoc(input: CreateDocInput, user: User): Promise<Doc> {
+    assertNotFreelancer(user, 'Freelancers cannot create docs');
+
     // Validate title
     if (!input.title || input.title.trim() === '') {
       throw new Error('Doc title is required');
@@ -196,6 +206,8 @@ export class DocService {
    * Update a doc
    */
   async updateDoc(docId: string, input: UpdateDocInput, user: User): Promise<Doc | null> {
+    assertNotFreelancer(user, 'Freelancers cannot edit docs');
+
     const doc = await docRepository.findById(docId);
 
     if (!doc) {
@@ -271,6 +283,8 @@ export class DocService {
    * Delete a doc
    */
   async deleteDoc(docId: string, user: User): Promise<boolean> {
+    assertNotFreelancer(user, 'Freelancers cannot delete docs');
+
     const doc = await docRepository.findById(docId);
 
     if (!doc) {

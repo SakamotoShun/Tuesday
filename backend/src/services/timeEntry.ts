@@ -1,8 +1,15 @@
-import { timeEntryRepository, projectMemberRepository, teamMemberRepository } from '../repositories';
+import { timeEntryRepository } from '../repositories/timeEntry';
+import { projectMemberRepository } from '../repositories/projectMember';
+import { teamMemberRepository } from '../repositories/teamMember';
 import { projectService } from './project';
-import { type TimeEntry, type NewTimeEntry, UserRole } from '../db/schema';
+import { type TimeEntry, type NewTimeEntry } from '../db/schema';
 import type { User } from '../types';
+import { isFreelancer } from '../utils/permissions';
 
+// Sentinel used as the grouping key/display name for time entries that aren't
+// attached to a project. The id is intentionally non-UUID so it can't collide
+// with a real project id; a real project named "Misc" will still display as
+// "Misc" but maps under its own UUID, so totals stay separate.
 const MISC_PROJECT_ID = '__misc__';
 const MISC_PROJECT_NAME = 'Misc';
 
@@ -355,13 +362,13 @@ export class TimeEntryService {
     return [header, ...lines].join('\n');
   }
 
-  async getMyWeeklyTimesheet(userId: string, weekStartDate: string): Promise<WeeklyTimesheet> {
+  async getMyWeeklyTimesheet(user: User, weekStartDate: string): Promise<WeeklyTimesheet> {
     const startDate = new Date(weekStartDate);
     const endDate = new Date(startDate);
     endDate.setDate(endDate.getDate() + 6);
 
     const entries = await timeEntryRepository.findByUserAndDateRange(
-      userId,
+      user.id,
       startDate.toISOString().split('T')[0],
       endDate.toISOString().split('T')[0]
     );
@@ -435,6 +442,10 @@ export class TimeEntryService {
   }
 
   async upsertEntry(userId: string, input: UpsertTimeEntryInput, user: User): Promise<TimeEntry> {
+    if (isFreelancer(user) && !input.projectId) {
+      throw new Error('Freelancers cannot log unassigned time');
+    }
+
     if (input.projectId) {
       const hasAccess = await projectService.hasAccess(input.projectId, user);
       if (!hasAccess) {
@@ -462,13 +473,13 @@ export class TimeEntryService {
     return timeEntryRepository.upsert(data);
   }
 
-  async deleteEntry(userId: string, entryId: string): Promise<boolean> {
+  async deleteEntry(user: User, entryId: string): Promise<boolean> {
     const entry = await timeEntryRepository.findById(entryId);
     if (!entry) {
       throw new Error('Time entry not found');
     }
 
-    if (entry.userId !== userId) {
+    if (entry.userId !== user.id) {
       throw new Error('You can only delete your own time entries');
     }
 
@@ -702,14 +713,17 @@ export class TimeEntryService {
   }
 
   private getWeekDate(weekNumber: number, year: number): { start: string; end: string } {
-    const firstDayOfYear = new Date(year, 0, 1);
-    const daysOffset = (weekNumber - 1) * 7;
-    const firstDayOfWeek = new Date(firstDayOfYear);
-    firstDayOfWeek.setDate(firstDayOfYear.getDate() + daysOffset - firstDayOfYear.getDay() + 1);
-    
+    const janFourth = new Date(Date.UTC(year, 0, 4));
+    const janFourthDay = janFourth.getUTCDay() || 7;
+    const isoWeekOneMonday = new Date(janFourth);
+    isoWeekOneMonday.setUTCDate(janFourth.getUTCDate() - janFourthDay + 1);
+
+    const firstDayOfWeek = new Date(isoWeekOneMonday);
+    firstDayOfWeek.setUTCDate(isoWeekOneMonday.getUTCDate() + (weekNumber - 1) * 7);
+
     const lastDayOfWeek = new Date(firstDayOfWeek);
-    lastDayOfWeek.setDate(firstDayOfWeek.getDate() + 6);
-    
+    lastDayOfWeek.setUTCDate(firstDayOfWeek.getUTCDate() + 6);
+
     return {
       start: firstDayOfWeek.toISOString().split('T')[0],
       end: lastDayOfWeek.toISOString().split('T')[0],

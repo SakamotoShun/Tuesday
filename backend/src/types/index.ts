@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { UserRole, ProjectMemberRole, TeamMemberRole, ProjectMemberSource } from '../db/schema';
 
 // User role enum
-export const UserRoleEnum = z.enum([UserRole.ADMIN, UserRole.MEMBER]);
+export const UserRoleEnum = z.enum([UserRole.ADMIN, UserRole.MEMBER, UserRole.FREELANCER]);
 export type UserRoleType = z.infer<typeof UserRoleEnum>;
 
 // Project member role enum

@@ -1,4 +1,11 @@
-import { channelRepository, messageRepository, channelMemberRepository, userRepository, projectMemberRepository, fileRepository, reactionRepository, botRepository } from '../repositories';
+import { channelRepository } from '../repositories/channel';
+import { messageRepository } from '../repositories/message';
+import { channelMemberRepository } from '../repositories/channelMember';
+import { userRepository } from '../repositories/user';
+import { projectMemberRepository } from '../repositories/projectMember';
+import { fileRepository } from '../repositories/file';
+import { reactionRepository } from '../repositories/reaction';
+import { botRepository } from '../repositories/bot';
 import { projectService } from './project';
 import { fileService } from './file';
 import { chatHub, type ChatHub } from '../collab/chatHub';
@@ -7,6 +14,7 @@ import { BotType } from '../db/schema';
 import type { ChannelWithProject } from '../repositories/channel';
 import type { MessageWithUser as RepositoryMessage } from '../repositories/message';
 import type { User } from '../types';
+import { assertNotFreelancer, isFreelancer } from '../utils/permissions';
 
 export interface CreateChannelInput {
   name: string;
@@ -86,6 +94,10 @@ type ChatHubNotifier = Pick<ChatHub, 'broadcastToAll' | 'broadcastToChannel' | '
 export class ChatService {
   constructor(private readonly hub: ChatHubNotifier = chatHub) {}
 
+  private shouldNotifyUserAboutChannel(channel: ChannelWithProject, userRole: string): boolean {
+    return channel.type === 'project' || userRole !== 'freelancer';
+  }
+
   async getChannels(user: User): Promise<ChannelWithState[]> {
     const channels = await channelRepository.findUserChannels(user.id);
     const memberships = await channelMemberRepository.findByUserId(user.id);
@@ -104,6 +116,10 @@ export class ChatService {
     const results: ChannelWithState[] = [];
 
     for (const channel of sortedChannels) {
+      if (isFreelancer(user) && channel.type !== 'project') {
+        continue;
+      }
+
       let membership = membershipMap.get(channel.id) ?? null;
       if (!membership && (channel.type === 'dm' || channel.access === 'public')) {
         membership = await channelMemberRepository.join(channel.id, user.id);
@@ -158,6 +174,8 @@ export class ChatService {
   }
 
   async getOrCreateDM(otherUserId: string, user: User): Promise<ChannelWithState> {
+    assertNotFreelancer(user, 'Freelancers cannot create direct messages');
+
     if (otherUserId === user.id) {
       throw new Error('You cannot create a DM with yourself');
     }
@@ -307,6 +325,8 @@ export class ChatService {
   }
 
   async createChannel(input: CreateChannelInput, user: User): Promise<Channel> {
+    assertNotFreelancer(user, 'Freelancers cannot create channels');
+
     if (!input.name || input.name.trim() === '') {
       throw new Error('Channel name is required');
     }
@@ -755,6 +775,10 @@ export class ChatService {
   }
 
   private async ensureAccess(channel: ChannelWithProject, user: User) {
+    if (isFreelancer(user) && channel.type !== 'project') {
+      throw new Error('Freelancers cannot access non-project channels');
+    }
+
     if (channel.type === 'dm') {
       const membership = await channelMemberRepository.findMembership(channel.id, user.id);
       if (!membership) {
@@ -970,6 +994,11 @@ export class ChatService {
     if (!channel) return;
 
     for (const userId of userIds) {
+      const targetUser = await userRepository.findById(userId);
+      if (!targetUser || !this.shouldNotifyUserAboutChannel(channel, targetUser.role)) {
+        continue;
+      }
+
       const membership = await channelMemberRepository.findMembership(channelId, userId);
       if (!membership) continue;
 
@@ -1002,7 +1031,12 @@ export class ChatService {
     });
 
     if (channel.type === 'workspace') {
-      this.hub.broadcastToAll(payload);
+      const users = await userRepository.findAll();
+      for (const user of users) {
+        if (this.shouldNotifyUserAboutChannel(channel, user.role)) {
+          this.hub.sendToUser(user.id, payload);
+        }
+      }
       return;
     }
 
@@ -1089,10 +1123,14 @@ export class ChatService {
   }
 
   private async notifyChannelMembers(channel: ChannelWithProject, payload: Record<string, unknown>) {
+    const message = JSON.stringify(payload);
+
     if (channel.type === 'dm') {
       const members = await channelMemberRepository.findByChannelId(channel.id);
       for (const member of members) {
-        this.hub.sendToUser(member.userId, JSON.stringify(payload));
+        if (this.shouldNotifyUserAboutChannel(channel, member.user.role)) {
+          this.hub.sendToUser(member.userId, message);
+        }
       }
       return;
     }
@@ -1101,14 +1139,18 @@ export class ChatService {
       if (isPrivateAccess(channel.access)) {
         const members = await channelMemberRepository.findByChannelId(channel.id);
         for (const member of members) {
-          this.hub.sendToUser(member.userId, JSON.stringify(payload));
+          if (this.shouldNotifyUserAboutChannel(channel, member.user.role)) {
+            this.hub.sendToUser(member.userId, message);
+          }
         }
         return;
       }
 
       const users = await userRepository.findAll();
       for (const user of users) {
-        this.hub.sendToUser(user.id, JSON.stringify(payload));
+        if (this.shouldNotifyUserAboutChannel(channel, user.role)) {
+          this.hub.sendToUser(user.id, message);
+        }
       }
       return;
     }
@@ -1117,14 +1159,18 @@ export class ChatService {
       if (isPrivateAccess(channel.access)) {
         const members = await channelMemberRepository.findByChannelId(channel.id);
         for (const member of members) {
-          this.hub.sendToUser(member.userId, JSON.stringify(payload));
+          if (this.shouldNotifyUserAboutChannel(channel, member.user.role)) {
+            this.hub.sendToUser(member.userId, message);
+          }
         }
         return;
       }
 
       const members = await projectMemberRepository.findByProjectId(channel.projectId);
       for (const member of members) {
-        this.hub.sendToUser(member.user.id, JSON.stringify(payload));
+        if (this.shouldNotifyUserAboutChannel(channel, member.user.role)) {
+          this.hub.sendToUser(member.user.id, message);
+        }
       }
     }
   }

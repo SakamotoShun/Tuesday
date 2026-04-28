@@ -77,6 +77,11 @@ const adminUser = {
   role: 'admin' as const,
 };
 
+const freelancerUser = {
+  ...memberUser,
+  role: 'freelancer' as const,
+};
+
 describe('DocService', () => {
   beforeEach(() => {
     findByProjectId = async () => [];
@@ -136,6 +141,17 @@ describe('DocService', () => {
     await expect(docService.createDoc({ title: '' }, memberUser)).rejects.toThrow('Doc title is required');
   });
 
+  it('rejects doc creation and editing for freelancers', async () => {
+    findById = async () => ({ id: 'doc-1', projectId: 'project-1', createdBy: 'user-1' });
+
+    await expect(docService.createDoc({ title: 'Doc', projectId: 'project-1' }, freelancerUser)).rejects.toThrow(
+      'Freelancers cannot create docs'
+    );
+    await expect(docService.updateDoc('doc-1', { title: 'Updated' }, freelancerUser)).rejects.toThrow(
+      'Freelancers cannot edit docs'
+    );
+  });
+
   it('rejects parent doc from another project', async () => {
     findById = async () => ({ id: 'parent-1', projectId: 'project-2' });
     await expect(
@@ -160,5 +176,26 @@ describe('DocService', () => {
     findById = async () => ({ id: 'doc-1', projectId: 'project-1', createdBy: 'user-1' });
     const result = await docService.deleteDoc('doc-1', adminUser);
     expect(result).toBe(true);
+  });
+
+  it('rejects freelancer from deleting docs', async () => {
+    findById = async () => ({ id: 'doc-1', projectId: 'project-1', createdBy: 'user-1' });
+    await expect(docService.deleteDoc('doc-1', freelancerUser)).rejects.toThrow(
+      'Freelancers cannot delete docs'
+    );
+  });
+
+  it('rejects freelancer from managing doc shares', async () => {
+    findById = async () => ({ id: 'doc-1', projectId: 'project-1', createdBy: 'user-1' });
+
+    await expect(docService.updateDocShares('doc-1', ['user-2'], freelancerUser)).rejects.toThrow(
+      'Access denied to manage doc shares'
+    );
+    await expect(docService.createDocPublicShareLink('doc-1', freelancerUser)).rejects.toThrow(
+      'Access denied to manage doc shares'
+    );
+    await expect(docService.deleteDocPublicShareLink('doc-1', freelancerUser)).rejects.toThrow(
+      'Access denied to manage doc shares'
+    );
   });
 });

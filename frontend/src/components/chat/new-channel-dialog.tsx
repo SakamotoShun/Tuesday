@@ -102,6 +102,10 @@ export function NewChannelDialog({ projectId, onCreated, trigger }: NewChannelDi
     },
   })
 
+  if (user?.role === "freelancer") {
+    return null
+  }
+
   const handleCreate = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (createChannel.isPending || !name.trim()) return

@@ -1,4 +1,4 @@
-import { activityRepository } from '../repositories';
+import { activityRepository } from '../repositories/activity';
 import { type ActivityEntityType } from '../db/schema';
 import type { User } from '../types';
 

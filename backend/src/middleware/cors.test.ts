@@ -1,24 +1,27 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { Hono } from 'hono';
-
-const config = {
-  corsOrigins: ['https://allowed.example'],
-  nodeEnv: 'production',
-  publicBaseUrl: undefined as string | undefined,
-  trustProxy: false,
-};
-
-mock.module('../config', () => ({
-  config,
-}));
+import { config } from '../config';
 
 const { cors } = await import('./cors');
 
+const originalCorsOrigins = [...config.corsOrigins];
+const originalNodeEnv = config.nodeEnv;
+const originalPublicBaseUrl = config.publicBaseUrl;
+const originalTrustProxy = config.trustProxy;
+
 describe('cors middleware', () => {
   beforeEach(() => {
+    config.corsOrigins = ['https://allowed.example'];
     config.nodeEnv = 'production';
     config.publicBaseUrl = undefined;
     config.trustProxy = false;
+  });
+
+  afterEach(() => {
+    config.corsOrigins = [...originalCorsOrigins];
+    config.nodeEnv = originalNodeEnv;
+    config.publicBaseUrl = originalPublicBaseUrl;
+    config.trustProxy = originalTrustProxy;
   });
 
   it('allows configured origins', async () => {

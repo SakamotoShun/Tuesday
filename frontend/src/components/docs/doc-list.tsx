@@ -10,6 +10,7 @@ interface DocListProps {
   activeDocId?: string
   onRename: (docId: string, title: string) => Promise<unknown>
   onDelete: (docId: string) => Promise<unknown>
+  canManage?: boolean
 }
 
 function compareDates(first: string, second: string) {
@@ -63,6 +64,7 @@ export function DocList({
   activeDocId,
   onRename,
   onDelete,
+  canManage = true,
 }: DocListProps) {
   const childrenByParent = new Map<string, Doc[]>()
   const compareDocs = createDocComparator(sortField, sortDirection)
@@ -101,6 +103,7 @@ export function DocList({
           activeDocId={activeDocId}
           onRename={onRename}
           onDelete={onDelete}
+          canManage={canManage}
         />
       ))}
     </div>

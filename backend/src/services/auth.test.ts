@@ -1,7 +1,10 @@
+import { createHash } from 'crypto';
 import { describe, it, expect, beforeEach, mock } from 'bun:test';
+import { TokenType } from '../db/schema';
 import { hashPassword } from '../utils/password';
 
 let findByEmail: (email: string) => Promise<any> = async () => null;
+let findByUserId: (id: string) => Promise<any> = async () => null;
 let createUser: (data: any) => Promise<any> = async (data) => ({
   id: 'user-1',
   avatarUrl: null,
@@ -9,15 +12,27 @@ let createUser: (data: any) => Promise<any> = async (data) => ({
   updatedAt: new Date(),
   ...data,
 });
+let updateUser: (id: string, data: any) => Promise<any> = async (_id, data) => ({ id: 'user-1', ...data });
 let sessionCreate: (data: any) => Promise<void> = async () => {};
 let sessionDelete: (id: string) => Promise<boolean> = async () => true;
+let sessionDeleteByUserId: (userId: string) => Promise<number> = async () => 0;
 let sessionFind: (id: string) => Promise<any> = async () => null;
+let getSetting: (key: string) => Promise<any> = async () => null;
+let tokenCreate: (data: any) => Promise<any> = async (data) => ({ id: 'token-1', ...data });
+let tokenDeleteByUserAndType: (userId: string, type: string) => Promise<number> = async () => 0;
+let tokenFindActiveByTokenHash: (tokenHash: string, type: string) => Promise<any> = async () => null;
+let tokenMarkUsed: (id: string) => Promise<boolean> = async () => false;
+let tokenDeleteExpiredOrUsed: () => Promise<number> = async () => 0;
+let sendPasswordResetEmail: (input: any) => Promise<boolean> = async () => true;
+let sendPasswordChangedEmail: (input: any) => Promise<boolean> = async () => true;
 
 mock.module('../repositories/user', () => ({
   UserRepository: class {},
   userRepository: {
     findByEmail: (email: string) => findByEmail(email),
+    findById: (id: string) => findByUserId(id),
     create: (data: any) => createUser(data),
+    update: (id: string, data: any) => updateUser(id, data),
   },
 }));
 
@@ -26,7 +41,33 @@ mock.module('../repositories/session', () => ({
   sessionRepository: {
     create: (data: any) => sessionCreate(data),
     delete: (id: string) => sessionDelete(id),
+    deleteByUserId: (userId: string) => sessionDeleteByUserId(userId),
     findByIdWithUser: (id: string) => sessionFind(id),
+  },
+}));
+
+mock.module('../repositories/settings', () => ({
+  SettingsRepository: class {},
+  settingsRepository: {
+    get: (key: string) => getSetting(key),
+  },
+}));
+
+mock.module('../repositories/token', () => ({
+  TokenRepository: class {},
+  tokenRepository: {
+    create: (data: any) => tokenCreate(data),
+    deleteByUserAndType: (userId: string, type: string) => tokenDeleteByUserAndType(userId, type),
+    findActiveByTokenHash: (tokenHash: string, type: string) => tokenFindActiveByTokenHash(tokenHash, type),
+    markUsed: (id: string) => tokenMarkUsed(id),
+    deleteExpiredOrUsed: () => tokenDeleteExpiredOrUsed(),
+  },
+}));
+
+mock.module('./email', () => ({
+  emailService: {
+    sendPasswordResetEmail: (input: any) => sendPasswordResetEmail(input),
+    sendPasswordChangedEmail: (input: any) => sendPasswordChangedEmail(input),
   },
 }));
 
@@ -35,6 +76,7 @@ const { authService } = await import('./auth');
 describe('AuthService', () => {
   beforeEach(() => {
     findByEmail = async () => null;
+    findByUserId = async () => null;
     createUser = async (data) => ({
       id: 'user-1',
       avatarUrl: null,
@@ -42,9 +84,21 @@ describe('AuthService', () => {
       updatedAt: new Date(),
       ...data,
     });
+    updateUser = async (_id, data) => ({ id: 'user-1', ...data });
     sessionCreate = async () => {};
     sessionDelete = async () => true;
+    sessionDeleteByUserId = async () => 0;
     sessionFind = async () => null;
+    getSetting = async () => null;
+    tokenCreate = async (data) => ({ id: 'token-1', ...data });
+    tokenDeleteByUserAndType = async () => 0;
+    tokenFindActiveByTokenHash = async () => null;
+    tokenMarkUsed = async () => false;
+    tokenDeleteExpiredOrUsed = async () => 0;
+    sendPasswordResetEmail = async () => true;
+    sendPasswordChangedEmail = async () => true;
+    (authService as any).passwordResetRateLimits.clear();
+    (authService as any).lastPasswordResetSweepAt = 0;
   });
 
   it('registers a new user with hashed password', async () => {
@@ -201,6 +255,46 @@ describe('AuthService', () => {
     expect(deleted).toBe(true);
   });
 
+  it('registers a new user with freelancer role', async () => {
+    let createdInput: any;
+    createUser = async (data) => {
+      createdInput = data;
+      return { id: 'user-2', avatarUrl: null, createdAt: new Date(), updatedAt: new Date(), ...data };
+    };
+
+    const user = await authService.register({
+      email: 'freelancer@example.com',
+      password: 'password-123',
+      name: 'Freelance User',
+      role: 'freelancer',
+    });
+
+    expect(createdInput.role).toBe('freelancer');
+    expect(user.role).toBe('freelancer');
+    expect('passwordHash' in user).toBe(false);
+  });
+
+  it('rejects disabled account with wrong password as Invalid credentials', async () => {
+    const passwordHash = await hashPassword('correct-password');
+    findByEmail = async () => ({
+      id: 'user-1',
+      email: 'test@example.com',
+      passwordHash,
+      name: 'Test User',
+      role: 'member',
+      isDisabled: true,
+      avatarUrl: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    // Wrong password on disabled account → 'Invalid credentials', not 'Account has been disabled'
+    // This prevents enumerating disabled accounts via error message
+    await expect(
+      authService.login({ email: 'test@example.com', password: 'wrong-password' })
+    ).rejects.toThrow('Invalid credentials');
+  });
+
   it('cleans up sessions for disabled users', async () => {
     let deleted = false;
     sessionFind = async () => ({
@@ -246,5 +340,172 @@ describe('AuthService', () => {
     const user = await authService.validateSession('session-1');
     expect(user?.email).toBe('test@example.com');
     expect(user && 'passwordHash' in user).toBe(false);
+  });
+
+  it('creates and emails a password reset token', async () => {
+    let deletedArgs: { userId: string; type: string } | undefined;
+    let createdToken: any = null;
+    let emailInput: any = null;
+
+    findByEmail = async (email) => ({
+      id: 'user-1',
+      email,
+      name: 'Test User',
+      isDisabled: false,
+    });
+    tokenDeleteByUserAndType = async (userId, type) => {
+      deletedArgs = { userId, type };
+      return 1;
+    };
+    tokenCreate = async (data) => {
+      createdToken = data;
+      return { id: 'token-1', ...data };
+    };
+    getSetting = async (key) => {
+      if (key === 'workspace_name') return 'Acme Workspace';
+      if (key === 'site_url') return 'https://example.com/';
+      return null;
+    };
+    sendPasswordResetEmail = async (input) => {
+      emailInput = input;
+      return true;
+    };
+
+    await authService.requestPasswordReset('test@example.com');
+
+    expect(deletedArgs).toBeDefined();
+    expect(deletedArgs!).toEqual({ userId: 'user-1', type: TokenType.PASSWORD_RESET });
+    expect(createdToken).toMatchObject({
+      userId: 'user-1',
+      type: TokenType.PASSWORD_RESET,
+      extra: {},
+    });
+    expect(createdToken.tokenHash).toHaveLength(64);
+    expect(createdToken.expiresAt instanceof Date).toBe(true);
+    expect(emailInput.to).toBe('test@example.com');
+    expect(emailInput.name).toBe('Test User');
+    expect(emailInput.workspaceName).toBe('Acme Workspace');
+    expect(emailInput.resetUrl.startsWith('https://example.com/reset-password?token=')).toBe(true);
+
+    const resetToken = new URL(emailInput.resetUrl).searchParams.get('token');
+    expect(resetToken).not.toBeNull();
+    expect(createdToken.tokenHash).toBe(createHash('sha256').update(resetToken!).digest('hex'));
+  });
+
+  it('swallows password reset email send failures after creating the token', async () => {
+    let createdToken: any = null;
+    let sendAttempts = 0;
+
+    findByEmail = async () => ({
+      id: 'user-1',
+      email: 'test@example.com',
+      name: 'Test User',
+      isDisabled: false,
+    });
+    tokenCreate = async (data) => {
+      createdToken = data;
+      return { id: 'token-1', ...data };
+    };
+    getSetting = async (key) => {
+      if (key === 'workspace_name') return 'Acme Workspace';
+      if (key === 'site_url') return 'https://example.com';
+      return null;
+    };
+    sendPasswordResetEmail = async () => {
+      sendAttempts += 1;
+      throw new Error('SMTP unavailable');
+    };
+
+    await authService.requestPasswordReset('test@example.com');
+
+    expect(createdToken).toBeTruthy();
+    expect(sendAttempts).toBe(1);
+  });
+
+  it('consumes a reset token, updates the password, and invalidates sessions', async () => {
+    const token = 'reset-token';
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+    let lookupArgs: { tokenHash: string; type: string } | undefined;
+    let markedUsedId = '';
+    let updatedUser: { id: string; data: any } | undefined;
+    let invalidatedUserId = '';
+    let emailInput: any = null;
+
+    tokenFindActiveByTokenHash = async (receivedTokenHash, type) => {
+      lookupArgs = { tokenHash: receivedTokenHash, type };
+      return {
+        id: 'token-1',
+        userId: 'user-1',
+      };
+    };
+    tokenMarkUsed = async (id) => {
+      markedUsedId = id;
+      return true;
+    };
+    findByUserId = async () => ({
+      id: 'user-1',
+      email: 'test@example.com',
+      name: 'Test User',
+      isDisabled: false,
+    });
+    updateUser = async (id, data) => {
+      updatedUser = { id, data };
+      return { id, ...data };
+    };
+    sessionDeleteByUserId = async (userId) => {
+      invalidatedUserId = userId;
+      return 2;
+    };
+    getSetting = async (key) => (key === 'workspace_name' ? 'Acme Workspace' : null);
+    sendPasswordChangedEmail = async (input) => {
+      emailInput = input;
+      return true;
+    };
+
+    await authService.resetPassword(token, 'new-password-123');
+
+    expect(lookupArgs).toBeDefined();
+    expect(lookupArgs!).toEqual({ tokenHash, type: TokenType.PASSWORD_RESET });
+    expect(markedUsedId).toBe('token-1');
+    expect(updatedUser).toBeDefined();
+    expect(updatedUser!.id).toBe('user-1');
+    expect(updatedUser!.data.passwordHash).not.toBe('new-password-123');
+    expect(updatedUser!.data.passwordHash.startsWith('$2')).toBe(true);
+    expect(invalidatedUserId).toBe('user-1');
+    expect(emailInput).toEqual({
+      to: 'test@example.com',
+      name: 'Test User',
+      workspaceName: 'Acme Workspace',
+    });
+  });
+
+  it('rejects resetPassword for invalid or expired tokens', async () => {
+    tokenFindActiveByTokenHash = async () => null;
+
+    await expect(authService.resetPassword('bad-token', 'new-password-123')).rejects.toThrow(
+      'Invalid or expired reset token'
+    );
+  });
+
+  it('rejects resetPassword when the token cannot be marked used', async () => {
+    let updated = false;
+    let invalidated = false;
+
+    tokenFindActiveByTokenHash = async () => ({ id: 'token-1', userId: 'user-1' });
+    tokenMarkUsed = async () => false;
+    updateUser = async (_id, data) => {
+      updated = true;
+      return { id: 'user-1', ...data };
+    };
+    sessionDeleteByUserId = async () => {
+      invalidated = true;
+      return 0;
+    };
+
+    await expect(authService.resetPassword('used-token', 'new-password-123')).rejects.toThrow(
+      'Invalid or expired reset token'
+    );
+    expect(updated).toBe(false);
+    expect(invalidated).toBe(false);
   });
 });

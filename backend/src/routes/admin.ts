@@ -97,14 +97,14 @@ function maskSecret(value: string | null | undefined): string {
 const createUserSchema = z.object({
   email: emailSchema,
   name: nameSchema,
-  role: z.enum(['admin', 'member']).default('member'),
+  role: z.enum(['admin', 'member', 'freelancer']).default('member'),
   employmentType: z.enum([EmploymentType.HOURLY, EmploymentType.FULL_TIME]).default(EmploymentType.FULL_TIME),
   hourlyRate: z.number().min(0).max(1000000).optional(),
   password: passwordSchema.optional(),
 });
 
 const updateUserSchema = z.object({
-  role: z.enum(['admin', 'member']).optional(),
+  role: z.enum(['admin', 'member', 'freelancer']).optional(),
   employmentType: z.enum([EmploymentType.HOURLY, EmploymentType.FULL_TIME]).optional(),
   hourlyRate: z.number().min(0).max(1000000).nullable().optional(),
   isDisabled: z.boolean().optional(),

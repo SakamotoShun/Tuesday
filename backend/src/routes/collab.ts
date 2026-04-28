@@ -1,14 +1,19 @@
 import { Hono } from 'hono';
 import { upgradeWebSocket } from '../websocket';
-import { authService, docService, whiteboardService } from '../services';
-import { docCollabRepository, docRepository, whiteboardCollabRepository, whiteboardRepository } from '../repositories';
-import { docCollabHub } from '../collab/hub';
+import {
+  docCollabRepository as defaultDocCollabRepository,
+  docRepository as defaultDocRepository,
+  whiteboardCollabRepository as defaultWhiteboardCollabRepository,
+  whiteboardRepository as defaultWhiteboardRepository,
+} from '../repositories';
+import { docCollabHub as defaultDocCollabHub } from '../collab/hub';
 import { resolveDocSnapshotSeq, shouldPersistCanonicalDocContent } from '../collab/docSnapshot';
-import { whiteboardCollabHub } from '../collab/whiteboardHub';
+import { whiteboardCollabHub as defaultWhiteboardCollabHub } from '../collab/whiteboardHub';
 import type { User } from '../types';
 import { extractSearchTextFromDocContent } from '../utils/doc-search';
 import { requireRouteParam } from '../utils/route-params';
 import { sendWebSocketMessage, safeCloseWebSocket } from '../utils/websocket';
+import { isFreelancer } from '../utils/permissions';
 
 type CollabMessage =
   | { type: 'doc.update'; update: string }
@@ -43,6 +48,72 @@ const MAX_WHITEBOARD_MESSAGE_BYTES = 1024 * 1024;
 const encodeBase64 = (data: Uint8Array) => Buffer.from(data).toString('base64');
 const decodeBase64 = (data: string) => Uint8Array.from(Buffer.from(data, 'base64'));
 
+type ReadOnlyContext = Record<string, unknown>;
+
+type ValidateSession = (sessionId: string) => Promise<User | null>;
+type GetDoc = (docId: string, user: User) => Promise<Awaited<ReturnType<typeof import('../services/doc').docService.getDoc>>>;
+type GetWhiteboard = (whiteboardId: string, user: User) => Promise<Awaited<ReturnType<typeof import('../services/whiteboard').whiteboardService.getWhiteboard>>>;
+
+const defaultValidateSession: ValidateSession = async (sessionId) => {
+  const { authService } = await import('../services/auth');
+  return authService.validateSession(sessionId);
+};
+
+const defaultGetDoc: GetDoc = async (docId, user) => {
+  const { docService } = await import('../services/doc');
+  return docService.getDoc(docId, user);
+};
+
+const defaultGetWhiteboard: GetWhiteboard = async (whiteboardId, user) => {
+  const { whiteboardService } = await import('../services/whiteboard');
+  return whiteboardService.getWhiteboard(whiteboardId, user);
+};
+
+let validateSession: ValidateSession = defaultValidateSession;
+let getDoc: GetDoc = defaultGetDoc;
+let getWhiteboard: GetWhiteboard = defaultGetWhiteboard;
+let docCollabRepository = defaultDocCollabRepository;
+let docRepository = defaultDocRepository;
+let whiteboardCollabRepository = defaultWhiteboardCollabRepository;
+let whiteboardRepository = defaultWhiteboardRepository;
+let docCollabHub = defaultDocCollabHub;
+let whiteboardCollabHub = defaultWhiteboardCollabHub;
+
+export function setCollabDependenciesForTests(deps: {
+  validateSession?: ValidateSession;
+  getDoc?: GetDoc;
+  getWhiteboard?: GetWhiteboard;
+  docCollabRepository?: typeof defaultDocCollabRepository;
+  docRepository?: typeof defaultDocRepository;
+  whiteboardCollabRepository?: typeof defaultWhiteboardCollabRepository;
+  whiteboardRepository?: typeof defaultWhiteboardRepository;
+  docCollabHub?: typeof defaultDocCollabHub;
+  whiteboardCollabHub?: typeof defaultWhiteboardCollabHub;
+} | null): void {
+  validateSession = deps?.validateSession ?? defaultValidateSession;
+  getDoc = deps?.getDoc ?? defaultGetDoc;
+  getWhiteboard = deps?.getWhiteboard ?? defaultGetWhiteboard;
+  docCollabRepository = deps?.docCollabRepository ?? defaultDocCollabRepository;
+  docRepository = deps?.docRepository ?? defaultDocRepository;
+  whiteboardCollabRepository = deps?.whiteboardCollabRepository ?? defaultWhiteboardCollabRepository;
+  whiteboardRepository = deps?.whiteboardRepository ?? defaultWhiteboardRepository;
+  docCollabHub = deps?.docCollabHub ?? defaultDocCollabHub;
+  whiteboardCollabHub = deps?.whiteboardCollabHub ?? defaultWhiteboardCollabHub;
+}
+
+function sendReadOnlyError(
+  ws: Parameters<typeof sendWebSocketMessage>[0],
+  op: string,
+  context: ReadOnlyContext
+) {
+  sendWebSocketMessage(
+    ws,
+    JSON.stringify({ type: 'error', code: 'read_only', op }),
+    { ...context, event: 'read_only_blocked', op },
+    { closeOnFailure: false }
+  );
+}
+
 collab.get(
   '/docs/:id',
   upgradeWebSocket((c) => {
@@ -58,13 +129,13 @@ collab.get(
             return;
           }
 
-          user = await authService.validateSession(sessionId);
+          user = await validateSession(sessionId);
           if (!user) {
             safeCloseWebSocket(ws, 1008, 'Unauthorized');
             return;
           }
 
-          const doc = await docService.getDoc(docId, user);
+          const doc = await getDoc(docId, user);
           if (!doc) {
             safeCloseWebSocket(ws, 1008, 'Doc not found');
             return;
@@ -112,6 +183,11 @@ collab.get(
         }
 
         if (message.type === 'doc.update') {
+          if (isFreelancer(user)) {
+            sendReadOnlyError(ws, 'doc.update', { hub: 'doc_collab', doc_id: docId, user_id: user.id });
+            return;
+          }
+
           const update = decodeBase64(message.update);
           const seq = await docCollabRepository.appendUpdate(docId, update, user.id);
           docCollabHub.broadcast(
@@ -144,6 +220,11 @@ collab.get(
         }
 
         if (message.type === 'presence.update') {
+          if (isFreelancer(user)) {
+            sendReadOnlyError(ws, 'presence.update', { hub: 'doc_collab', doc_id: docId, user_id: user.id });
+            return;
+          }
+
           docCollabHub.broadcast(
             docId,
             JSON.stringify({ type: 'presence.broadcast', update: message.update }),
@@ -153,6 +234,11 @@ collab.get(
         }
 
         if (message.type === 'doc.snapshot') {
+          if (isFreelancer(user)) {
+            sendReadOnlyError(ws, 'doc.snapshot', { hub: 'doc_collab', doc_id: docId, user_id: user.id });
+            return;
+          }
+
           const snapshot = decodeBase64(message.snapshot);
           const latestSeq = await docCollabRepository.getLatestSeq(docId);
           const snapshotSeq = resolveDocSnapshotSeq(message.seq, latestSeq);
@@ -193,13 +279,13 @@ collab.get(
             safeCloseWebSocket(ws, 1008, 'Unauthorized');
             return;
           }
-          user = await authService.validateSession(sessionId);
+          user = await validateSession(sessionId);
           if (!user) {
             safeCloseWebSocket(ws, 1008, 'Unauthorized');
             return;
           }
 
-          const whiteboard = await whiteboardService.getWhiteboard(whiteboardId, user);
+          const whiteboard = await getWhiteboard(whiteboardId, user);
           if (!whiteboard) {
             safeCloseWebSocket(ws, 1008, 'Whiteboard not found');
             return;
@@ -266,6 +352,11 @@ collab.get(
         }
 
         if (message.type === 'whiteboard.update') {
+          if (isFreelancer(user)) {
+            sendReadOnlyError(ws, 'whiteboard.update', { hub: 'whiteboard_collab', whiteboard_id: whiteboardId, user_id: user.id });
+            return;
+          }
+
           if (!message.update?.elements) return;
           const seq = await whiteboardCollabRepository.appendUpdate(whiteboardId, message.update as Record<string, unknown>, user.id);
           whiteboardCollabHub.broadcast(
@@ -298,6 +389,11 @@ collab.get(
         }
 
         if (message.type === 'whiteboard.presence') {
+          if (isFreelancer(user)) {
+            sendReadOnlyError(ws, 'whiteboard.presence', { hub: 'whiteboard_collab', whiteboard_id: whiteboardId, user_id: user.id });
+            return;
+          }
+
           whiteboardCollabHub.broadcast(
             whiteboardId,
             JSON.stringify({
@@ -315,6 +411,11 @@ collab.get(
         }
 
         if (message.type === 'whiteboard.snapshot') {
+          if (isFreelancer(user)) {
+            sendReadOnlyError(ws, 'whiteboard.snapshot', { hub: 'whiteboard_collab', whiteboard_id: whiteboardId, user_id: user.id });
+            return;
+          }
+
           const latestSeq = await whiteboardCollabRepository.getLatestSeq(whiteboardId);
           await whiteboardCollabRepository.createSnapshot(whiteboardId, message.snapshot as Record<string, unknown>, latestSeq);
           await whiteboardCollabRepository.compactHistory(whiteboardId, latestSeq);

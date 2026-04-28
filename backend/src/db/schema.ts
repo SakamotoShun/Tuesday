@@ -5,6 +5,7 @@ import { relations } from 'drizzle-orm';
 export const UserRole = {
   ADMIN: 'admin',
   MEMBER: 'member',
+  FREELANCER: 'freelancer',
 } as const;
 
 export type UserRole = typeof UserRole[keyof typeof UserRole];
@@ -134,7 +135,10 @@ export const sessions = pgTable('sessions', {
   ip: varchar('ip', { length: 45 }),
   userAgent: text('user_agent'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index('sessions_user_id_idx').on(table.userId),
+  expiresAtIdx: index('sessions_expires_at_idx').on(table.expiresAt),
+}));
 
 export const TokenType = {
   PASSWORD_RESET: 'password_reset',

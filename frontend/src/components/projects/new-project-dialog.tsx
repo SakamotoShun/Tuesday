@@ -75,6 +75,7 @@ export function NewProjectDialog() {
   const [step, setStep] = useState<"template" | "form">("template")
   const { user } = useAuth()
   const isAdmin = user?.role === "admin"
+  const isFreelancer = user?.role === "freelancer"
   const { createProject } = useProjects()
   const { data: statuses } = useProjectStatuses()
   const { data: templates } = useProjectTemplates()
@@ -110,6 +111,10 @@ export function NewProjectDialog() {
       reset()
     }
   }, [open, templates, reset])
+
+  if (isFreelancer) {
+    return null
+  }
 
   const handleSelectTemplate = (template: ProjectTemplate | null) => {
     setSelectedTemplate(template)

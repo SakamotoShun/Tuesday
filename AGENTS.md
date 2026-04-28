@@ -426,14 +426,20 @@ const query = `SELECT * FROM users WHERE id = '${userId}'`;
 
 ## Access Control (CRITICAL)
 
-### Two-Level Authorization Model
-1. **Workspace Role** (`User.role`): `admin` or `member`
+### Three-Level Authorization Model
+1. **Workspace Role** (`User.role`): `admin`, `member`, or `freelancer` — see `backend/src/utils/permissions.ts` for `isFreelancer`/`assertNotFreelancer` helpers
 2. **Project Membership** (`ProjectMember.role`): `owner` or `member`
+
+### Freelancer restrictions
+- Freelancers are **view-only** on docs and whiteboards — any write op returns `{type:'error', code:'read_only', op}` via WebSocket
+- Freelancers can **only log time against projects they are members of** (not misc/unassigned time)
+- Freelancers can **only update task status** on tasks they are assigned to; all other task mutations are blocked
+- Freelancers cannot create/edit/delete docs, manage doc shares, or delete tasks
 
 ### Key Access Rules
 - Members can ONLY access projects where they have a `ProjectMember` record
 - NO implicit access - workspace membership does NOT grant project access
-- Admins can view/manage all projects (for support/maintenance)
+- Admins can view/manage all projects (for support/maintenance); `projectService.hasAccess` and `projectService.isOwner` short-circuit to `true` for admins by design
 - All project resources (docs, tasks, etc.) inherit project membership requirements
 
 ### Middleware Chain for Project Routes

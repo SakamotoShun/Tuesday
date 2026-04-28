@@ -50,13 +50,14 @@ export class UserRepository {
     return result[0].count;
   }
 
-  async findAll(): Promise<Array<{ id: string; name: string; email: string; avatarUrl: string | null }>> {
+  async findAll(): Promise<Array<{ id: string; name: string; email: string; avatarUrl: string | null; role: string }>> {
     return db.query.users.findMany({
       columns: {
         id: true,
         name: true,
         email: true,
         avatarUrl: true,
+        role: true,
       },
       orderBy: [asc(users.name)],
     });

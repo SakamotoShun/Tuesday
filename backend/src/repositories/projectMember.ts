@@ -3,7 +3,7 @@ import { db } from '../db/client';
 import { projectMembers, type ProjectMember, type NewProjectMember, ProjectMemberRole, ProjectMemberSource } from '../db/schema';
 
 export class ProjectMemberRepository {
-  async findByProjectId(projectId: string): Promise<(ProjectMember & { user: { id: string; name: string; email: string; avatarUrl: string | null } })[]> {
+  async findByProjectId(projectId: string): Promise<(ProjectMember & { user: { id: string; name: string; email: string; avatarUrl: string | null; role: string } })[]> {
     const result = await db.query.projectMembers.findMany({
       where: eq(projectMembers.projectId, projectId),
       with: {
@@ -13,6 +13,7 @@ export class ProjectMemberRepository {
             name: true,
             email: true,
             avatarUrl: true,
+            role: true,
           },
         },
         sourceTeam: {
@@ -24,7 +25,7 @@ export class ProjectMemberRepository {
       },
       orderBy: [projectMembers.joinedAt],
     });
-    return result as (ProjectMember & { user: { id: string; name: string; email: string; avatarUrl: string | null }; sourceTeam?: { id: string; name: string } | null })[];
+    return result as (ProjectMember & { user: { id: string; name: string; email: string; avatarUrl: string | null; role: string }; sourceTeam?: { id: string; name: string } | null })[];
   }
 
   async findByUserId(userId: string): Promise<ProjectMember[]> {

@@ -69,7 +69,26 @@ export function ProjectDetailPage() {
     setIsTaskDialogOpen(true)
   }
 
+  const canChangeTaskStatus = (task: Task) => {
+    if (!isFreelancer) {
+      return true
+    }
+
+    return task.assignees?.some((assignee) => assignee.id === user?.id) ?? false
+  }
+
+  const canEditTask = (_task: Task) => !isFreelancer
+
   const handleUpdateTask = async (taskId: string, data: UpdateTaskInput) => {
+    if (isFreelancer) {
+      if (!data.statusId) {
+        return
+      }
+
+      await updateTaskStatus.mutateAsync({ taskId, data: { statusId: data.statusId } })
+      return
+    }
+
     const { assigneeIds, ...taskData } = data
     await updateTask.mutateAsync({ taskId, data: taskData })
     if (assigneeIds) {
@@ -130,6 +149,7 @@ export function ProjectDetailPage() {
   const currentMemberRole = project.members
     ?.find((member) => member.userId === user?.id)
     ?.role
+  const isFreelancer = user?.role === "freelancer"
   const canManageMembers = user?.role === "admin" || currentMemberRole === "owner"
   const budgetHours = parseHours(project.budgetHours)
   const loggedHours = Math.max(project.totalLoggedHours ?? 0, 0)
@@ -171,27 +191,29 @@ export function ProjectDetailPage() {
             <Button variant="outline" onClick={() => setIsMembersDialogOpen(true)}>
               Manage Members
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onClick={() => setIsEditDialogOpen(true)}>
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Edit Project
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem 
-                  onClick={() => setIsDeleteDialogOpen(true)}
-                  className="text-destructive focus:text-destructive"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete Project
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {!isFreelancer && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => setIsEditDialogOpen(true)}>
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Edit Project
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={() => setIsDeleteDialogOpen(true)}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete Project
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </div>
 
@@ -327,6 +349,9 @@ export function ProjectDetailPage() {
                   onTaskReorder={handleTaskReorder}
                   onAddTask={handleAddTask}
                   onTaskClick={handleTaskClick}
+                  canAddTask={!isFreelancer}
+                  canDragTask={canChangeTaskStatus}
+                  canEditTask={canEditTask}
                   isLoading={createTask.isPending || updateTaskStatus.isPending}
                 />
               </div>
@@ -406,6 +431,8 @@ export function ProjectDetailPage() {
         }}
         onDelete={selectedTask ? () => handleDeleteTask(selectedTask.id) : null}
         isSubmitting={updateTask.isPending || deleteTask.isPending}
+        canEdit={selectedTask ? canEditTask(selectedTask) : false}
+        canChangeStatus={selectedTask ? canChangeTaskStatus(selectedTask) : false}
       />
     </div>
   )

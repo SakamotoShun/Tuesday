@@ -58,6 +58,10 @@ export function NewDmDialog({ onCreated, trigger }: NewDmDialogProps) {
     },
   })
 
+  if (user?.role === "freelancer") {
+    return null
+  }
+
   const handleCreate = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!selectedIds[0] || createDm.isPending) return

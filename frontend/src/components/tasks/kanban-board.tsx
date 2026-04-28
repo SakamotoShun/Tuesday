@@ -25,6 +25,9 @@ interface KanbanBoardProps {
   onTaskReorder: (taskId: string, sortOrder: number) => void
   onAddTask: (title: string, statusId: string) => void
   onTaskClick: (task: Task) => void
+  canAddTask?: boolean
+  canDragTask?: (task: Task) => boolean
+  canEditTask?: (task: Task) => boolean
   isLoading?: boolean
 }
 
@@ -35,6 +38,9 @@ export function KanbanBoard({
   onTaskReorder,
   onAddTask,
   onTaskClick,
+  canAddTask = true,
+  canDragTask = () => true,
+  canEditTask = () => true,
   isLoading,
 }: KanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -220,6 +226,9 @@ export function KanbanBoard({
               tasks={tasksByStatus[status.id] || []}
               onTaskClick={onTaskClick}
               onAddTask={onAddTask}
+              canAddTask={canAddTask}
+              canDragTask={canDragTask}
+              canEditTask={canEditTask}
               isLoading={isLoading}
             />
           ))}
@@ -228,7 +237,7 @@ export function KanbanBoard({
       <DragOverlay>
         {activeTask ? (
           <div className="w-[264px]">
-            <TaskCard task={activeTask} />
+            <TaskCard task={activeTask} canEdit={false} />
           </div>
         ) : null}
       </DragOverlay>

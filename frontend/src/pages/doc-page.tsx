@@ -303,6 +303,7 @@ export function DocPage() {
 
   const isDatabaseRow = Boolean(doc.parentId && doc.parent?.isDatabase)
   const parentDatabase = doc.parent?.isDatabase ? doc.parent : null
+  const isProjectFreelancer = Boolean(projectId && user?.role === "freelancer")
 
   const handlePropertiesUpdate = async (nextProperties: Record<string, PropertyValue>) => {
     await updateDoc.mutateAsync({
@@ -322,7 +323,7 @@ export function DocPage() {
   }
 
   const canManageShares = projectId
-    ? Boolean(user)
+    ? Boolean(user && !isProjectFreelancer)
     : Boolean(user && (user.role === "admin" || user.id === doc.createdBy))
 
   const shareLinkUrl = docShareLinkQuery.data
@@ -330,7 +331,7 @@ export function DocPage() {
     : ""
 
   const canDeleteDoc = projectId
-    ? true
+    ? !isProjectFreelancer
     : Boolean(user && (user.role === "admin" || user.id === doc.createdBy))
 
   const chatPanel = (
@@ -401,14 +402,18 @@ export function DocPage() {
               autoFocus
             />
           ) : (
-            <button
-              type="button"
-              className="group flex items-center gap-2"
-              onClick={() => setIsEditingTitle(true)}
-            >
+            isProjectFreelancer ? (
               <h1 className="font-serif text-[28px] font-bold">{doc.title}</h1>
-              <Pencil className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100" />
-            </button>
+            ) : (
+              <button
+                type="button"
+                className="group flex items-center gap-2"
+                onClick={() => setIsEditingTitle(true)}
+              >
+                <h1 className="font-serif text-[28px] font-bold">{doc.title}</h1>
+                <Pencil className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100" />
+              </button>
+            )
           )}
         </div>
         {titleError && (
@@ -427,6 +432,7 @@ export function DocPage() {
             }
             onCreateRow={(data) => createDoc.mutateAsync(data)}
             isCreating={createDoc.isPending}
+            readOnly={isProjectFreelancer}
           />
         </ErrorBoundary>
       ) : (
@@ -440,6 +446,7 @@ export function DocPage() {
                 onOpenDatabase={() =>
                   navigate(getDocPath(projectId, parentDatabase.id))
                 }
+                readOnly={isProjectFreelancer}
               />
             </ErrorBoundary>
           )}
@@ -449,6 +456,7 @@ export function DocPage() {
               docId={doc.id}
               initialContent={doc.content ?? []}
               onSyncStateChange={handleSyncStateChange}
+              editable={!isProjectFreelancer}
             />
           </ErrorBoundary>
         </div>

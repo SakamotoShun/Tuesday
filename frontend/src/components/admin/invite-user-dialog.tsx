@@ -19,13 +19,14 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useAdminUsers } from "@/hooks/use-admin"
+import type { UserRole } from "@/api/types"
 
 export function InviteUserDialog() {
   const { createUser } = useAdminUsers()
   const [open, setOpen] = useState(false)
   const [email, setEmail] = useState("")
   const [name, setName] = useState("")
-  const [role, setRole] = useState<"admin" | "member">("member")
+  const [role, setRole] = useState<UserRole>("member")
   const [employmentType, setEmploymentType] = useState<"hourly" | "full_time">("full_time")
   const [hourlyRate, setHourlyRate] = useState("")
   const [password, setPassword] = useState("")
@@ -95,12 +96,13 @@ export function InviteUserDialog() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="invite-role">Role</Label>
-            <Select value={role} onValueChange={(value) => setRole(value as "admin" | "member")}>
+            <Select value={role} onValueChange={(value) => setRole(value as UserRole)}>
               <SelectTrigger id="invite-role">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="member">Member</SelectItem>
+                <SelectItem value="freelancer">Freelancer</SelectItem>
                 <SelectItem value="admin">Admin</SelectItem>
               </SelectContent>
             </Select>

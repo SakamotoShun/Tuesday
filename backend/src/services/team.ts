@@ -1,4 +1,8 @@
-import { projectRepository, projectMemberRepository, teamRepository, teamMemberRepository, teamProjectRepository } from '../repositories';
+import { projectRepository } from '../repositories/project';
+import { projectMemberRepository } from '../repositories/projectMember';
+import { teamRepository } from '../repositories/team';
+import { teamMemberRepository } from '../repositories/teamMember';
+import { teamProjectRepository } from '../repositories/teamProject';
 import { ProjectMemberRole, ProjectMemberSource, TeamMemberRole, UserRole } from '../db/schema';
 import type { Team, TeamMember, TeamProject } from '../db/schema';
 import type { User } from '../types';

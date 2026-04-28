@@ -1,14 +1,11 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { Hono, type Context } from 'hono';
-
-const config = {
-  trustProxy: false,
-  trustedProxyHops: 1,
-};
-
-mock.module('../config', () => ({ config }));
+import { config } from '../config';
 
 const { getClientIp, getForwardedClientIp, getSocketClientIp, normalizeIp } = await import('./client-ip');
+
+const originalTrustProxy = config.trustProxy;
+const originalTrustedProxyHops = config.trustedProxyHops;
 
 function createSocketServer(address: string) {
   return {
@@ -30,6 +27,11 @@ describe('client IP utilities', () => {
   beforeEach(() => {
     config.trustProxy = false;
     config.trustedProxyHops = 1;
+  });
+
+  afterEach(() => {
+    config.trustProxy = originalTrustProxy;
+    config.trustedProxyHops = originalTrustedProxyHops;
   });
 
   it('normalizes bracketed ipv6 and ipv4 port values', () => {

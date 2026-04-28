@@ -10,9 +10,11 @@ import { Calendar, GripVertical, Pencil } from "@/lib/icons"
 interface TaskCardProps {
   task: Task
   onClick?: () => void
+  canDrag?: boolean
+  canEdit?: boolean
 }
 
-export function TaskCard({ task, onClick }: TaskCardProps) {
+export function TaskCard({ task, onClick, canDrag = true, canEdit = true }: TaskCardProps) {
   const {
     attributes,
     listeners,
@@ -20,7 +22,7 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: task.id, data: { task } })
+  } = useSortable({ id: task.id, data: { task }, disabled: !canDrag })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -50,13 +52,20 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} className="group relative">
-      <Card className="cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow">
+      <Card
+        className={canDrag ? "cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow" : onClick ? "cursor-pointer hover:shadow-md transition-shadow" : "hover:shadow-md transition-shadow"}
+        onClick={onClick}
+      >
         <CardContent className="p-3">
           <div className="space-y-2">
             <div className="grid grid-cols-[auto,1fr,auto] items-center gap-2">
-              <div {...listeners} className="cursor-grab active:cursor-grabbing">
-                <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
-              </div>
+              {canDrag ? (
+                <div {...listeners} className="cursor-grab active:cursor-grabbing">
+                  <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
+                </div>
+              ) : (
+                <div className="h-4 w-4 shrink-0" />
+              )}
               <div className="min-w-0 space-y-1">
                 <p className="text-sm font-medium leading-tight break-words text-left">
                   {task.title}
@@ -71,21 +80,27 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
                   </Badge>
                 )}
               </div>
-              <div
-                className="opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onClick?.()
-                }}
-              >
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 bg-background/80 hover:bg-background shadow-sm"
+              {canEdit ? (
+                <div
+                  className="opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onClick?.()
+                  }}
                 >
-                  <Pencil className="h-3 w-3" />
-                </Button>
-              </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    type="button"
+                    aria-label={`Edit ${task.title}`}
+                    className="h-6 w-6 bg-background/80 hover:bg-background shadow-sm"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="h-6 w-6 shrink-0" />
+              )}
             </div>
 
             {task.assignees && task.assignees.length > 0 && (

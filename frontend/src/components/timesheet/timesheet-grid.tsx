@@ -10,34 +10,41 @@ interface TimesheetGridProps {
   entries: TimeEntry[]
   projects: Project[]
   weekStart: string
+  allowMisc?: boolean
 }
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 function getWeekDates(weekStart: string): string[] {
-  const start = new Date(weekStart)
+  const [y, m, d] = weekStart.split("-").map(Number) as [number, number, number]
+  const start = new Date(Date.UTC(y, m - 1, d))
   return Array.from({ length: 7 }, (_, i) => {
     const date = new Date(start)
-    date.setDate(date.getDate() + i)
+    date.setUTCDate(date.getUTCDate() + i)
     return date.toISOString().slice(0, 10)
   })
 }
 
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr)
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })
 }
 
 export function TimesheetGrid({
   entries,
   projects,
   weekStart,
+  allowMisc = false,
 }: TimesheetGridProps) {
   const upsertMutation = useUpsertTimeEntry()
   const weekDates = useMemo(() => getWeekDates(weekStart), [weekStart])
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [addedProjectIds, setAddedProjectIds] = useState<string[]>([])
   const [hiddenProjectIds, setHiddenProjectIds] = useState<Set<string>>(new Set())
+  const visibleEntries = useMemo(
+    () => entries.filter((e) => allowMisc || e.projectId !== null),
+    [allowMisc, entries]
+  )
 
   const projectEntries = useMemo(() => entries.filter((e) => e.projectId !== null), [entries])
 
@@ -76,24 +83,24 @@ export function TimesheetGrid({
 
   const calculateDailyTotals = (): number[] => {
     return weekDates.map((date) => {
-      return entries
+      return visibleEntries
         .filter((e) => e.date === date)
         .reduce((sum, e) => sum + e.hours, 0)
     })
   }
 
   const calculateProjectTotal = (projectId: string | null): number => {
-    return entries
+    return visibleEntries
       .filter((e) => e.projectId === projectId)
       .reduce((sum, e) => sum + e.hours, 0)
   }
 
   const calculateGrandTotal = (): number => {
-    return entries.reduce((sum, e) => sum + e.hours, 0)
+    return visibleEntries.reduce((sum, e) => sum + e.hours, 0)
   }
 
-  const dailyTotals = useMemo(() => calculateDailyTotals(), [entries, weekDates])
-  const grandTotal = useMemo(() => calculateGrandTotal(), [entries])
+  const dailyTotals = useMemo(() => calculateDailyTotals(), [visibleEntries, weekDates])
+  const grandTotal = useMemo(() => calculateGrandTotal(), [visibleEntries])
 
   return (
     <div className="overflow-x-auto">
@@ -126,9 +133,10 @@ export function TimesheetGrid({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-5 w-5 opacity-0 group-hover:opacity-100 shrink-0"
+                    className="h-5 w-5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 shrink-0"
                     onClick={() => handleHideProject(project.id)}
                     title="Hide from timesheet"
+                    aria-label={`Hide ${project.name} from timesheet`}
                   >
                     <X className="h-3 w-3" />
                   </Button>
@@ -156,34 +164,36 @@ export function TimesheetGrid({
             </tr>
           ))}
 
-          <tr className="border-b bg-muted/20">
-            <td className="py-0.5 px-2">
-              <span className="font-medium text-sm text-muted-foreground">Misc</span>
-            </td>
-            {weekDates.map((date) => {
-              const entry = getEntry(null, date)
-              return (
-                <td key={date} className="p-0">
-                  <TimesheetCell
-                    value={entry?.hours || 0}
-                    note={entry?.note}
-                    onChange={(hours) => handleHoursChange(null, date, hours)}
-                    disabled={upsertMutation.isPending}
-                  />
-                </td>
-              )
-            })}
-            <td className="p-0">
-              <TimesheetCell
-                value={calculateProjectTotal(null)}
-                isTotal
-              />
-            </td>
-          </tr>
+          {allowMisc && (
+            <tr className="border-b bg-muted/20">
+              <td className="py-0.5 px-2">
+                <span className="font-medium text-sm text-muted-foreground">Misc</span>
+              </td>
+              {weekDates.map((date) => {
+                const entry = getEntry(null, date)
+                return (
+                  <td key={date} className="p-0">
+                    <TimesheetCell
+                      value={entry?.hours || 0}
+                      note={entry?.note}
+                      onChange={(hours) => handleHoursChange(null, date, hours)}
+                      disabled={upsertMutation.isPending}
+                    />
+                  </td>
+                )
+              })}
+              <td className="p-0">
+                <TimesheetCell
+                  value={calculateProjectTotal(null)}
+                  isTotal
+                />
+              </td>
+            </tr>
+          )}
 
           {availableProjects.length > 0 && (
             <tr className="border-b">
-              <td colSpan={9} className="py-1.5 px-2">
+              <td colSpan={2 + weekDates.length} className="py-1.5 px-2">
                 <div className="flex items-center gap-2">
                   <ItemCombobox
                     items={availableProjects}

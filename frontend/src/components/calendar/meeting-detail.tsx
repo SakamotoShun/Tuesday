@@ -4,7 +4,7 @@ import type { Meeting } from "@/api/types"
 
 interface MeetingDetailProps {
   meeting: Meeting
-  onEdit: () => void
+  onEdit?: () => void
 }
 
 export function MeetingDetail({ meeting, onEdit }: MeetingDetailProps) {
@@ -33,9 +33,11 @@ export function MeetingDetail({ meeting, onEdit }: MeetingDetailProps) {
             </a>
           ) : null}
         </div>
-        <Button variant="outline" size="sm" onClick={onEdit}>
-          Edit
-        </Button>
+        {onEdit ? (
+          <Button variant="outline" size="sm" onClick={onEdit}>
+            Edit
+          </Button>
+        ) : null}
       </div>
 
       {meeting.notesMd ? (
