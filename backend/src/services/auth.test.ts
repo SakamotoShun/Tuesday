@@ -16,7 +16,7 @@ let sessionDelete: (id: string) => Promise<boolean> = async () => true;
 let sessionDeleteByUserId: (userId: string) => Promise<number> = async () => 0;
 let sessionFind: (id: string) => Promise<any> = async () => null;
 let getSetting: (key: string) => Promise<any> = async () => null;
-let tokenCreate: (data: any) => Promise<any> = async () => ({ id: 'token-1', ...data });
+let tokenCreate: (data: any) => Promise<any> = async (data) => ({ id: 'token-1', ...data });
 let tokenDeleteByUserAndType: (userId: string, type: string) => Promise<number> = async () => 0;
 let tokenFindActiveByTokenHash: (tokenHash: string, type: string) => Promise<any> = async () => null;
 let tokenMarkUsed: (id: string) => Promise<boolean> = async () => false;
