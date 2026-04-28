@@ -53,11 +53,6 @@ mock.module('../collab/whiteboardHub', () => ({
   },
 }));
 
-mock.module('../collab/docSnapshot', () => ({
-  resolveDocSnapshotSeq: () => 1,
-  shouldPersistCanonicalDocContent: () => false,
-}));
-
 const { collab, setCollabDependenciesForTests } = await import('./collab');
 const { websocket } = await import('../websocket');
 
