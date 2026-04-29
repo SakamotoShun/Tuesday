@@ -3,7 +3,7 @@ import { auth } from '../middleware';
 import { userRepository } from '../repositories';
 import { fileService } from '../services/file';
 import { success, errors } from '../utils/response';
-import { validateBody, formatValidationErrors, updateProfileSchema, changePasswordSchema } from '../utils/validation';
+import { validateBody, formatValidationErrors, updateProfileSchema, changePasswordSchema, changeEmailSchema } from '../utils/validation';
 import { hashPassword, verifyPassword } from '../utils/password';
 import type { User as DbUser } from '../db/schema';
 
@@ -170,6 +170,49 @@ profile.post('/password', async (c) => {
   } catch (error) {
     console.error('Error updating password:', error);
     return errors.internal(c, 'Failed to update password');
+  }
+});
+
+// POST /api/v1/profile/email - Change email
+profile.post('/email', async (c) => {
+  try {
+    const body = await c.req.json();
+    const validation = validateBody(changeEmailSchema, body);
+    if (!validation.success) {
+      return errors.validation(c, formatValidationErrors(validation.errors));
+    }
+
+    const { currentPassword, newEmail } = validation.data;
+    const currentUser = c.get('user');
+
+    const userRecord = await userRepository.findById(currentUser.id);
+    if (!userRecord) {
+      return errors.notFound(c, 'User not found');
+    }
+
+    const isValid = await verifyPassword(currentPassword, userRecord.passwordHash);
+    if (!isValid) {
+      return errors.badRequest(c, 'Current password is incorrect');
+    }
+
+    if (newEmail === userRecord.email) {
+      return success(c, { user: toPublicUser(userRecord) });
+    }
+
+    const existingUser = await userRepository.findByEmail(newEmail);
+    if (existingUser && existingUser.id !== currentUser.id) {
+      return errors.conflict(c, 'User with this email already exists');
+    }
+
+    const updated = await userRepository.update(currentUser.id, { email: newEmail });
+    if (!updated) {
+      return errors.notFound(c, 'User not found');
+    }
+
+    return success(c, { user: toPublicUser(updated) });
+  } catch (error) {
+    console.error('Error updating email:', error);
+    return errors.internal(c, 'Failed to update email');
   }
 });
 

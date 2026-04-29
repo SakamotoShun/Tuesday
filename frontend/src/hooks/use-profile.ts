@@ -31,11 +31,17 @@ export function useProfile() {
     mutationFn: (data: profileApi.ChangePasswordInput) => profileApi.changePassword(data),
   })
 
+  const changeEmail = useMutation({
+    mutationFn: (data: profileApi.ChangeEmailInput) => profileApi.changeEmail(data),
+    onSuccess: (updated) => syncUser(updated),
+  })
+
   return {
     user,
     updateProfile,
     uploadAvatar,
     removeAvatar,
     changePassword,
+    changeEmail,
   }
 }

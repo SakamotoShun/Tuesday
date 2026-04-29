@@ -21,6 +21,11 @@ export interface ChangePasswordInput {
   newPassword: string
 }
 
+export interface ChangeEmailInput {
+  currentPassword: string
+  newEmail: string
+}
+
 export async function getProfile(): Promise<User> {
   const response = await api.get<{ user: BackendUser }>("/profile")
   return normalizeUser(response.user)
@@ -71,4 +76,9 @@ export async function removeAvatar(): Promise<User> {
 
 export async function changePassword(data: ChangePasswordInput): Promise<{ changed: true }> {
   return api.post<{ changed: true }>("/profile/password", data)
+}
+
+export async function changeEmail(data: ChangeEmailInput): Promise<User> {
+  const response = await api.post<{ user: BackendUser }>("/profile/email", data)
+  return normalizeUser(response.user)
 }

@@ -69,6 +69,19 @@ export const changePasswordSchema = z.object({
 
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 
+// Change email validation
+export const changeEmailSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newEmail: z
+    .string()
+    .trim()
+    .min(1, 'Email is required')
+    .email('Invalid email format')
+    .max(255, 'Email must be less than 255 characters'),
+});
+
+export type ChangeEmailInput = z.infer<typeof changeEmailSchema>;
+
 // Setup validation
 export const setupSchema = z.object({
   workspaceName: z.string().min(1, 'Workspace name is required').max(255),

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'bun:test';
 import {
+  changeEmailSchema,
   emailSchema,
   passwordSchema,
   loginSchema,
@@ -21,6 +22,23 @@ describe('validation schemas', () => {
   it('validates password schema length', () => {
     expect(passwordSchema.safeParse('short').success).toBe(false);
     expect(passwordSchema.safeParse('long-enough-password').success).toBe(true);
+  });
+
+  it('validates change email schema', () => {
+    const ok = changeEmailSchema.safeParse({
+      currentPassword: 'password-123',
+      newEmail: '  user@example.com  ',
+    });
+    const bad = changeEmailSchema.safeParse({
+      currentPassword: '',
+      newEmail: 'invalid-email',
+    });
+
+    expect(ok.success).toBe(true);
+    if (ok.success) {
+      expect(ok.data.newEmail).toBe('user@example.com');
+    }
+    expect(bad.success).toBe(false);
   });
 
   it('validates login schema', () => {
