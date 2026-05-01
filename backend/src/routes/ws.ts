@@ -7,6 +7,7 @@ import type { User } from '../types';
 import { sendWebSocketMessage, safeCloseWebSocket } from '../utils/websocket';
 
 type WSMessage =
+  | { type: 'pong'; ts?: number }
   | { type: 'subscribe'; channelId: string }
   | { type: 'unsubscribe'; channelId: string }
   | { type: 'typing'; channelId: string; isTyping: boolean }
@@ -65,6 +66,13 @@ ws.get(
         } catch {
           return;
         }
+
+        if (message.type === 'pong') {
+          chatHub.markPong(socket, user.id);
+          return;
+        }
+
+        chatHub.touch(socket, user.id);
 
         if (message.type === 'subscribe') {
           try {

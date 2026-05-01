@@ -52,10 +52,26 @@ function isAllowedDevelopmentOrigin(origin: string) {
       return false;
     }
 
-    return url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]';
+    return isAllowedDevelopmentHostname(url.hostname);
   } catch {
     return false;
   }
+}
+
+function isAllowedDevelopmentHostname(hostname: string) {
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]' || hostname === '::1') {
+    return true;
+  }
+
+  const ipv4Segments = hostname.split('.').map((segment) => Number.parseInt(segment, 10));
+  if (ipv4Segments.length !== 4 || ipv4Segments.some((segment) => Number.isNaN(segment) || segment < 0 || segment > 255)) {
+    return false;
+  }
+
+  const [first, second] = ipv4Segments;
+
+  // Tailscale uses 100.64.0.0/10 for node addresses.
+  return first === 100 && second >= 64 && second <= 127;
 }
 
 /**

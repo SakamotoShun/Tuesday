@@ -5,6 +5,8 @@ import { safeCloseWebSocket, sendWebSocketMessage } from '../utils/websocket';
 interface CollabClient {
   ws: WSContext;
   user: User;
+  lastSeenAt: number;
+  awaitingPong: boolean;
 }
 
 interface CollabRoom {
@@ -13,6 +15,8 @@ interface CollabRoom {
 }
 
 const MAX_WHITEBOARD_ROOM_CLIENTS = 16;
+const HEARTBEAT_INTERVAL_MS = 30_000;
+const STALE_CLIENT_TIMEOUT_MS = 90_000;
 
 class WhiteboardCollabHub {
   private rooms = new Map<string, CollabRoom>();
@@ -37,6 +41,27 @@ class WhiteboardCollabHub {
 
     room.clients.add(client);
     return true;
+  }
+
+  touch(whiteboardId: string, ws: WSContext) {
+    const room = this.rooms.get(whiteboardId);
+    if (!room) {
+      return;
+    }
+
+    for (const client of room.clients) {
+      if (client.ws !== ws) {
+        continue;
+      }
+
+      client.lastSeenAt = Date.now();
+      client.awaitingPong = false;
+      return;
+    }
+  }
+
+  markPong(whiteboardId: string, ws: WSContext) {
+    this.touch(whiteboardId, ws);
   }
 
   leave(whiteboardId: string, ws: WSContext) {
@@ -94,6 +119,38 @@ class WhiteboardCollabHub {
     return false;
   }
 
+  reapStaleClients(now = Date.now()) {
+    for (const [whiteboardId, room] of Array.from(this.rooms.entries())) {
+      for (const client of Array.from(room.clients)) {
+        if (client.awaitingPong && now - client.lastSeenAt >= STALE_CLIENT_TIMEOUT_MS) {
+          safeCloseWebSocket(client.ws, 1001, 'Connection timed out');
+          room.clients.delete(client);
+          continue;
+        }
+
+        if (client.awaitingPong || now - client.lastSeenAt < HEARTBEAT_INTERVAL_MS) {
+          continue;
+        }
+
+        if (!sendWebSocketMessage(client.ws, JSON.stringify({ type: 'ping', ts: now }), {
+          hub: 'whiteboard_collab',
+          event: 'heartbeat',
+          whiteboard_id: whiteboardId,
+          user_id: client.user.id,
+        })) {
+          room.clients.delete(client);
+          continue;
+        }
+
+        client.awaitingPong = true;
+      }
+
+      if (room.clients.size === 0) {
+        this.rooms.delete(whiteboardId);
+      }
+    }
+  }
+
   shutdown() {
     const payload = JSON.stringify({
       type: 'server.restart',
@@ -111,10 +168,22 @@ class WhiteboardCollabHub {
   }
 
   getStats() {
-    const clients = Array.from(this.rooms.values()).reduce((total, room) => total + room.clients.size, 0);
+    let clients = 0;
+    let awaitingPong = 0;
+
+    for (const room of this.rooms.values()) {
+      clients += room.clients.size;
+      for (const client of room.clients) {
+        if (client.awaitingPong) {
+          awaitingPong += 1;
+        }
+      }
+    }
+
     return {
       activeRooms: this.rooms.size,
       clients,
+      awaitingPong,
     };
   }
 }

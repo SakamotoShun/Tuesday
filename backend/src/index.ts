@@ -15,6 +15,7 @@ const app = new Hono();
 const cleanupHandles: Array<ReturnType<typeof setInterval>> = [];
 const SHUTDOWN_TIMEOUT_MS = 25_000;
 const FATAL_EXIT_TIMEOUT_MS = 5_000;
+const WEBSOCKET_MAINTENANCE_INTERVAL_MS = 30_000;
 
 // Global middleware
 app.use('*', requestContext);
@@ -93,6 +94,13 @@ async function startServer() {
       const { config } = await import('./config');
       return fileService.cleanupDeletedMessageFiles(config.deletedMessageFileRetentionDays);
     });
+
+    cleanupHandles.push(setInterval(() => {
+      const now = Date.now();
+      chatHub.reapStaleClients(now);
+      docCollabHub.reapStaleClients(now);
+      whiteboardCollabHub.reapStaleClients(now);
+    }, WEBSOCKET_MAINTENANCE_INTERVAL_MS));
 
     const server = Bun.serve({
       port: config.port,

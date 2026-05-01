@@ -63,6 +63,12 @@ const connect = () => {
     } catch {
       return
     }
+
+    if (payload.type === "ping") {
+      ws.send(JSON.stringify({ type: "pong", ts: payload.ts }))
+      return
+    }
+
     messageListeners.forEach((listener) => listener(payload))
   }
 }

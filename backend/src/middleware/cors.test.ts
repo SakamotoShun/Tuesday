@@ -104,6 +104,28 @@ describe('cors middleware', () => {
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe('http://127.0.0.1:3000');
   });
 
+  it('allows Tailscale origins during development', async () => {
+    config.nodeEnv = 'development';
+
+    let handlerReached = false;
+    const app = new Hono();
+    app.use('*', cors);
+    app.get('/', (c) => {
+      handlerReached = true;
+      return c.text('ok');
+    });
+
+    const response = await app.request('http://localhost:8080/', {
+      headers: {
+        Origin: 'http://100.88.10.25:3000',
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(handlerReached).toBe(true);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('http://100.88.10.25:3000');
+  });
+
   it('blocks disallowed non-preflight requests before handlers run', async () => {
     let handlerReached = false;
     const app = new Hono();

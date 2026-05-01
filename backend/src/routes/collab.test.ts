@@ -29,6 +29,8 @@ beforeAll(() => {
     getWhiteboard: async () => ({ id: 'wb-1', projectId: 'proj-1', title: 'Test WB', data: null } as any),
     docCollabRepository: {
       getLatestSnapshot: async () => null,
+      countUpdatesInRange: async () => 0,
+      getUpdatesInRange: async () => [],
       getUpdatesSince: async () => [],
       getLatestSeq: async () => 0,
       appendUpdate: async () => 1,
@@ -38,6 +40,8 @@ beforeAll(() => {
     docRepository: { update: async () => ({}) } as any,
     whiteboardCollabRepository: {
       getLatestSnapshot: async () => null,
+      countUpdatesInRange: async () => 0,
+      getUpdatesInRange: async () => [],
       getUpdatesSince: async () => [],
       getLatestSeq: async () => 0,
       appendUpdate: async () => 1,
@@ -48,6 +52,8 @@ beforeAll(() => {
     docCollabHub: {
       join: () => true,
       leave: () => {},
+      touch: () => {},
+      markPong: () => {},
       broadcast: () => {},
       shouldRequestSnapshot: () => false,
       getStats: () => ({ activeRooms: 0, clients: 0 }),
@@ -55,6 +61,8 @@ beforeAll(() => {
     whiteboardCollabHub: {
       join: () => true,
       leave: () => {},
+      touch: () => {},
+      markPong: () => {},
       broadcast: () => {},
       shouldRequestSnapshot: () => false,
       listCollaborators: () => [],

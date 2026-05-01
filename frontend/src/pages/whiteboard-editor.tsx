@@ -112,8 +112,9 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
   const excalidrawAPI = useRef<any>(null)
   const sceneRef = useRef<WhiteboardScene>(blankScene)
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const lastSentSignatureRef = useRef("")
-  const lastRemoteSignatureRef = useRef("")
+  const committedSceneKeyRef = useRef("")
+  const pendingSceneKeyRef = useRef("")
+  const isApplyingRemoteSceneRef = useRef(false)
   const ignoreAppStateChangeRef = useRef(false)
   const pendingSyncRef = useRef<WhiteboardScene | null>(null)
   const [isApiReady, setIsApiReady] = useState(false)
@@ -142,6 +143,17 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
     },
   })
 
+  const getSceneKey = useCallback((scene: WhiteboardScene) => {
+    const fileIds = Object.keys(scene.files ?? {})
+      .sort()
+      .join("|")
+    const elementSignature = scene.elements
+      .map((element) => `${element.id}:${element.version ?? 0}:${element.isDeleted ? 1 : 0}`)
+      .join("|")
+
+    return `${elementSignature}::${fileIds}`
+  }, [])
+
   const applyScene = useCallback((scene: WhiteboardScene) => {
     if (!excalidrawAPI.current) {
       pendingSyncRef.current = scene
@@ -151,14 +163,14 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
     if (Object.keys(files).length > 0 && typeof excalidrawAPI.current.addFiles === "function") {
       excalidrawAPI.current.addFiles(files)
     }
+    isApplyingRemoteSceneRef.current = true
     excalidrawAPI.current.updateScene({
       elements: scene.elements,
     })
     sceneRef.current = scene
-    const signature = JSON.stringify({ elements: scene.elements, files: scene.files ?? {} })
-    lastSentSignatureRef.current = signature
-    lastRemoteSignatureRef.current = signature
-  }, [])
+    committedSceneKeyRef.current = getSceneKey(scene)
+    pendingSceneKeyRef.current = ""
+  }, [getSceneKey])
 
   const handleSync = useCallback(
     (message: { snapshot: WhiteboardScene | null; updates: WhiteboardScene[] }) => {
@@ -348,6 +360,10 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
               if (isFreelancer) {
                 return
               }
+              if (isApplyingRemoteSceneRef.current) {
+                isApplyingRemoteSceneRef.current = false
+                return
+              }
               if (ignoreAppStateChangeRef.current) {
                 ignoreAppStateChangeRef.current = false
                 return
@@ -361,11 +377,8 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
                 files: filteredFiles,
               }
               sceneRef.current = scene
-              const signature = JSON.stringify({ elements, files: filteredFiles })
-              if (signature === lastRemoteSignatureRef.current) {
-                return
-              }
-              if (signature === lastSentSignatureRef.current) {
+              const sceneKey = getSceneKey(scene)
+              if (sceneKey === committedSceneKeyRef.current || sceneKey === pendingSceneKeyRef.current) {
                 return
               }
 
@@ -373,9 +386,12 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
                 clearTimeout(saveTimeoutRef.current)
               }
 
+              pendingSceneKeyRef.current = sceneKey
+
               saveTimeoutRef.current = setTimeout(() => {
                 sendUpdate(scene)
-                lastSentSignatureRef.current = signature
+                committedSceneKeyRef.current = sceneKey
+                pendingSceneKeyRef.current = ""
               }, 600)
             }}
             onPointerUpdate={({ pointer, button }) => {

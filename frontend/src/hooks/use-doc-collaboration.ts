@@ -148,6 +148,11 @@ export function useDocCollaboration(docId: string, options: UseDocCollaborationO
           return
         }
 
+        if (message.type === "ping") {
+          socket.send(JSON.stringify({ type: "pong", ts: message.ts }))
+          return
+        }
+
         if (message.type === "doc.sync") {
           const snapshot = typeof message.snapshot === "string" ? message.snapshot : null
           const updates = Array.isArray(message.updates) ? message.updates : []

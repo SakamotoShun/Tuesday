@@ -397,7 +397,9 @@ export const docCollabSnapshots = pgTable('doc_collab_snapshots', {
   seq: bigint('seq', { mode: 'number' }).notNull(),
   snapshot: bytea('snapshot').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => ({
+  docSeqIdx: index('doc_collab_snapshots_doc_seq_idx').on(table.docId, table.seq),
+}));
 
 // Doc collaboration updates
 export const docCollabUpdates = pgTable('doc_collab_updates', {
@@ -407,7 +409,9 @@ export const docCollabUpdates = pgTable('doc_collab_updates', {
   update: bytea('update').notNull(),
   actorId: uuid('actor_id').notNull().references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => ({
+  docSeqIdx: index('doc_collab_updates_doc_seq_idx').on(table.docId, table.seq),
+}));
 
 // Activity logs table
 export const activityLogs = pgTable('activity_logs', {
@@ -776,7 +780,9 @@ export const whiteboardCollabSnapshots = pgTable('whiteboard_collab_snapshots', 
   seq: bigint('seq', { mode: 'number' }).notNull(),
   snapshot: jsonb('snapshot').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => ({
+  whiteboardSeqIdx: index('whiteboard_collab_snapshots_board_seq_idx').on(table.whiteboardId, table.seq),
+}));
 
 // Whiteboard collaboration updates
 export const whiteboardCollabUpdates = pgTable('whiteboard_collab_updates', {
@@ -786,7 +792,9 @@ export const whiteboardCollabUpdates = pgTable('whiteboard_collab_updates', {
   update: jsonb('update').notNull(),
   actorId: uuid('actor_id').notNull().references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => ({
+  whiteboardSeqIdx: index('whiteboard_collab_updates_board_seq_idx').on(table.whiteboardId, table.seq),
+}));
 
 // Task relations
 export const taskStatusesRelations = relations(taskStatuses, ({ many }) => ({

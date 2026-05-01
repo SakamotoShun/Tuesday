@@ -26,12 +26,17 @@ function createSocket(sendResult: number | void) {
 
 describe('chatHub', () => {
   let hub: ChatHub;
+  let currentTime = 1_000;
+  const originalDateNow = Date.now;
 
   beforeEach(() => {
+    currentTime = 1_000;
+    Date.now = () => currentTime;
     hub = new ChatHub();
   });
 
   afterEach(() => {
+    Date.now = originalDateNow;
     hub.shutdown();
   });
 
@@ -69,5 +74,52 @@ describe('chatHub', () => {
 
     expect(socket.closeCalls).toEqual([{ code: 1012, reason: 'Service restarting' }]);
     expect(hub.getStats().connections).toBe(0);
+  });
+
+  it('reaps stale clients that do not answer heartbeats', () => {
+    const heartbeatMessages: string[] = [];
+    const socket = {
+      send: (payload: string) => {
+        heartbeatMessages.push(payload);
+      },
+      close: (code: number, reason: string) => {
+        socket.closeCalls.push({ code, reason });
+      },
+      closeCalls: [] as Array<{ code: number; reason: string }>,
+    };
+
+    expect(hub.connect(socket as any, user as any)).not.toBeNull();
+
+    currentTime = 31_000;
+    hub.reapStaleClients(currentTime);
+
+    expect(heartbeatMessages).toHaveLength(1);
+    expect(JSON.parse(heartbeatMessages[0] ?? '{}')).toMatchObject({ type: 'ping', ts: currentTime });
+    expect(hub.getStats().awaitingPong).toBe(1);
+
+    currentTime = 91_000;
+    hub.reapStaleClients(currentTime);
+
+    expect(socket.closeCalls).toEqual([{ code: 1001, reason: 'Connection timed out' }]);
+    expect(hub.getStats().connections).toBe(0);
+  });
+
+  it('keeps active clients when they answer heartbeats', () => {
+    const socket = createSocket(undefined);
+    expect(hub.connect(socket as any, user as any)).not.toBeNull();
+
+    currentTime = 32_000;
+    hub.reapStaleClients(currentTime);
+    expect(hub.getStats().awaitingPong).toBe(1);
+
+    currentTime = 32_000;
+    hub.markPong(socket as any, user.id);
+    expect(hub.getStats().awaitingPong).toBe(0);
+
+    currentTime = 91_000;
+    hub.reapStaleClients(currentTime);
+
+    expect(socket.closeCalls).toEqual([]);
+    expect(hub.getStats().connections).toBe(1);
   });
 });

@@ -8,6 +8,7 @@ import {
 } from '../repositories';
 import { docCollabHub as defaultDocCollabHub } from '../collab/hub';
 import { resolveDocSnapshotSeq, shouldPersistCanonicalDocContent } from '../collab/docSnapshot';
+import { buildDocSyncState, buildWhiteboardSyncState } from '../collab/sync';
 import { whiteboardCollabHub as defaultWhiteboardCollabHub } from '../collab/whiteboardHub';
 import type { User } from '../types';
 import { extractSearchTextFromDocContent } from '../utils/doc-search';
@@ -16,6 +17,7 @@ import { sendWebSocketMessage, safeCloseWebSocket } from '../utils/websocket';
 import { isFreelancer } from '../utils/permissions';
 
 type CollabMessage =
+  | { type: 'pong'; ts?: number }
   | { type: 'doc.update'; update: string }
   | { type: 'doc.snapshot'; snapshot: string; seq?: number; content?: unknown }
   | { type: 'presence.update'; update: string };
@@ -37,6 +39,7 @@ type WhiteboardPresencePayload = {
 };
 
 type WhiteboardCollabMessage =
+  | { type: 'pong'; ts?: number }
   | { type: 'whiteboard.update'; update: WhiteboardUpdatePayload }
   | { type: 'whiteboard.snapshot'; snapshot: WhiteboardUpdatePayload }
   | { type: 'whiteboard.presence'; update: WhiteboardPresencePayload };
@@ -141,22 +144,20 @@ collab.get(
             return;
           }
 
-          if (!docCollabHub.join(docId, { ws, user })) {
+          if (!docCollabHub.join(docId, { ws, user, lastSeenAt: Date.now(), awaitingPong: false })) {
             safeCloseWebSocket(ws, 1013, 'Room capacity reached');
             return;
           }
 
-          const snapshot = await docCollabRepository.getLatestSnapshot(docId);
-          const updates = await docCollabRepository.getUpdatesSince(docId, snapshot?.seq ?? 0);
-          const latestSeq = await docCollabRepository.getLatestSeq(docId);
+          const syncState = await buildDocSyncState(docCollabRepository, docId);
 
           sendWebSocketMessage(
             ws,
             JSON.stringify({
               type: 'doc.sync',
-              snapshot: snapshot ? encodeBase64(snapshot.snapshot) : null,
-              updates: updates.map((update) => encodeBase64(update.update)),
-              latestSeq,
+              snapshot: syncState.snapshot ? encodeBase64(syncState.snapshot) : null,
+              updates: syncState.updates.map((update) => encodeBase64(update)),
+              latestSeq: syncState.latestSeq,
             }),
             { hub: 'doc_collab', event: 'sync', doc_id: docId, user_id: user.id }
           );
@@ -181,6 +182,13 @@ collab.get(
         } catch {
           return;
         }
+
+        if (message.type === 'pong') {
+          docCollabHub.markPong(docId, ws);
+          return;
+        }
+
+        docCollabHub.touch(docId, ws);
 
         if (message.type === 'doc.update') {
           if (isFreelancer(user)) {
@@ -291,14 +299,17 @@ collab.get(
             return;
           }
 
-          if (!whiteboardCollabHub.join(whiteboardId, { ws, user })) {
+          if (!whiteboardCollabHub.join(whiteboardId, { ws, user, lastSeenAt: Date.now(), awaitingPong: false })) {
             safeCloseWebSocket(ws, 1013, 'Room capacity reached');
             return;
           }
 
-          const snapshot = await whiteboardCollabRepository.getLatestSnapshot(whiteboardId);
-          const updates = await whiteboardCollabRepository.getUpdatesSince(whiteboardId, snapshot?.seq ?? 0);
-          const latestSeq = await whiteboardCollabRepository.getLatestSeq(whiteboardId);
+          const syncState = await buildWhiteboardSyncState(
+            whiteboardCollabRepository,
+            whiteboardRepository,
+            whiteboardId,
+            whiteboard.data
+          );
           const collaborators = whiteboardCollabHub.listCollaborators(whiteboardId).map((collaborator) => ({
             id: collaborator.id,
             name: collaborator.name,
@@ -309,9 +320,9 @@ collab.get(
             ws,
             JSON.stringify({
               type: 'whiteboard.sync',
-              snapshot: snapshot?.snapshot ?? whiteboard.data ?? { elements: [], files: {} },
-              updates: updates.map((update) => update.update),
-              latestSeq,
+              snapshot: syncState.snapshot,
+              updates: syncState.updates,
+              latestSeq: syncState.latestSeq,
               collaborators,
             }),
             { hub: 'whiteboard_collab', event: 'sync', whiteboard_id: whiteboardId, user_id: user.id }
@@ -350,6 +361,13 @@ collab.get(
         } catch {
           return;
         }
+
+        if (message.type === 'pong') {
+          whiteboardCollabHub.markPong(whiteboardId, ws);
+          return;
+        }
+
+        whiteboardCollabHub.touch(whiteboardId, ws);
 
         if (message.type === 'whiteboard.update') {
           if (isFreelancer(user)) {

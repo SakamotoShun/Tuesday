@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, lte } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, inArray, lte } from 'drizzle-orm';
 import { db } from '../db/client';
 import { whiteboardCollabSnapshots, whiteboardCollabUpdates } from '../db/schema';
 
@@ -12,11 +12,34 @@ export class WhiteboardCollabRepository {
     });
   }
 
-  async getUpdatesSince(whiteboardId: string, seq: number) {
+  async getUpdatesInRange(whiteboardId: string, minSeqExclusive: number, maxSeqInclusive: number, limit?: number) {
     return db.query.whiteboardCollabUpdates.findMany({
-      where: and(eq(whiteboardCollabUpdates.whiteboardId, whiteboardId), gt(whiteboardCollabUpdates.seq, seq)),
+      where: and(
+        eq(whiteboardCollabUpdates.whiteboardId, whiteboardId),
+        gt(whiteboardCollabUpdates.seq, minSeqExclusive),
+        lte(whiteboardCollabUpdates.seq, maxSeqInclusive)
+      ),
       orderBy: [asc(whiteboardCollabUpdates.seq)],
+      ...(typeof limit === 'number' ? { limit } : {}),
     });
+  }
+
+  async getUpdatesSince(whiteboardId: string, seq: number, limit?: number) {
+    const latestSeq = await this.getLatestSeq(whiteboardId);
+    return this.getUpdatesInRange(whiteboardId, seq, latestSeq, limit);
+  }
+
+  async countUpdatesInRange(whiteboardId: string, minSeqExclusive: number, maxSeqInclusive: number) {
+    const [result] = await db
+      .select({ count: count() })
+      .from(whiteboardCollabUpdates)
+      .where(and(
+        eq(whiteboardCollabUpdates.whiteboardId, whiteboardId),
+        gt(whiteboardCollabUpdates.seq, minSeqExclusive),
+        lte(whiteboardCollabUpdates.seq, maxSeqInclusive)
+      ));
+
+    return result?.count ?? 0;
   }
 
   async getLatestSeq(whiteboardId: string) {

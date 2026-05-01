@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, lte } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, inArray, lte } from 'drizzle-orm';
 import { db } from '../db/client';
 import { docCollabSnapshots, docCollabUpdates } from '../db/schema';
 
@@ -12,11 +12,34 @@ export class DocCollabRepository {
     });
   }
 
-  async getUpdatesSince(docId: string, seq: number) {
+  async getUpdatesInRange(docId: string, minSeqExclusive: number, maxSeqInclusive: number, limit?: number) {
     return db.query.docCollabUpdates.findMany({
-      where: and(eq(docCollabUpdates.docId, docId), gt(docCollabUpdates.seq, seq)),
+      where: and(
+        eq(docCollabUpdates.docId, docId),
+        gt(docCollabUpdates.seq, minSeqExclusive),
+        lte(docCollabUpdates.seq, maxSeqInclusive)
+      ),
       orderBy: [asc(docCollabUpdates.seq)],
+      ...(typeof limit === 'number' ? { limit } : {}),
     });
+  }
+
+  async getUpdatesSince(docId: string, seq: number, limit?: number) {
+    const latestSeq = await this.getLatestSeq(docId);
+    return this.getUpdatesInRange(docId, seq, latestSeq, limit);
+  }
+
+  async countUpdatesInRange(docId: string, minSeqExclusive: number, maxSeqInclusive: number) {
+    const [result] = await db
+      .select({ count: count() })
+      .from(docCollabUpdates)
+      .where(and(
+        eq(docCollabUpdates.docId, docId),
+        gt(docCollabUpdates.seq, minSeqExclusive),
+        lte(docCollabUpdates.seq, maxSeqInclusive)
+      ));
+
+    return result?.count ?? 0;
   }
 
   async getLatestSeq(docId: string) {

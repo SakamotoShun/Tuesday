@@ -6,16 +6,34 @@ interface ChatClient {
   ws: WSContext;
   user: User;
   channelIds: Set<string>;
+  lastSeenAt: number;
+  awaitingPong: boolean;
 }
 
 const MAX_TOTAL_CONNECTIONS = 250;
 const MAX_CONNECTIONS_PER_USER = 5;
 const MAX_CHANNEL_SUBSCRIPTIONS_PER_CLIENT = 100;
+const HEARTBEAT_INTERVAL_MS = 30_000;
+const STALE_CLIENT_TIMEOUT_MS = 90_000;
 
 export class ChatHub {
   private clients = new Map<string, Set<ChatClient>>();
   private channelSubscriptions = new Map<string, Set<ChatClient>>();
   private totalConnections = 0;
+
+  private countAwaitingPong() {
+    let awaitingPong = 0;
+
+    for (const clients of this.clients.values()) {
+      for (const client of clients) {
+        if (client.awaitingPong) {
+          awaitingPong += 1;
+        }
+      }
+    }
+
+    return awaitingPong;
+  }
 
   private getClient(userId: string, ws: WSContext) {
     const userClients = this.clients.get(userId);
@@ -68,6 +86,8 @@ export class ChatHub {
       ws,
       user,
       channelIds: new Set(),
+      lastSeenAt: Date.now(),
+      awaitingPong: false,
     };
 
     if (!this.clients.has(user.id)) {
@@ -84,6 +104,20 @@ export class ChatHub {
     if (!client) return;
 
     this.removeClient(client);
+  }
+
+  touch(ws: WSContext, userId: string) {
+    const client = this.getClient(userId, ws);
+    if (!client) {
+      return;
+    }
+
+    client.lastSeenAt = Date.now();
+    client.awaitingPong = false;
+  }
+
+  markPong(ws: WSContext, userId: string) {
+    this.touch(ws, userId);
   }
 
   subscribeToChannel(channelId: string, userId: string, ws: WSContext) {
@@ -170,6 +204,33 @@ export class ChatHub {
     return this.clients.has(userId);
   }
 
+  reapStaleClients(now = Date.now()) {
+    for (const [userId, clients] of this.clients) {
+      for (const client of Array.from(clients)) {
+        if (client.awaitingPong && now - client.lastSeenAt >= STALE_CLIENT_TIMEOUT_MS) {
+          safeCloseWebSocket(client.ws, 1001, 'Connection timed out');
+          this.removeClient(client);
+          continue;
+        }
+
+        if (client.awaitingPong || now - client.lastSeenAt < HEARTBEAT_INTERVAL_MS) {
+          continue;
+        }
+
+        if (!sendWebSocketMessage(client.ws, JSON.stringify({ type: 'ping', ts: now }), {
+          hub: 'chat',
+          event: 'heartbeat',
+          user_id: userId,
+        })) {
+          this.removeClient(client);
+          continue;
+        }
+
+        client.awaitingPong = true;
+      }
+    }
+  }
+
   shutdown() {
     const payload = JSON.stringify({
       type: 'server.restart',
@@ -193,6 +254,7 @@ export class ChatHub {
       connectedUsers: this.clients.size,
       connections: this.totalConnections,
       subscribedChannels: this.channelSubscriptions.size,
+      awaitingPong: this.countAwaitingPong(),
     };
   }
 }

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { Collaborator } from "@excalidraw/excalidraw/types"
 
+const PRESENCE_THROTTLE_MS = 33
+
 type WhiteboardElement = {
   id: string
   version?: number
@@ -65,6 +67,11 @@ type WhiteboardSnapshotRequestMessage = {
   type: "whiteboard.snapshot.request"
 }
 
+type WhiteboardPingMessage = {
+  type: "ping"
+  ts?: number
+}
+
 type ServerMessage =
   | WhiteboardSyncMessage
   | WhiteboardUpdateMessage
@@ -72,6 +79,7 @@ type ServerMessage =
   | WhiteboardJoinMessage
   | WhiteboardLeaveMessage
   | WhiteboardSnapshotRequestMessage
+  | WhiteboardPingMessage
 
 type ClientMessage =
   | { type: "whiteboard.update"; update: WhiteboardSceneUpdate }
@@ -131,6 +139,13 @@ export function useWhiteboardCollab({
   const onSyncRef = useRef(onSync)
   const onRemoteUpdateRef = useRef(onRemoteUpdate)
   const getSnapshotRef = useRef(getSnapshot)
+  const pendingPresenceRef = useRef<WhiteboardPresenceMessage["update"] | null>(null)
+  const presenceTimeoutRef = useRef<number | null>(null)
+  const lastPresenceSentAtRef = useRef(0)
+  const pendingCollaboratorPresenceRef = useRef<
+    Map<string, { user: CollaboratorUser; update: WhiteboardPresenceMessage["update"] }>
+  >(new Map())
+  const collaboratorFrameRef = useRef<number | null>(null)
 
   currentUserRef.current = currentUser
   onSyncRef.current = onSync
@@ -149,15 +164,79 @@ export function useWhiteboardCollab({
     }
   }, [])
 
+  const flushPresence = useCallback((force = false) => {
+    const pending = pendingPresenceRef.current
+    if (!pending) {
+      return
+    }
+
+    const now = Date.now()
+    const elapsed = now - lastPresenceSentAtRef.current
+
+    if (!force && elapsed < PRESENCE_THROTTLE_MS) {
+      if (presenceTimeoutRef.current) {
+        window.clearTimeout(presenceTimeoutRef.current)
+      }
+
+      presenceTimeoutRef.current = window.setTimeout(() => {
+        presenceTimeoutRef.current = null
+        flushPresence(true)
+      }, PRESENCE_THROTTLE_MS - elapsed)
+      return
+    }
+
+    sendMessage({ type: "whiteboard.presence", update: pending })
+    lastPresenceSentAtRef.current = now
+    pendingPresenceRef.current = null
+    if (presenceTimeoutRef.current) {
+      window.clearTimeout(presenceTimeoutRef.current)
+      presenceTimeoutRef.current = null
+    }
+  }, [sendMessage])
+
+  const flushCollaboratorPresence = useCallback(() => {
+    collaboratorFrameRef.current = null
+    const pendingEntries = Array.from(pendingCollaboratorPresenceRef.current.values())
+    pendingCollaboratorPresenceRef.current.clear()
+
+    if (pendingEntries.length === 0) {
+      return
+    }
+
+    setCollaborators((prev) => {
+      const next = new Map(prev)
+      const activeUser = currentUserRef.current
+
+      for (const entry of pendingEntries) {
+        const existing = next.get(entry.user.id)
+        const pointer = entry.update.pointer
+          ? { ...entry.update.pointer, tool: entry.update.pointer.tool ?? "pointer" }
+          : undefined
+
+        next.set(
+          entry.user.id,
+          updateCollaborator(existing, entry.user, entry.user.id === activeUser?.id, {
+            pointer,
+            button: entry.update.button,
+          })
+        )
+      }
+
+      return next
+    })
+  }, [])
+
   const sendUpdate = useCallback(
     (update: WhiteboardSceneUpdate) => sendMessage({ type: "whiteboard.update", update }),
     [sendMessage]
   )
 
   const sendPresence = useCallback(
-    (update: WhiteboardPresenceMessage["update"]) =>
-      sendMessage({ type: "whiteboard.presence", update }),
-    [sendMessage]
+    (update: WhiteboardPresenceMessage["update"]) => {
+      pendingPresenceRef.current = update
+      flushPresence(update.button !== undefined)
+    },
+    [flushPresence]
   )
 
   useEffect(() => {
@@ -189,7 +268,17 @@ export function useWhiteboardCollab({
         return
       }
 
+      if (message.type === "ping") {
+        ws.send(JSON.stringify({ type: "pong", ts: message.ts }))
+        return
+      }
+
       if (message.type === "whiteboard.sync") {
+        pendingCollaboratorPresenceRef.current.clear()
+        if (collaboratorFrameRef.current) {
+          cancelAnimationFrame(collaboratorFrameRef.current)
+          collaboratorFrameRef.current = null
+        }
         const next = new Map<string, Collaborator>()
         const activeUser = currentUserRef.current
         for (const collaborator of message.collaborators) {
@@ -219,22 +308,15 @@ export function useWhiteboardCollab({
       }
 
       if (message.type === "whiteboard.presence") {
-        setCollaborators((prev) => {
-          const next = new Map(prev)
-          const existing = next.get(message.user.id)
-          const pointer = message.update.pointer
-            ? { ...message.update.pointer, tool: message.update.pointer.tool ?? "pointer" }
-            : undefined
-          const activeUser = currentUserRef.current
-          next.set(
-            message.user.id,
-            updateCollaborator(existing, message.user, message.user.id === activeUser?.id, {
-              pointer,
-              button: message.update.button,
-            })
-          )
-          return next
+        pendingCollaboratorPresenceRef.current.set(message.user.id, {
+          user: message.user,
+          update: message.update,
         })
+
+        if (collaboratorFrameRef.current === null) {
+          collaboratorFrameRef.current = requestAnimationFrame(flushCollaboratorPresence)
+        }
+
         return
       }
 
@@ -273,9 +355,19 @@ export function useWhiteboardCollab({
     })
 
     return () => {
+      if (presenceTimeoutRef.current) {
+        window.clearTimeout(presenceTimeoutRef.current)
+        presenceTimeoutRef.current = null
+      }
+      if (collaboratorFrameRef.current !== null) {
+        cancelAnimationFrame(collaboratorFrameRef.current)
+        collaboratorFrameRef.current = null
+      }
+      pendingCollaboratorPresenceRef.current.clear()
+      pendingPresenceRef.current = null
       ws.close()
     }
-  }, [wsUrl])
+  }, [flushCollaboratorPresence, wsUrl])
 
   return {
     status,
