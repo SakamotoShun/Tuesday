@@ -579,6 +579,10 @@ admin.post('/users', async (c) => {
       201
     );
   } catch (error) {
+    if (error instanceof Error && error.message === 'User with this email already exists') {
+      return errors.conflict(c, 'User already exists');
+    }
+
     console.error('Error creating user:', error);
     return errors.internal(c, 'Failed to create user');
   }

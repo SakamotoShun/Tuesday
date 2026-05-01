@@ -3,6 +3,20 @@ import { db } from '../db/client';
 import { users, type User, type NewUser } from '../db/schema';
 import { sessionRepository } from './session';
 
+const USER_EMAIL_UNIQUE_CONSTRAINT = 'users_email_key';
+const DUPLICATE_USER_EMAIL_ERROR_MESSAGE = 'User with this email already exists';
+
+interface PostgresConstraintError {
+  code?: string;
+  constraint_name?: string;
+}
+
+function isDuplicateUserEmailError(error: unknown): error is PostgresConstraintError {
+  return error instanceof Error
+    && (error as PostgresConstraintError).code === '23505'
+    && (error as PostgresConstraintError).constraint_name === USER_EMAIL_UNIQUE_CONSTRAINT;
+}
+
 export class UserRepository {
   async findById(id: string): Promise<User | null> {
     const result = await db.query.users.findFirst({
@@ -19,16 +33,34 @@ export class UserRepository {
   }
 
   async create(data: NewUser): Promise<User> {
-    const [user] = await db.insert(users).values(data).returning();
-    return user;
+    try {
+      const [user] = await db.insert(users).values(data).returning();
+      return user;
+    } catch (error) {
+      if (isDuplicateUserEmailError(error)) {
+        throw new Error(DUPLICATE_USER_EMAIL_ERROR_MESSAGE);
+      }
+
+      throw error;
+    }
   }
 
   async update(id: string, data: Partial<NewUser>): Promise<User | null> {
-    const [user] = await db
-      .update(users)
-      .set({ ...data, updatedAt: new Date() })
-      .where(eq(users.id, id))
-      .returning();
+    let user: User | undefined;
+
+    try {
+      [user] = await db
+        .update(users)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(users.id, id))
+        .returning();
+    } catch (error) {
+      if (isDuplicateUserEmailError(error)) {
+        throw new Error(DUPLICATE_USER_EMAIL_ERROR_MESSAGE);
+      }
+
+      throw error;
+    }
 
     if (user) {
       sessionRepository.invalidateByUserId(user.id);

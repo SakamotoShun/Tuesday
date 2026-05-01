@@ -211,6 +211,10 @@ profile.post('/email', async (c) => {
 
     return success(c, { user: toPublicUser(updated) });
   } catch (error) {
+    if (error instanceof Error && error.message === 'User with this email already exists') {
+      return errors.conflict(c, error.message);
+    }
+
     console.error('Error updating email:', error);
     return errors.internal(c, 'Failed to update email');
   }

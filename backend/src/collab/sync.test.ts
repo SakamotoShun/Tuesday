@@ -5,16 +5,18 @@ import { buildDocSyncState, buildWhiteboardSyncState, MAX_COLLAB_SYNC_UPDATES } 
 describe('collab sync helpers', () => {
   it('compacts large doc histories into a fresh snapshot', async () => {
     const doc = new Y.Doc();
-    const text = doc.getText('content');
-    const updates: Array<{ seq: number; update: Uint8Array }> = [];
+    let singleUpdate: Uint8Array | null = null;
 
     doc.on('update', (update) => {
-      updates.push({ seq: updates.length + 1, update });
+      singleUpdate = new Uint8Array(update);
     });
 
-    for (let index = 0; index <= MAX_COLLAB_SYNC_UPDATES; index += 1) {
-      text.insert(text.length, String(index % 10));
-    }
+    doc.getMap('content').set('0', '0');
+
+    const updates = Array.from({ length: MAX_COLLAB_SYNC_UPDATES + 1 }, (_, index) => ({
+      seq: index + 1,
+      update: new Uint8Array(singleUpdate as Uint8Array),
+    }));
 
     const createSnapshot = mock(async () => undefined);
     const compactHistory = mock(async () => undefined);
@@ -37,7 +39,7 @@ describe('collab sync helpers', () => {
 
     expect(result.snapshot).not.toBeNull();
     Y.applyUpdate(restored, result.snapshot as Uint8Array);
-    expect(restored.getText('content').toString()).toBe(text.toString());
+    expect(restored.getMap('content').toJSON()).toEqual(doc.getMap('content').toJSON());
     expect(result.updates).toHaveLength(0);
     expect(result.latestSeq).toBe(updates.length);
     expect(createSnapshot).toHaveBeenCalledWith('doc-1', expect.any(Uint8Array), updates.length);

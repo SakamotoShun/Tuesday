@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { beforeAll, describe, expect, it } from 'bun:test';
 
 const runIntegration = process.env.RUN_DB_INTEGRATION_TESTS === 'true';
@@ -21,7 +22,9 @@ describeIntegration('Profile Routes', () => {
   });
 
   it('changes email when the current password is valid', async () => {
-    const user = await seedUser({ email: 'member-old@example.com' });
+    const sourceEmail = `member-old-${randomUUID()}@example.com`;
+    const targetEmail = `member-new-${randomUUID()}@example.com`;
+    const user = await seedUser({ email: sourceEmail });
     const session = await seedSession(user.id);
     const app = createRouteTestApp('/api/v1/profile', profileRoute);
 
@@ -33,18 +36,20 @@ describeIntegration('Profile Routes', () => {
       },
       body: JSON.stringify({
         currentPassword: 'password-123',
-        newEmail: 'member-new@example.com',
+        newEmail: targetEmail,
       }),
     });
 
     expect(response.status).toBe(200);
 
     const payload = await response.json() as { data: { user: { email: string } } };
-    expect(payload.data.user.email).toBe('member-new@example.com');
+    expect(payload.data.user.email).toBe(targetEmail);
   });
 
   it('rejects email changes with an incorrect password', async () => {
-    const user = await seedUser({ email: 'member-wrong-password@example.com' });
+    const sourceEmail = `member-wrong-password-${randomUUID()}@example.com`;
+    const targetEmail = `member-denied-${randomUUID()}@example.com`;
+    const user = await seedUser({ email: sourceEmail });
     const session = await seedSession(user.id);
     const app = createRouteTestApp('/api/v1/profile', profileRoute);
 
@@ -56,7 +61,7 @@ describeIntegration('Profile Routes', () => {
       },
       body: JSON.stringify({
         currentPassword: 'wrong-password',
-        newEmail: 'member-denied@example.com',
+        newEmail: targetEmail,
       }),
     });
 
@@ -67,8 +72,10 @@ describeIntegration('Profile Routes', () => {
   });
 
   it('rejects email changes when the target email is already taken', async () => {
-    const user = await seedUser({ email: 'member-duplicate-source@example.com' });
-    await seedUser({ email: 'member-duplicate-target@example.com' });
+    const sourceEmail = `member-duplicate-source-${randomUUID()}@example.com`;
+    const targetEmail = `member-duplicate-target-${randomUUID()}@example.com`;
+    const user = await seedUser({ email: sourceEmail });
+    await seedUser({ email: targetEmail });
     const session = await seedSession(user.id);
     const app = createRouteTestApp('/api/v1/profile', profileRoute);
 
@@ -80,7 +87,7 @@ describeIntegration('Profile Routes', () => {
       },
       body: JSON.stringify({
         currentPassword: 'password-123',
-        newEmail: 'member-duplicate-target@example.com',
+        newEmail: targetEmail,
       }),
     });
 
