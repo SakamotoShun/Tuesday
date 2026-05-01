@@ -1,11 +1,34 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { db } from '../db/client';
-import { sessionRepository } from './session';
-import { UserRepository } from './user';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
-const originalInsert = db.insert;
-const originalUpdate = db.update;
-const originalInvalidateByUserId = sessionRepository.invalidateByUserId;
+let insertReturning: () => Promise<Array<{ id: string }>> = async () => [{ id: 'user-1' }];
+let updateReturning: () => Promise<Array<{ id: string }>> = async () => [{ id: 'user-1' }];
+let invalidateByUserId: (userId: string) => Promise<number> = async () => 0;
+
+mock.module('../db/client', () => ({
+  db: {
+    insert: () => ({
+      values: () => ({
+        returning: () => insertReturning(),
+      }),
+    }),
+    update: () => ({
+      set: () => ({
+        where: () => ({
+          returning: () => updateReturning(),
+        }),
+      }),
+    }),
+  },
+}));
+
+mock.module('./session', () => ({
+  SessionRepository: class {},
+  sessionRepository: {
+    invalidateByUserId: (userId: string) => invalidateByUserId(userId),
+  },
+}));
+
+const { UserRepository } = await import('./user');
 
 function createDuplicateEmailError(): Error & { code: string; constraint_name: string } {
   return Object.assign(new Error('duplicate key value violates unique constraint "users_email_key"'), {
@@ -16,39 +39,17 @@ function createDuplicateEmailError(): Error & { code: string; constraint_name: s
 
 describe('UserRepository', () => {
   beforeEach(() => {
-    (db as any).insert = () => ({
-      values: () => ({
-        returning: async () => [{ id: 'user-1' }],
-      }),
-    });
-
-    (db as any).update = () => ({
-      set: () => ({
-        where: () => ({
-          returning: async () => [{ id: 'user-1' }],
-        }),
-      }),
-    });
-
-    sessionRepository.invalidateByUserId = async () => 0;
-  });
-
-  afterEach(() => {
-    (db as any).insert = originalInsert;
-    (db as any).update = originalUpdate;
-    sessionRepository.invalidateByUserId = originalInvalidateByUserId;
+    insertReturning = async () => [{ id: 'user-1' }];
+    updateReturning = async () => [{ id: 'user-1' }];
+    invalidateByUserId = async () => 0;
   });
 
   it('translates duplicate email errors on create', async () => {
     const repository = new UserRepository();
 
-    (db as any).insert = () => ({
-      values: () => ({
-        returning: async () => {
-          throw createDuplicateEmailError();
-        },
-      }),
-    });
+    insertReturning = async () => {
+      throw createDuplicateEmailError();
+    };
 
     await expect(
       repository.create({
@@ -62,15 +63,9 @@ describe('UserRepository', () => {
   it('translates duplicate email errors on update', async () => {
     const repository = new UserRepository();
 
-    (db as any).update = () => ({
-      set: () => ({
-        where: () => ({
-          returning: async () => {
-            throw createDuplicateEmailError();
-          },
-        }),
-      }),
-    });
+    updateReturning = async () => {
+      throw createDuplicateEmailError();
+    };
 
     await expect(
       repository.update('user-1', { email: 'duplicate@example.com' })
