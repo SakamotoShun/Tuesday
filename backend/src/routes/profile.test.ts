@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { Hono } from 'hono';
-import { userRepository } from '../repositories';
+import { UserRepository, userRepository } from '../repositories';
 import { authService } from '../services';
 import { hashPassword } from '../utils/password';
 import { profile } from './profile';
@@ -20,9 +20,9 @@ const authenticatedUser = {
 };
 
 const originalValidateSession = authService.validateSession;
-const originalFindById = userRepository.findById;
-const originalFindByEmail = userRepository.findByEmail;
-const originalUpdate = userRepository.update;
+const realFindById = UserRepository.prototype.findById.bind(userRepository);
+const realFindByEmail = UserRepository.prototype.findByEmail.bind(userRepository);
+const realUpdate = UserRepository.prototype.update.bind(userRepository);
 
 function createApp() {
   const app = new Hono();
@@ -47,9 +47,9 @@ describe('Profile Routes', () => {
 
   afterEach(() => {
     authService.validateSession = originalValidateSession;
-    userRepository.findById = originalFindById;
-    userRepository.findByEmail = originalFindByEmail;
-    userRepository.update = originalUpdate;
+    userRepository.findById = realFindById;
+    userRepository.findByEmail = realFindByEmail;
+    userRepository.update = realUpdate;
   });
 
   it('returns conflict when email update hits a duplicate at write time', async () => {

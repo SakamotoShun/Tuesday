@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { db } from '../db/client';
 import { sessionRepository } from './session';
-import { userRepository } from './user';
+import { UserRepository } from './user';
 
 const originalInsert = db.insert;
 const originalUpdate = db.update;
@@ -40,6 +40,8 @@ describe('UserRepository', () => {
   });
 
   it('translates duplicate email errors on create', async () => {
+    const repository = new UserRepository();
+
     (db as any).insert = () => ({
       values: () => ({
         returning: async () => {
@@ -49,7 +51,7 @@ describe('UserRepository', () => {
     });
 
     await expect(
-      userRepository.create({
+      repository.create({
         email: 'duplicate@example.com',
         passwordHash: 'hashed-password',
         name: 'Duplicate User',
@@ -58,6 +60,8 @@ describe('UserRepository', () => {
   });
 
   it('translates duplicate email errors on update', async () => {
+    const repository = new UserRepository();
+
     (db as any).update = () => ({
       set: () => ({
         where: () => ({
@@ -69,7 +73,7 @@ describe('UserRepository', () => {
     });
 
     await expect(
-      userRepository.update('user-1', { email: 'duplicate@example.com' })
+      repository.update('user-1', { email: 'duplicate@example.com' })
     ).rejects.toThrow('User with this email already exists');
   });
 });

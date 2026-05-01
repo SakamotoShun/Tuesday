@@ -33,6 +33,8 @@ mock.module('../repositories/user', () => ({
     findById: (id: string) => findByUserId(id),
     create: (data: any) => createUser(data),
     update: (id: string, data: any) => updateUser(id, data),
+    count: async () => 0,
+    findAll: async () => [],
   },
 }));
 

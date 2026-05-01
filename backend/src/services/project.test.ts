@@ -87,6 +87,11 @@ mock.module('../repositories/user', () => ({
   UserRepository: class {},
   userRepository: {
     findById: (userId: string) => findUserById(userId),
+    findByEmail: async () => null,
+    create: async (data: any) => ({ id: 'user-1', ...data }),
+    update: async (id: string, data: any) => ({ id, ...data }),
+    count: async () => 0,
+    findAll: async () => [],
   },
 }));
 

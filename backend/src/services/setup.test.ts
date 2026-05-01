@@ -7,7 +7,12 @@ let registerUser: (input: any) => Promise<any> = async () => ({ id: 'admin-1' })
 mock.module('../repositories/user', () => ({
   UserRepository: class {},
   userRepository: {
+    findById: async () => null,
+    findByEmail: async () => null,
+    create: async (data: any) => ({ id: 'user-1', ...data }),
+    update: async (id: string, data: any) => ({ id, ...data }),
     count: () => countUsers(),
+    findAll: async () => [],
   },
 }));
 
