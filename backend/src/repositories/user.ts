@@ -38,7 +38,7 @@ export class UserRepository {
       return user;
     } catch (error) {
       if (isDuplicateUserEmailError(error)) {
-        throw new Error(DUPLICATE_USER_EMAIL_ERROR_MESSAGE);
+        throw new Error(DUPLICATE_USER_EMAIL_ERROR_MESSAGE, { cause: error });
       }
 
       throw error;
@@ -56,7 +56,7 @@ export class UserRepository {
         .returning();
     } catch (error) {
       if (isDuplicateUserEmailError(error)) {
-        throw new Error(DUPLICATE_USER_EMAIL_ERROR_MESSAGE);
+        throw new Error(DUPLICATE_USER_EMAIL_ERROR_MESSAGE, { cause: error });
       }
 
       throw error;
