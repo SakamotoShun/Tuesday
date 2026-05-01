@@ -94,7 +94,7 @@ jobs:
         working-directory: backend
 
       - name: Backend tests
-        run: bun test
+        run: bun run test
         working-directory: backend
 
       - name: Backend coverage (warn-only)
