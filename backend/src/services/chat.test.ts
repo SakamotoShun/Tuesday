@@ -44,17 +44,38 @@ mock.module('../repositories/message', () => ({
   },
 }));
 
-mock.module('../repositories/user', () => ({
-  UserRepository: class {},
-  userRepository: {
-    findById: (userId: string) => findUserById(userId),
-    findByEmail: async () => null,
-    create: async (data: any) => ({ id: 'user-1', ...data }),
-    update: async (id: string, data: any) => ({ id, ...data }),
-    count: async () => 0,
-    findAll: () => findAllUsers(),
-  },
-}));
+mock.module('../repositories/user', () => {
+  class MockUserRepository {
+    findById(userId: string) {
+      return findUserById(userId);
+    }
+
+    findByEmail() {
+      return Promise.resolve(null);
+    }
+
+    create(data: any) {
+      return Promise.resolve({ id: 'user-1', ...data });
+    }
+
+    update(id: string, data: any) {
+      return Promise.resolve({ id, ...data });
+    }
+
+    count() {
+      return Promise.resolve(0);
+    }
+
+    findAll() {
+      return findAllUsers();
+    }
+  }
+
+  return {
+    UserRepository: MockUserRepository,
+    userRepository: new MockUserRepository(),
+  };
+});
 
 mock.module('../repositories/projectMember', () => ({
   ProjectMemberRepository: class {},

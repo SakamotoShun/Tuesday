@@ -26,17 +26,38 @@ let tokenDeleteExpiredOrUsed: () => Promise<number> = async () => 0;
 let sendPasswordResetEmail: (input: any) => Promise<boolean> = async () => true;
 let sendPasswordChangedEmail: (input: any) => Promise<boolean> = async () => true;
 
-mock.module('../repositories/user', () => ({
-  UserRepository: class {},
-  userRepository: {
-    findByEmail: (email: string) => findByEmail(email),
-    findById: (id: string) => findByUserId(id),
-    create: (data: any) => createUser(data),
-    update: (id: string, data: any) => updateUser(id, data),
-    count: async () => 0,
-    findAll: async () => [],
-  },
-}));
+mock.module('../repositories/user', () => {
+  class MockUserRepository {
+    findByEmail(email: string) {
+      return findByEmail(email);
+    }
+
+    findById(id: string) {
+      return findByUserId(id);
+    }
+
+    create(data: any) {
+      return createUser(data);
+    }
+
+    update(id: string, data: any) {
+      return updateUser(id, data);
+    }
+
+    count() {
+      return Promise.resolve(0);
+    }
+
+    findAll() {
+      return Promise.resolve([]);
+    }
+  }
+
+  return {
+    UserRepository: MockUserRepository,
+    userRepository: new MockUserRepository(),
+  };
+});
 
 mock.module('../repositories/session', () => ({
   SessionRepository: class {},

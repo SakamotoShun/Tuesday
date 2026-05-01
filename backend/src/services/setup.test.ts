@@ -4,17 +4,38 @@ let countUsers: () => Promise<number> = async () => 0;
 let setSetting: (key: string, value: unknown) => Promise<void> = async () => {};
 let registerUser: (input: any) => Promise<any> = async () => ({ id: 'admin-1' });
 
-mock.module('../repositories/user', () => ({
-  UserRepository: class {},
-  userRepository: {
-    findById: async () => null,
-    findByEmail: async () => null,
-    create: async (data: any) => ({ id: 'user-1', ...data }),
-    update: async (id: string, data: any) => ({ id, ...data }),
-    count: () => countUsers(),
-    findAll: async () => [],
-  },
-}));
+mock.module('../repositories/user', () => {
+  class MockUserRepository {
+    findById() {
+      return Promise.resolve(null);
+    }
+
+    findByEmail() {
+      return Promise.resolve(null);
+    }
+
+    create(data: any) {
+      return Promise.resolve({ id: 'user-1', ...data });
+    }
+
+    update(id: string, data: any) {
+      return Promise.resolve({ id, ...data });
+    }
+
+    count() {
+      return countUsers();
+    }
+
+    findAll() {
+      return Promise.resolve([]);
+    }
+  }
+
+  return {
+    UserRepository: MockUserRepository,
+    userRepository: new MockUserRepository(),
+  };
+});
 
 mock.module('../repositories/settings', () => ({
   SettingsRepository: class {},
