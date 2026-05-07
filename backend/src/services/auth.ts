@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'crypto';
+import { createHmac, randomBytes } from 'crypto';
 import { TokenType, UserRole } from '../db/schema';
 import { sessionRepository } from '../repositories/session';
 import { settingsRepository } from '../repositories/settings';
@@ -62,7 +62,7 @@ export class AuthService {
   }
 
   private hashResetToken(token: string): string {
-    return createHash('sha256').update(token).digest('hex');
+    return createHmac('sha256', config.sessionSecret).update(token).digest('hex');
   }
 
   private getWorkspaceName(value: string | null): string {

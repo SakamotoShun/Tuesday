@@ -1,4 +1,5 @@
-import { createHash } from 'crypto';
+import { createHash, createHmac } from 'crypto';
+import { config } from '../config';
 import { describe, it, expect, beforeEach, mock } from 'bun:test';
 import { TokenType } from '../db/schema';
 import { hashPassword } from '../utils/password';
@@ -412,7 +413,8 @@ describe('AuthService', () => {
 
     const resetToken = new URL(emailInput.resetUrl).searchParams.get('token');
     expect(resetToken).not.toBeNull();
-    expect(createdToken.tokenHash).toBe(createHash('sha256').update(resetToken!).digest('hex'));
+    expect(createdToken.tokenHash).toBe(createHmac('sha256', config.sessionSecret).update(resetToken!).digest('hex'));
+    expect(createdToken.tokenHash).not.toBe(createHash('sha256').update(resetToken!).digest('hex'));
   });
 
   it('swallows password reset email send failures after creating the token', async () => {
@@ -447,7 +449,7 @@ describe('AuthService', () => {
 
   it('consumes a reset token, updates the password, and invalidates sessions', async () => {
     const token = 'reset-token';
-    const tokenHash = createHash('sha256').update(token).digest('hex');
+    const tokenHash = createHmac('sha256', config.sessionSecret).update(token).digest('hex');
     let lookupArgs: { tokenHash: string; type: string } | undefined;
     let markedUsedId = '';
     let updatedUser: { id: string; data: any } | undefined;

@@ -26,7 +26,7 @@
     "bcryptjs": "^2.4.3",
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.45.2",
-    "hono": "^4.12.15",
+    "hono": "^4.12.16",
     "nodemailer": "^8.0.6",
     "openai": "^6.18.0",
     "postgres": "^3.4.5",
