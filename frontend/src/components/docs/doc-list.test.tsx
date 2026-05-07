@@ -17,11 +17,16 @@ mock.module("@/components/docs/doc-tree-item", () => ({
   DocTreeItem: ({ doc, children }: { doc: Doc; children: Doc[] }) => (
     <div data-testid={`doc-${doc.id}`}>
       {doc.title} ({children.length})
+      {children.map((child) => (
+        <div key={child.id} data-testid={`doc-${child.id}`}>
+          {child.title}
+        </div>
+      ))}
     </div>
   ),
 }))
 
-const { DocList } = await import("./doc-list")
+const { DocList, filterDocsByQuery } = await import("./doc-list")
 
 const docs: Doc[] = [
   {
@@ -52,6 +57,20 @@ const docs: Doc[] = [
     createdAt: "2024-01-01T00:00:00Z",
     updatedAt: "2024-01-01T00:00:00Z",
   },
+  {
+    id: "doc-3",
+    projectId: "project-1",
+    parentId: "doc-1",
+    title: "Reference Notes",
+    content: [],
+    properties: {},
+    isDatabase: false,
+    isPolicy: false,
+    schema: null,
+    createdBy: "user-1",
+    createdAt: "2024-01-01T00:00:00Z",
+    updatedAt: "2024-01-01T00:00:00Z",
+  },
 ]
 
 describe("DocList", () => {
@@ -67,7 +86,24 @@ describe("DocList", () => {
       />
     )
 
-    expect(getByText("Root Doc (1)")).toBeDefined()
+    expect(getByText("Root Doc (2)")).toBeDefined()
     expect(getByTestId("doc-doc-1")).toBeDefined()
+  })
+
+  it("keeps matching child docs visible through their parents", () => {
+    const { getByText, getByTestId, queryByTestId } = render(
+      <DocList
+        docs={filterDocsByQuery(docs, "child")}
+        projectId="project-1"
+        sortField="updatedAt"
+        sortDirection="desc"
+        onRename={async () => {}}
+        onDelete={async () => {}}
+      />
+    )
+
+    expect(getByText("Root Doc (1)")).toBeDefined()
+    expect(getByTestId("doc-doc-2")).toBeDefined()
+    expect(queryByTestId("doc-doc-3")).toBeNull()
   })
 })

@@ -26,10 +26,18 @@ import { UserCombobox } from "@/components/ui/user-combobox"
 import { useDocWithChildren, useDocs } from "@/hooks/use-docs"
 import { useAuth } from "@/hooks/use-auth"
 import { useUIStore } from "@/store/ui-store"
-import type { PropertyValue } from "@/api/types"
+import type { Doc, PropertyValue } from "@/api/types"
 import { docsApi } from "@/api/docs"
 import { usersApi } from "@/api/users"
 import { ApiErrorResponse } from "@/api/client"
+
+function getDefaultSaveState(doc: Doc | null | undefined) {
+  if (!doc) {
+    return "connecting" as const
+  }
+
+  return doc.isDatabase ? "saved" as const : "connecting" as const
+}
 
 export function DocPage() {
   const queryClient = useQueryClient()
@@ -44,7 +52,7 @@ export function DocPage() {
   const [titleDraft, setTitleDraft] = useState("")
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [titleError, setTitleError] = useState<string | null>(null)
-  const [saveState, setSaveState] = useState<"saved" | "saving" | "error">("saved")
+  const [saveState, setSaveState] = useState<"connecting" | "saved" | "saving" | "error">("connecting")
   const [isChatOpen, setIsChatOpen] = useState(false)
   const [isResizingSidebar, setIsResizingSidebar] = useState(false)
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
@@ -134,7 +142,7 @@ export function DocPage() {
   useEffect(() => {
     if (doc) {
       setTitleDraft(doc.title)
-      setSaveState("saved")
+      setSaveState(getDefaultSaveState(doc))
       setTitleError(null)
       setIsEditingTitle(false)
       setShareDialogOpen(false)
@@ -313,13 +321,17 @@ export function DocPage() {
   }
 
   const handleSyncStateChange = (state: "connecting" | "synced" | "error") => {
-    // Only update save state for connection status, not on every sync
     if (state === "error") {
       setSaveState("error")
       return
     }
 
-    setSaveState((current) => (current === "error" ? "saved" : current))
+    if (state === "connecting") {
+      setSaveState("connecting")
+      return
+    }
+
+    setSaveState("saved")
   }
 
   const canManageShares = projectId
@@ -573,17 +585,6 @@ export function DocPage() {
     </Dialog>
   ) : null
 
-  if (!projectId) {
-    return (
-      <>
-        <div className="rounded-lg border border-border bg-background p-4">
-          {docContent}
-        </div>
-        {shareDialog}
-      </>
-    )
-  }
-
   return (
     <>
       <div
@@ -604,16 +605,22 @@ export function DocPage() {
           aria-label="Resize docs sidebar"
         />
         <div className="flex-1 min-w-0">
-          <ResizableSplit
-            sidePanel={chatPanel}
-            sidePanelOpen={isChatOpen}
-            sidePanelWidth={chatPanelWidth}
-            onWidthChange={setChatPanelWidth}
-            minWidth={300}
-            maxWidth={700}
-          >
-            {docContent}
-          </ResizableSplit>
+          {projectId ? (
+            <ResizableSplit
+              sidePanel={chatPanel}
+              sidePanelOpen={isChatOpen}
+              sidePanelWidth={chatPanelWidth}
+              onWidthChange={setChatPanelWidth}
+              minWidth={300}
+              maxWidth={700}
+            >
+              {docContent}
+            </ResizableSplit>
+          ) : (
+            <div className="h-full overflow-y-auto p-4">
+              {docContent}
+            </div>
+          )}
         </div>
       </div>
       {shareDialog}

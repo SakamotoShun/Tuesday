@@ -1,6 +1,7 @@
 import { useState } from "react"
 import type { ReactNode } from "react"
 import { useForm } from "react-hook-form"
+import { useNavigate } from "react-router-dom"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Plus } from "@/lib/icons"
@@ -35,13 +36,15 @@ const docSchema = z.object({
 type DocForm = z.infer<typeof docSchema>
 
 interface NewDocDialogProps {
+  projectId?: string | null
   parentOptions: Doc[]
-  onCreate: (data: CreateDocInput) => Promise<unknown>
+  onCreate: (data: CreateDocInput) => Promise<Doc>
   isSubmitting?: boolean
   trigger?: ReactNode
 }
 
-export function NewDocDialog({ parentOptions, onCreate, isSubmitting, trigger }: NewDocDialogProps) {
+export function NewDocDialog({ projectId = null, parentOptions, onCreate, isSubmitting, trigger }: NewDocDialogProps) {
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -65,7 +68,7 @@ export function NewDocDialog({ parentOptions, onCreate, isSubmitting, trigger }:
     try {
       setError(null)
       const isDatabase = data.type === "database"
-      await onCreate({
+      const createdDoc = await onCreate({
         title: data.title,
         parentId: data.parentId || null,
         isDatabase,
@@ -73,6 +76,7 @@ export function NewDocDialog({ parentOptions, onCreate, isSubmitting, trigger }:
       })
       reset()
       setOpen(false)
+      navigate(projectId ? `/projects/${projectId}/docs/${createdDoc.id}` : `/docs/personal/${createdDoc.id}`)
     } catch (err) {
       if (err instanceof ApiErrorResponse) {
         setError(err.message)

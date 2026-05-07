@@ -11,6 +11,7 @@ type SyncState = "connecting" | "synced" | "error"
 
 interface UseDocCollaborationOptions {
   getSnapshotContent?: () => Array<Record<string, unknown>> | null
+  onLocalChange?: () => void
 }
 
 const USER_COLORS = [
@@ -70,6 +71,13 @@ export function useDocCollaboration(docId: string, options: UseDocCollaborationO
   const initialSyncCompleteRef = useRef(false)
   const latestServerSeqRef = useRef(0)
   const pendingAwarenessUpdatesRef = useRef<Uint8Array[]>([])
+  const getSnapshotContentRef = useRef(options.getSnapshotContent)
+  const onLocalChangeRef = useRef(options.onLocalChange)
+
+  useEffect(() => {
+    getSnapshotContentRef.current = options.getSnapshotContent
+    onLocalChangeRef.current = options.onLocalChange
+  }, [options.getSnapshotContent, options.onLocalChange])
 
   const sendMessage = (message: Record<string, unknown>) => {
     const payload = JSON.stringify(message)
@@ -83,7 +91,7 @@ export function useDocCollaboration(docId: string, options: UseDocCollaborationO
 
   const sendSnapshot = (contentOverride?: Array<Record<string, unknown>>) => {
     const snapshot = encodeBase64(Y.encodeStateAsUpdate(ydoc))
-    const content = contentOverride ?? options.getSnapshotContent?.() ?? null
+    const content = contentOverride ?? getSnapshotContentRef.current?.() ?? null
     sendMessage({
       type: "doc.snapshot",
       snapshot,
@@ -215,6 +223,9 @@ export function useDocCollaboration(docId: string, options: UseDocCollaborationO
     connect()
 
     return () => {
+      if (initialSyncCompleteRef.current) {
+        sendSnapshot()
+      }
       isCleanedUp.current = true
       if (reconnectRef.current) window.clearTimeout(reconnectRef.current)
       reconnectRef.current = null
@@ -230,6 +241,7 @@ export function useDocCollaboration(docId: string, options: UseDocCollaborationO
   useEffect(() => {
     const handleDocUpdate = (update: Uint8Array, origin: unknown) => {
       if (origin === "remote" || !initialSyncCompleteRef.current) return
+      onLocalChangeRef.current?.()
       sendMessage({ type: "doc.update", update: encodeBase64(update) })
     }
 

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { KeyboardEvent } from "react"
 import { useNavigate } from "react-router-dom"
 import {
@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils"
 
 interface DocTreeItemProps {
   doc: Doc
-  projectId: string
+  projectId: string | null
   children: Doc[]
   childrenByParent?: Map<string, Doc[]>
   activeDocId?: string
@@ -34,6 +34,22 @@ interface DocTreeItemProps {
   onRename: (docId: string, title: string) => Promise<unknown>
   onDelete: (docId: string) => Promise<unknown>
   canManage?: boolean
+}
+
+function getDocPath(projectId: string | null, docId: string) {
+  return projectId ? `/projects/${projectId}/docs/${docId}` : `/docs/personal/${docId}`
+}
+
+function hasDescendantDoc(childrenByParent: Map<string, Doc[]> | undefined, docId: string, targetDocId: string) {
+  const children = childrenByParent?.get(docId) ?? []
+
+  for (const child of children) {
+    if (child.id === targetDocId || hasDescendantDoc(childrenByParent, child.id, targetDocId)) {
+      return true
+    }
+  }
+
+  return false
 }
 
 export function DocTreeItem({
@@ -55,17 +71,26 @@ export function DocTreeItem({
   const previousChildCount = useRef(children.length)
   const hasChildren = children.length > 0
   const leftPadding = 8 + level * 16
+  const hasActiveDescendant = Boolean(activeDocId && hasDescendantDoc(childrenByParent, doc.id, activeDocId))
 
-  if (previousChildCount.current === 0 && children.length > 0) {
-    setIsExpanded(true)
-  }
-  previousChildCount.current = children.length
+  useEffect(() => {
+    if (previousChildCount.current === 0 && children.length > 0) {
+      setIsExpanded(true)
+    }
+    previousChildCount.current = children.length
+  }, [children.length])
+
+  useEffect(() => {
+    if (hasActiveDescendant) {
+      setIsExpanded(true)
+    }
+  }, [hasActiveDescendant])
 
   const Icon = doc.isDatabase ? Table : hasChildren ? Folder : FileText
 
   const handleNavigate = () => {
     if (isEditing) return
-    navigate(`/projects/${projectId}/docs/${doc.id}`)
+    navigate(getDocPath(projectId, doc.id))
   }
 
   const handleRename = async () => {
@@ -110,8 +135,21 @@ export function DocTreeItem({
     }
   }
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "Enter") {
+  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === "ArrowRight" && hasChildren && !isExpanded) {
+      event.preventDefault()
+      setIsExpanded(true)
+      return
+    }
+
+    if (event.key === "ArrowLeft" && hasChildren && isExpanded) {
+      event.preventDefault()
+      setIsExpanded(false)
+      return
+    }
+
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault()
       handleNavigate()
     }
   }
@@ -132,21 +170,18 @@ export function DocTreeItem({
           isEditing
             ? "bg-muted/50"
             : doc.id === activeDocId
-              ? "cursor-pointer bg-accent text-accent-foreground"
-              : "cursor-pointer hover:bg-muted"
+              ? "bg-accent text-accent-foreground"
+              : "hover:bg-muted"
         )}
         style={{ paddingLeft: `${leftPadding}px` }}
-        role="button"
-        tabIndex={0}
-        onClick={handleNavigate}
-        onKeyDown={handleKeyDown}
       >
         {hasChildren ? (
           <button
             type="button"
             className="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm"
-            onClick={(event) => {
-              event.stopPropagation()
+            aria-label={`${isExpanded ? "Collapse" : "Expand"} ${doc.title}`}
+            aria-expanded={isExpanded}
+            onClick={() => {
               setIsExpanded((value) => !value)
             }}
           >
@@ -160,15 +195,13 @@ export function DocTreeItem({
           <span className="h-4 w-4 shrink-0" />
         )}
 
-        <Icon className="h-3.5 w-3.5 shrink-0" />
-
         {isEditing ? (
           <div className="flex flex-1 items-center gap-2 min-w-0">
+            <Icon className="h-3.5 w-3.5 shrink-0" />
             <Input
               value={draftTitle}
               onChange={(event) => setDraftTitle(event.target.value)}
               className="h-7 text-sm"
-              onClick={(event) => event.stopPropagation()}
               onBlur={() => {
                 void handleRename()
               }}
@@ -188,7 +221,16 @@ export function DocTreeItem({
             />
           </div>
         ) : (
-          <span className="flex-1 truncate leading-6 font-medium">{doc.title}</span>
+          <button
+            type="button"
+            className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+            onClick={handleNavigate}
+            onKeyDown={handleKeyDown}
+            aria-current={doc.id === activeDocId ? "page" : undefined}
+          >
+            <Icon className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate leading-6 font-medium">{doc.title}</span>
+          </button>
         )}
 
         {!isEditing && canManage && (

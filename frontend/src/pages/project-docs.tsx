@@ -1,7 +1,9 @@
+import { useState } from "react"
 import { FileText } from "@/lib/icons"
 import { Card } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
-import { DocList } from "@/components/docs/doc-list"
+import { DocList, filterDocsByQuery } from "@/components/docs/doc-list"
 import { DocSortControl } from "@/components/docs/doc-sort-control"
 import { NewDocDialog } from "@/components/docs/new-doc-dialog"
 import { useDocSort } from "@/hooks/use-doc-sort"
@@ -14,6 +16,7 @@ interface ProjectDocsPageProps {
 }
 
 export function ProjectDocsPage({ projectId }: ProjectDocsPageProps) {
+  const [query, setQuery] = useState("")
   const { user } = useAuth()
   const { docs, isLoading, error, createDoc, updateDoc, deleteDoc } = useDocs(projectId)
   const { sort, setSort } = useDocSort(`workhub:doc-tree-sort:${projectId}`)
@@ -45,6 +48,7 @@ export function ProjectDocsPage({ projectId }: ProjectDocsPageProps) {
   }
 
   const parentOptions = docs.filter((doc) => !doc.parentId)
+  const filteredDocs = filterDocsByQuery(docs, query)
 
   const docLabel = docs.length === 1 ? "doc" : "docs"
 
@@ -59,6 +63,7 @@ export function ProjectDocsPage({ projectId }: ProjectDocsPageProps) {
           <DocSortControl value={sort} onChange={setSort} />
           {!isFreelancer && (
             <NewDocDialog
+              projectId={projectId}
               parentOptions={parentOptions}
               onCreate={(data) => createDoc.mutateAsync(data)}
               isSubmitting={createDoc.isPending}
@@ -68,6 +73,15 @@ export function ProjectDocsPage({ projectId }: ProjectDocsPageProps) {
       </div>
 
       <Card className="p-4">
+        <div className="mb-4">
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Filter docs"
+            className="max-w-sm"
+            aria-label="Filter docs"
+          />
+        </div>
         {docs.length === 0 ? (
           <div className="py-10 text-center text-muted-foreground">
             <p>No docs yet</p>
@@ -77,9 +91,13 @@ export function ProjectDocsPage({ projectId }: ProjectDocsPageProps) {
                 : "Create your first doc to start organizing your project."}
             </p>
           </div>
+        ) : filteredDocs.length === 0 ? (
+          <div className="py-10 text-center text-muted-foreground">
+            <p>No docs match your search</p>
+          </div>
         ) : (
           <DocList
-            docs={docs}
+            docs={filteredDocs}
             projectId={projectId}
             sortField={sort.field}
             sortDirection={sort.direction}

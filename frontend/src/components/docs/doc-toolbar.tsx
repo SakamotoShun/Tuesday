@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog"
 import { ApiErrorResponse } from "@/api/client"
 
-type SaveState = "saved" | "saving" | "error"
+type SaveState = "connecting" | "saved" | "saving" | "error"
 
 interface DocToolbarProps {
   breadcrumbHref: string
@@ -57,7 +57,13 @@ export function DocToolbar({
   }
 
   const saveLabel =
-    saveState === "saving" ? "Saving..." : saveState === "error" ? "Save failed" : "Saved"
+    saveState === "connecting"
+      ? "Syncing..."
+      : saveState === "saving"
+        ? "Saving..."
+        : saveState === "error"
+          ? "Save failed"
+          : "Saved"
 
   return (
     <div className="flex items-center justify-between gap-4">
@@ -71,6 +77,7 @@ export function DocToolbar({
 
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          {saveState === "connecting" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           {saveState === "saving" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           {saveState === "saved" && <Check className="h-3.5 w-3.5 text-emerald-500" />}
           {saveState === "error" && <CloudOff className="h-3.5 w-3.5 text-destructive" />}

@@ -12,7 +12,7 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 
-type SaveState = "saved" | "saving" | "error"
+type SaveState = "connecting" | "saved" | "saving" | "error"
 
 export function PolicyDocPage() {
   const { id, rowId } = useParams<{ id: string; rowId: string }>()
@@ -29,7 +29,7 @@ export function PolicyDocPage() {
   const [titleDraft, setTitleDraft] = useState("")
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [titleError, setTitleError] = useState<string | null>(null)
-  const [saveState, setSaveState] = useState<SaveState>("saved")
+  const [saveState, setSaveState] = useState<SaveState>("connecting")
 
   useEffect(() => {
     if (!doc) return
@@ -37,7 +37,7 @@ export function PolicyDocPage() {
     setTitleDraft(doc.title)
     setIsEditingTitle(false)
     setTitleError(null)
-    setSaveState("saved")
+    setSaveState("connecting")
   }, [doc?.id])
 
   const handleSaveTitle = async () => {
@@ -97,7 +97,12 @@ export function PolicyDocPage() {
       return
     }
 
-    setSaveState((current) => (current === "error" ? "saved" : current))
+    if (state === "connecting") {
+      setSaveState("connecting")
+      return
+    }
+
+    setSaveState("saved")
   }
 
   if (isLoading) {
@@ -130,7 +135,9 @@ export function PolicyDocPage() {
   }
 
   const saveLabel =
-    saveState === "saving"
+    saveState === "connecting"
+      ? "Syncing..."
+      : saveState === "saving"
       ? "Saving..."
       : saveState === "error"
         ? "Save failed"
@@ -152,6 +159,7 @@ export function PolicyDocPage() {
 
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              {saveState === "connecting" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               {saveState === "saving" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               {saveState === "saved" && <Check className="h-3.5 w-3.5 text-emerald-500" />}
               {saveState === "error" && <CloudOff className="h-3.5 w-3.5 text-destructive" />}

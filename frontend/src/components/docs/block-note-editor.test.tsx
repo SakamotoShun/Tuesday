@@ -11,13 +11,16 @@ if (typeof globalThis.document === "undefined") {
 }
 
 const { fireEvent, render } = await import("@testing-library/react")
+const actualY = await import("yjs")
 
-const replaceBlocks = mock(() => {})
 const sendSnapshot = mock(() => {})
+const blocksToYDoc = mock(() => ({ seeded: true }))
+const encodeStateAsUpdate = mock(() => new Uint8Array([1, 2, 3]))
+const applyUpdate = mock(() => {})
+let latestCollabOptions: { onLocalChange?: () => void } | undefined
 
 const editorState = {
   document: [{ id: "block-1", type: "paragraph", props: {}, content: [] }],
-  replaceBlocks,
 }
 
 const collabState = {
@@ -48,13 +51,18 @@ mock.module("@blocknote/react", () => ({
 }))
 
 mock.module("@blocknote/shadcn", () => ({
-  BlockNoteView: ({ onChange, children }: { onChange?: () => void; children?: ReactNode }) => {
-    onChange?.()
-    return <div data-testid="blocknote-view">{children}</div>
-  },
+  BlockNoteView: ({ children }: { children?: ReactNode }) => <div data-testid="blocknote-view">{children}</div>,
 }))
 
 mock.module("@blocknote/shadcn/style.css", () => ({}))
+mock.module("@blocknote/core/yjs", () => ({
+  blocksToYDoc,
+}))
+mock.module("yjs", () => ({
+  ...actualY,
+  encodeStateAsUpdate,
+  applyUpdate,
+}))
 mock.module("@blocknote/core/extensions", () => ({
   SideMenuExtension: {},
 }))
@@ -64,13 +72,19 @@ mock.module("@blocknote/code-block", () => ({
 }))
 
 mock.module("@/hooks/use-doc-collaboration", () => ({
-  useDocCollaboration: () => collabState,
+  useDocCollaboration: (_docId: string, options?: { onLocalChange?: () => void }) => {
+    latestCollabOptions = options
+    return collabState
+  },
 }))
 
 describe("BlockNoteEditor", () => {
   beforeEach(() => {
-    replaceBlocks.mockClear()
     sendSnapshot.mockClear()
+    blocksToYDoc.mockClear()
+    encodeStateAsUpdate.mockClear()
+    applyUpdate.mockClear()
+    latestCollabOptions = undefined
     collabState.syncState = "synced"
     collabState.hasRemoteContent = true
     collabState.initialSyncComplete = true
@@ -105,6 +119,8 @@ describe("BlockNoteEditor", () => {
       />
     )
 
+    latestCollabOptions?.onLocalChange?.()
+
     expect(received).toBeDefined()
   })
 
@@ -125,7 +141,7 @@ describe("BlockNoteEditor", () => {
     )
 
     expect(received).toBeUndefined()
-    expect(replaceBlocks).not.toHaveBeenCalled()
+    expect(blocksToYDoc).not.toHaveBeenCalled()
   })
 
   it("seeds initial content once after sync when no remote content exists", async () => {
@@ -141,8 +157,11 @@ describe("BlockNoteEditor", () => {
       />
     )
 
-    expect(replaceBlocks).toHaveBeenCalledTimes(1)
-    expect(replaceBlocks).toHaveBeenCalledWith(editorState.document, initialContent)
+    expect(blocksToYDoc).toHaveBeenCalledTimes(1)
+    expect(blocksToYDoc).toHaveBeenCalledWith(editorState, initialContent, "prosemirror")
+    expect(encodeStateAsUpdate).toHaveBeenCalledTimes(1)
+    expect(applyUpdate).toHaveBeenCalledTimes(1)
+    expect(sendSnapshot).toHaveBeenCalledWith(initialContent)
   })
 
   it("does not seed initial content when remote collab content already exists", async () => {
@@ -156,7 +175,7 @@ describe("BlockNoteEditor", () => {
       />
     )
 
-    expect(replaceBlocks).not.toHaveBeenCalled()
+    expect(blocksToYDoc).not.toHaveBeenCalled()
   })
 
   it("publishes a collaborative snapshot on blur", async () => {

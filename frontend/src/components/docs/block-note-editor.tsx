@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type FocusEvent, type ReactNode } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent, type ReactNode } from "react"
 import { BlockNoteSchema, createCodeBlockSpec, defaultBlockSpecs, type Block } from "@blocknote/core"
+import { blocksToYDoc } from "@blocknote/core/yjs"
 import { codeBlockOptions } from "@blocknote/code-block"
 import { SideMenuExtension } from "@blocknote/core/extensions"
 import {
@@ -14,6 +15,7 @@ import {
   useExtensionState,
 } from "@blocknote/react"
 import { BlockNoteView } from "@blocknote/shadcn"
+import * as Y from "yjs"
 import "@blocknote/shadcn/style.css"
 import { useUIStore } from "@/store/ui-store"
 import { useDocCollaboration } from "@/hooks/use-doc-collaboration"
@@ -91,8 +93,21 @@ export function BlockNoteEditor({
   editable = true,
 }: BlockNoteEditorProps) {
   const editorRef = useRef<{ document: Block[] } | null>(null)
+  const isEditorReadyRef = useRef(false)
+  const snapshotTimeoutRef = useRef<number | null>(null)
+  const hasPendingSnapshotRef = useRef(false)
+  const scheduleSnapshotRef = useRef<(() => void) | null>(null)
+  const [isInitialDocumentReady, setIsInitialDocumentReady] = useState(false)
   const { ydoc, awareness, syncState, hasRemoteContent, initialSyncComplete, sendSnapshot } = useDocCollaboration(docId, {
     getSnapshotContent: () => editorRef.current?.document as Array<Record<string, unknown>>,
+    onLocalChange: () => {
+      if (!isEditorReadyRef.current) {
+        return
+      }
+
+      onChange?.(editorRef.current?.document ?? [])
+      scheduleSnapshotRef.current?.()
+    },
   })
   const fragment = useMemo(() => ydoc.getXmlFragment("prosemirror"), [ydoc])
   const editor = useCreateBlockNote({
@@ -124,35 +139,101 @@ export function BlockNoteEditor({
   }, [themePreference])
 
   const isEditorEditable = editable && initialSyncComplete
+  const isEditorReady = initialSyncComplete && isInitialDocumentReady
 
-  const handleChange = () => {
-    if (!initialSyncComplete) {
+  useEffect(() => {
+    hasSeeded.current = false
+    setIsInitialDocumentReady(false)
+    isEditorReadyRef.current = false
+  }, [docId])
+
+  useEffect(() => {
+    isEditorReadyRef.current = isEditorReady
+  }, [isEditorReady])
+
+  const flushSnapshot = useCallback((contentOverride?: Block[]) => {
+    if (!initialSyncComplete || syncState === "error") {
       return
     }
 
-    onChange?.(editor.document)
-  }
+    if (snapshotTimeoutRef.current) {
+      window.clearTimeout(snapshotTimeoutRef.current)
+      snapshotTimeoutRef.current = null
+    }
+
+    hasPendingSnapshotRef.current = false
+    sendSnapshot((contentOverride ?? editorRef.current?.document ?? []) as Array<Record<string, unknown>>)
+  }, [initialSyncComplete, sendSnapshot, syncState])
+
+  const scheduleSnapshot = useCallback(() => {
+    if (!initialSyncComplete || syncState === "error") {
+      return
+    }
+
+    hasPendingSnapshotRef.current = true
+    if (snapshotTimeoutRef.current) {
+      window.clearTimeout(snapshotTimeoutRef.current)
+    }
+
+    snapshotTimeoutRef.current = window.setTimeout(() => {
+      flushSnapshot()
+    }, 750)
+  }, [flushSnapshot, initialSyncComplete, syncState])
+
+  scheduleSnapshotRef.current = scheduleSnapshot
 
   useEffect(() => {
     onSyncStateChange?.(syncState)
   }, [onSyncStateChange, syncState])
 
   useEffect(() => {
-    if (hasSeeded.current) return
     if (!initialSyncComplete) return
+
     if (hasRemoteContent) {
       hasSeeded.current = true
+      setIsInitialDocumentReady(true)
       return
     }
 
     if (initialContent.length === 0) {
       hasSeeded.current = true
+      setIsInitialDocumentReady(true)
       return
     }
 
-    editor.replaceBlocks(editor.document, initialContent)
+    if (hasSeeded.current) return
+
+    const seededDoc = blocksToYDoc(editor, initialContent, "prosemirror")
+    Y.applyUpdate(ydoc, Y.encodeStateAsUpdate(seededDoc), "remote")
+    flushSnapshot(initialContent)
     hasSeeded.current = true
-  }, [editor, hasRemoteContent, initialContent, initialSyncComplete])
+    setIsInitialDocumentReady(true)
+  }, [editor, flushSnapshot, hasRemoteContent, initialContent, initialSyncComplete, ydoc])
+
+  useEffect(() => {
+    const flushIfNeeded = () => {
+      if (hasPendingSnapshotRef.current) {
+        flushSnapshot()
+      }
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        flushIfNeeded()
+      }
+    }
+
+    window.addEventListener("beforeunload", flushIfNeeded)
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
+    return () => {
+      if (snapshotTimeoutRef.current) {
+        window.clearTimeout(snapshotTimeoutRef.current)
+      }
+      window.removeEventListener("beforeunload", flushIfNeeded)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
+  }, [flushSnapshot])
 
   return (
     <div
@@ -163,18 +244,24 @@ export function BlockNoteEditor({
         }
 
         if (initialSyncComplete) {
-          sendSnapshot(editor.document as Array<Record<string, unknown>>)
+          flushSnapshot()
         }
         onBlur?.()
       }}
     >
-      <BlockNoteView editor={editor} onChange={handleChange} theme={resolvedTheme} sideMenu={false} editable={isEditorEditable}>
-        {isEditorEditable && (
-          <SideMenuController
-            sideMenu={(props) => <SideMenu {...props} dragHandleMenu={CustomDragHandleMenu} />}
-          />
-        )}
-      </BlockNoteView>
+      {isEditorReady ? (
+        <BlockNoteView editor={editor} theme={resolvedTheme} sideMenu={false} editable={isEditorEditable}>
+          {isEditorEditable && (
+            <SideMenuController
+              sideMenu={(props) => <SideMenu {...props} dragHandleMenu={CustomDragHandleMenu} />}
+            />
+          )}
+        </BlockNoteView>
+      ) : (
+        <div className="min-h-[160px] py-8 text-sm text-muted-foreground">
+          {syncState === "error" ? "Failed to connect to collaborative editing." : "Loading document..."}
+        </div>
+      )}
     </div>
   )
 }

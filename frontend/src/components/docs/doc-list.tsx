@@ -4,13 +4,39 @@ import { DocTreeItem } from "@/components/docs/doc-tree-item"
 
 interface DocListProps {
   docs: Doc[]
-  projectId: string
+  projectId: string | null
   sortField: DocSortField
   sortDirection: DocSortDirection
   activeDocId?: string
   onRename: (docId: string, title: string) => Promise<unknown>
   onDelete: (docId: string) => Promise<unknown>
   canManage?: boolean
+}
+
+export function filterDocsByQuery(docs: Doc[], query: string) {
+  const normalizedQuery = query.trim().toLowerCase()
+
+  if (!normalizedQuery) {
+    return docs
+  }
+
+  const docsById = new Map(docs.map((doc) => [doc.id, doc]))
+  const includedIds = new Set<string>()
+
+  docs.forEach((doc) => {
+    if (!doc.title.toLowerCase().includes(normalizedQuery)) {
+      return
+    }
+
+    let currentDoc: Doc | undefined = doc
+
+    while (currentDoc) {
+      includedIds.add(currentDoc.id)
+      currentDoc = currentDoc.parentId ? docsById.get(currentDoc.parentId) : undefined
+    }
+  })
+
+  return docs.filter((doc) => includedIds.has(doc.id))
 }
 
 function compareDates(first: string, second: string) {
