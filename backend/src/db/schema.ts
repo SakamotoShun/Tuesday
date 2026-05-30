@@ -722,6 +722,7 @@ export const tasks = pgTable('tasks', {
   statusId: uuid('status_id').references(() => taskStatuses.id),
   startDate: date('start_date'),
   dueDate: date('due_date'),
+  version: integer('version').notNull().default(1),
   sortOrder: integer('sort_order').notNull().default(0),
   createdBy: uuid('created_by').notNull().references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -1069,6 +1070,36 @@ export const positionDocs = pgTable('position_docs', {
   uniqueDocId: uniqueIndex('position_docs_doc_id_unique').on(table.docId),
 }));
 
+// MCP access tokens
+export const mcpTokens = pgTable('mcp_tokens', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 100 }).notNull(),
+  tokenHash: varchar('token_hash', { length: 128 }).notNull(),
+  scopes: jsonb('scopes').notNull().default([]),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  tokenHashUnique: uniqueIndex('mcp_tokens_token_hash_unique').on(table.tokenHash),
+  userIdx: index('mcp_tokens_user_id_idx').on(table.userId),
+}));
+
+// MCP idempotency keys (prevents duplicate create operations from retries)
+export const mcpIdempotencyKeys = pgTable('mcp_idempotency_keys', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tokenId: uuid('token_id').notNull().references(() => mcpTokens.id, { onDelete: 'cascade' }),
+  key: varchar('key', { length: 200 }).notNull(),
+  toolName: varchar('tool_name', { length: 100 }).notNull(),
+  resultEntityType: varchar('result_entity_type', { length: 50 }),
+  resultEntityId: uuid('result_entity_id'),
+  responseJson: jsonb('response_json').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  tokenKeyUnique: uniqueIndex('mcp_idempotency_token_key_unique').on(table.tokenId, table.key),
+}));
+
 // Interview tracking relations
 export const interviewStagesRelations = relations(interviewStages, ({ many }) => ({
   applications: many(jobApplications),
@@ -1173,6 +1204,27 @@ export const interviewNotesRelations = relations(interviewNotes, ({ one }) => ({
   }),
 }));
 
+// MCP relations
+export const mcpTokensRelations = relations(mcpTokens, ({ one, many }) => ({
+  user: one(users, {
+    fields: [mcpTokens.userId],
+    references: [users.id],
+  }),
+  idempotencyKeys: many(mcpIdempotencyKeys),
+}));
+
+export const mcpIdempotencyKeysRelations = relations(mcpIdempotencyKeys, ({ one }) => ({
+  token: one(mcpTokens, {
+    fields: [mcpIdempotencyKeys.tokenId],
+    references: [mcpTokens.id],
+  }),
+}));
+
+// Extend users relations
+const _mcpUsersExtension = relations(users, ({ many }) => ({
+  mcpTokens: many(mcpTokens),
+}));
+
 // Type exports
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -1252,3 +1304,7 @@ export type Interview = typeof interviews.$inferSelect;
 export type NewInterview = typeof interviews.$inferInsert;
 export type InterviewNote = typeof interviewNotes.$inferSelect;
 export type NewInterviewNote = typeof interviewNotes.$inferInsert;
+export type McpToken = typeof mcpTokens.$inferSelect;
+export type NewMcpToken = typeof mcpTokens.$inferInsert;
+export type McpIdempotencyKey = typeof mcpIdempotencyKeys.$inferSelect;
+export type NewMcpIdempotencyKey = typeof mcpIdempotencyKeys.$inferInsert;
