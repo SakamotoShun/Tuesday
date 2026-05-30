@@ -612,3 +612,12 @@ export const createPositionDocSchema = z.object({
 });
 
 export type CreatePositionDocInput = z.infer<typeof createPositionDocSchema>;
+
+// MCP token validation schemas
+export const createMcpTokenSchema = z.object({
+  name: z.string().min(1, 'Token name is required').max(100),
+  scopes: z.array(z.string().min(1)).min(1, 'At least one scope is required'),
+  expiresAt: z.string().optional().nullable(),
+});
+
+export type CreateMcpTokenInput = z.infer<typeof createMcpTokenSchema>;
