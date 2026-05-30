@@ -5,6 +5,7 @@ import { ProfileForm } from "@/components/profile/profile-form"
 import { ChangeEmailForm } from "@/components/profile/change-email-form"
 import { ChangePasswordForm } from "@/components/profile/change-password-form"
 import { Separator } from "@/components/ui/separator"
+import { McpTokenSection } from "@/components/profile/mcp-token-section"
 
 export function ProfilePage() {
   const { user, isLoading } = useAuth()
@@ -68,6 +69,8 @@ export function ProfilePage() {
           </div>
         </CardContent>
       </Card>
+
+      <McpTokenSection />
     </div>
   )
 }
