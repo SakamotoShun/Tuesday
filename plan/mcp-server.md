@@ -129,9 +129,16 @@ Minimum log fields:
 
 ### 6. Concurrent edits and stale-agent protection
 
-Use a Motion-style product-management API pattern: tools should be **narrow actions**, not broad object replacement.
+Use a Notion-style content API pattern: tools should be **narrow, typed operations**, not broad object replacement.
 
-Motion's public task API exposes task reads and narrow task mutations (`PATCH /tasks/{id}`, `PATCH /tasks/{id}/move`, unassign, delete). It also exposes `updatedTime` in task responses. I did **not** find public Motion docs that prove a version/ETag-style concurrency protocol, so Tuesday should not blindly copy that part. Tuesday should implement explicit concurrency protection because agents can act on stale context.
+Notion's public API is a useful reference because it separates:
+
+- page property updates (`PATCH /v1/pages/{page_id}`)
+- block updates (`PATCH /v1/blocks/{block_id}`)
+- append-only child insertion (`PATCH /v1/blocks/{block_id}/children`)
+- destructive erase/replace flows that are clearly marked as dangerous
+
+Notion also returns `last_edited_time` and `last_edited_by` on pages/blocks, but I did **not** find public docs proving Notion uses client-supplied version/ETag checks for API writes. Tuesday should therefore learn from Notion's narrow operation shape, but add explicit version checks for agent safety.
 
 Agents often read an object, reason for several seconds/minutes, then write. During that delay, a human or another agent may have changed the same task/doc/project. Tuesday MCP must avoid silent overwrites.
 
