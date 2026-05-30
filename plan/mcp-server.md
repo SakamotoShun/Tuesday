@@ -129,21 +129,48 @@ Minimum log fields:
 
 ### 6. Concurrent edits and stale-agent protection
 
-Use a Motion-style product-management MCP pattern: tools should be **narrow actions**, not broad object replacement.
+Use a Motion-style product-management API pattern: tools should be **narrow actions**, not broad object replacement.
+
+Motion's public task API exposes task reads and narrow task mutations (`PATCH /tasks/{id}`, `PATCH /tasks/{id}/move`, unassign, delete). It also exposes `updatedTime` in task responses. I did **not** find public Motion docs that prove a version/ETag-style concurrency protocol, so Tuesday should not blindly copy that part. Tuesday should implement explicit concurrency protection because agents can act on stale context.
 
 Agents often read an object, reason for several seconds/minutes, then write. During that delay, a human or another agent may have changed the same task/doc/project. Tuesday MCP must avoid silent overwrites.
 
+#### Current Tuesday state
+
+Tuesday currently has many `updatedAt` columns but **does not have real versioning**. Timestamp equality is not a strong enough concurrency primitive:
+
+- precision/serialization differences can cause false conflicts or missed conflicts
+- not all update paths are guaranteed to treat `updatedAt` as a compare-and-swap token
+- timestamps describe time, not mutation count
+
+Therefore MCP write support should add integer `version` columns for the resources it can mutate.
+
+#### V1 versioning scope
+
+Add `version integer not null default 1` to:
+
+- `tasks` — required for `update_task_status`, `rename_task`, `update_task_description`, `assign_task`
+
+Do **not** add version columns to every table immediately. Add versions only when MCP exposes write tools for that entity.
+
+Future write-enabled entities should add versions before exposing MCP mutations:
+
+- `projects`
+- `docs`
+- `meetings`
+- `whiteboards`
+
 #### Core rule
 
-For any tool that changes an existing resource, require optimistic concurrency metadata:
+For any MCP tool that changes an existing resource, require optimistic concurrency metadata:
 
 ```json
 {
-  "expectedUpdatedAt": "2026-05-30T12:34:56.000Z"
+  "expectedVersion": 7
 }
 ```
 
-The server checks the current `updatedAt` before writing. If it differs, return a conflict error instead of applying the write.
+The server checks the current `version` before writing. If it differs, return a conflict error instead of applying the write.
 
 Conflict response:
 
@@ -153,15 +180,22 @@ Conflict response:
   "content": [
     {
       "type": "text",
-      "text": "Conflict: task was updated after your snapshot. Re-read the task and retry with the new expectedUpdatedAt."
+      "text": "Conflict: task version changed after your snapshot. Re-read the task and retry with the new expectedVersion."
     }
   ]
 }
 ```
 
+Successful existing-resource mutations must increment version atomically:
+
+```text
+WHERE id = :id AND version = :expectedVersion
+SET ..., version = version + 1, updated_at = now()
+```
+
 #### Tool design implications
 
-Prefer these narrow tools:
+Prefer narrow tools:
 
 - `update_task_status`
 - `rename_task`
@@ -218,34 +252,32 @@ V1 docs MCP tools should be read-only:
 - `list_project_docs`
 - `get_doc`
 
-Future safe doc write tools should be append/patch based:
+Future safe doc write tools should be append/patch based and should add doc versioning first:
 
 - `append_doc_block`
 - `create_doc_comment` if comments exist later
-- `update_doc_title` with `expectedUpdatedAt`
+- `update_doc_title` with `expectedVersion`
 
 Do not add `set_doc_content` until there is a block-level patch model or Yjs-aware mutation path.
-
-#### What to use as version
-
-V1 can use `updatedAt` because projects, tasks, docs, meetings, and time entries already have it.
-
-Longer term, add integer `version` columns to mutable tables. Integer versions are better than timestamps for exact compare-and-swap updates.
 
 #### Repository pattern
 
 For risky writes, add compare-and-swap repository methods:
 
 ```ts
-async updateStatusIfUnchanged(
+async updateStatusIfVersion(
   taskId: string,
   statusId: string,
-  expectedUpdatedAt: Date
+  expectedVersion: number
 ): Promise<Task | 'conflict' | null> {
   const [updated] = await db
     .update(tasks)
-    .set({ statusId, updatedAt: new Date() })
-    .where(and(eq(tasks.id, taskId), eq(tasks.updatedAt, expectedUpdatedAt)))
+    .set({
+      statusId,
+      updatedAt: new Date(),
+      version: sql`${tasks.version} + 1`,
+    })
+    .where(and(eq(tasks.id, taskId), eq(tasks.version, expectedVersion)))
     .returning();
 
   if (updated) return updated;
@@ -255,7 +287,7 @@ async updateStatusIfUnchanged(
 }
 ```
 
-For low-risk additive writes like `create_time_entry`, no `expectedUpdatedAt` is needed, but `idempotencyKey` is recommended to prevent duplicates.
+For low-risk additive writes like `create_time_entry`, no `expectedVersion` is needed, but `idempotencyKey` is recommended to prevent duplicates.
 
 ---
 
@@ -485,11 +517,11 @@ Input:
 {
   "taskId": "uuid",
   "statusId": "uuid",
-  "expectedUpdatedAt": "2026-05-30T12:34:56.000Z"
+  "expectedVersion": 7
 }
 ```
 
-Uses a compare-and-swap update path. If the task's `updatedAt` no longer matches `expectedUpdatedAt`, return a conflict error and tell the agent to re-read the task.
+Uses a compare-and-swap update path. If the task's `version` no longer matches `expectedVersion`, return a conflict error and tell the agent to re-read the task.
 
 ### `rename_task`
 
@@ -501,7 +533,7 @@ Input:
 {
   "taskId": "uuid",
   "title": "New task title",
-  "expectedUpdatedAt": "2026-05-30T12:34:56.000Z"
+  "expectedVersion": 7
 }
 ```
 
@@ -517,7 +549,7 @@ Input:
 {
   "taskId": "uuid",
   "description": "Markdown description",
-  "expectedUpdatedAt": "2026-05-30T12:34:56.000Z"
+  "expectedVersion": 7
 }
 ```
 
@@ -533,7 +565,7 @@ Input:
 {
   "taskId": "uuid",
   "assigneeIds": ["uuid"],
-  "expectedUpdatedAt": "2026-05-30T12:34:56.000Z"
+  "expectedVersion": 7
 }
 ```
 
@@ -671,9 +703,9 @@ mcp_servers:
 
 ## Backend Implementation Tasks
 
-### Task B1: Add MCP token and idempotency schema/migration
+### Task B1: Add MCP token, idempotency, and task version schema/migration
 
-**Objective:** Persist MCP access tokens securely and prevent duplicate create operations from client retries.
+**Objective:** Persist MCP access tokens securely, prevent duplicate create operations from client retries, and add real optimistic-concurrency versioning for MCP task writes.
 
 **Files:**
 - Modify: `backend/src/db/schema.ts`
@@ -682,9 +714,10 @@ mcp_servers:
 **Steps:**
 1. Add `mcpTokens` table.
 2. Add `mcpIdempotencyKeys` table.
-3. Add relation from users to tokens.
-4. Generate migration.
-5. Run typecheck.
+3. Add `tasks.version integer not null default 1`.
+4. Add relation from users to tokens.
+5. Generate migration.
+6. Run typecheck.
 
 **Commands:**
 
@@ -845,10 +878,10 @@ bun run typecheck
 
 Tools:
 - `create_task` with optional `idempotencyKey`
-- `update_task_status` with required `expectedUpdatedAt`
-- `rename_task` with required `expectedUpdatedAt`
-- `update_task_description` with required `expectedUpdatedAt`
-- `assign_task` with required `expectedUpdatedAt`
+- `update_task_status` with required `expectedVersion`
+- `rename_task` with required `expectedVersion`
+- `update_task_description` with required `expectedVersion`
+- `assign_task` with required `expectedVersion`
 - `create_time_entry` with optional `idempotencyKey`
 
 All must:
@@ -856,7 +889,7 @@ All must:
 - reuse service layer where possible
 - respect existing permissions
 - perform compare-and-swap for existing-resource updates
-- return MCP conflict errors on stale `expectedUpdatedAt`
+- return MCP conflict errors on stale `expectedVersion`
 - use idempotency keys for retryable create operations
 - record activity/logging where relevant
 
@@ -1037,7 +1070,7 @@ Verify tools appear and can call `list_projects`.
 - Scope checks must happen server-side for every tool call.
 - MCP endpoint should be rate-limited separately from browser API.
 - Write tools should be limited in v1; avoid delete operations.
-- Write tools that mutate existing resources must require `expectedUpdatedAt` and reject stale writes.
+- Write tools that mutate existing resources must require `expectedVersion` and reject stale writes.
 - Create tools should support idempotency keys to prevent duplicate tasks/time entries on retries.
 - Tool descriptions should not leak private project names during `tools/list`.
 - All tool handlers must use existing services, not direct DB queries, unless they replicate access checks exactly.
