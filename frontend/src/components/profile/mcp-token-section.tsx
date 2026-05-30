@@ -58,7 +58,7 @@ function CreatedTokenDisplay({
         <div className="flex gap-2">
           <Input value={rawToken} readOnly className="font-mono text-xs" />
           <Button size="icon" variant="outline" onClick={handleCopy}>
-            {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+            {copied ? <Check className="h-4 w-4 text-green-500" /> : <CopySimple className="h-4 w-4" />}
           </Button>
         </div>
         <p className="text-sm text-destructive font-medium">
@@ -171,7 +171,7 @@ export function McpTokenSection() {
                       className="text-destructive shrink-0 ml-2"
                       onClick={() => revokeToken.mutate(token.id)}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash className="h-4 w-4" />
                     </Button>
                   )}
                 </div>
