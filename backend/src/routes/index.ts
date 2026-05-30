@@ -28,6 +28,7 @@ import { hiring } from './hiring';
 import { policies } from './policies';
 import { shared } from './shared';
 import { mcpTokens } from './mcp-tokens';
+import { mcp } from './mcp';
 import { checkReadiness } from '../runtime';
 import { log } from '../utils/logger';
 
@@ -63,6 +64,7 @@ routes.route('/api/v1/hiring', hiring);
 routes.route('/api/v1/policies', policies);
 routes.route('/api/v1/shared', shared);
 routes.route('/api/v1/mcp-tokens', mcpTokens);
+routes.route('/api/mcp', mcp);
 
 // Health check
 routes.get('/health', (c) => {
