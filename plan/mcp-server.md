@@ -127,6 +127,136 @@ Minimum log fields:
 - duration
 - client IP
 
+### 6. Concurrent edits and stale-agent protection
+
+Use a Motion-style product-management MCP pattern: tools should be **narrow actions**, not broad object replacement.
+
+Agents often read an object, reason for several seconds/minutes, then write. During that delay, a human or another agent may have changed the same task/doc/project. Tuesday MCP must avoid silent overwrites.
+
+#### Core rule
+
+For any tool that changes an existing resource, require optimistic concurrency metadata:
+
+```json
+{
+  "expectedUpdatedAt": "2026-05-30T12:34:56.000Z"
+}
+```
+
+The server checks the current `updatedAt` before writing. If it differs, return a conflict error instead of applying the write.
+
+Conflict response:
+
+```json
+{
+  "isError": true,
+  "content": [
+    {
+      "type": "text",
+      "text": "Conflict: task was updated after your snapshot. Re-read the task and retry with the new expectedUpdatedAt."
+    }
+  ]
+}
+```
+
+#### Tool design implications
+
+Prefer these narrow tools:
+
+- `update_task_status`
+- `rename_task`
+- `update_task_description`
+- `assign_task`
+- `create_task`
+- `create_time_entry`
+
+Avoid broad tools like:
+
+- `update_task` with many optional fields
+- `replace_project`
+- `set_doc_content`
+
+Reason: narrow tools minimize accidental overwrites and make audit logs clearer.
+
+#### Idempotency for create tools
+
+Create tools should accept an optional `idempotencyKey`:
+
+```json
+{
+  "idempotencyKey": "agent-run-123:create-task:mcp-token-ui"
+}
+```
+
+If the same token/user calls the same create tool with the same key again, return the original created object instead of creating duplicates.
+
+Recommended DB table:
+
+```ts
+export const mcpIdempotencyKeys = pgTable('mcp_idempotency_keys', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tokenId: uuid('token_id').notNull().references(() => mcpTokens.id, { onDelete: 'cascade' }),
+  key: varchar('key', { length: 200 }).notNull(),
+  toolName: varchar('tool_name', { length: 100 }).notNull(),
+  resultEntityType: varchar('result_entity_type', { length: 50 }),
+  resultEntityId: uuid('result_entity_id'),
+  responseJson: jsonb('response_json').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  tokenKeyUnique: uniqueIndex('mcp_idempotency_token_key_unique').on(table.tokenId, table.key),
+}));
+```
+
+#### Docs are special
+
+Do **not** expose full document write tools in v1.
+
+Tuesday docs use BlockNote JSON and collaboration state. Replacing a whole doc body through MCP is high-risk because it can overwrite human edits and structured blocks.
+
+V1 docs MCP tools should be read-only:
+
+- `list_project_docs`
+- `get_doc`
+
+Future safe doc write tools should be append/patch based:
+
+- `append_doc_block`
+- `create_doc_comment` if comments exist later
+- `update_doc_title` with `expectedUpdatedAt`
+
+Do not add `set_doc_content` until there is a block-level patch model or Yjs-aware mutation path.
+
+#### What to use as version
+
+V1 can use `updatedAt` because projects, tasks, docs, meetings, and time entries already have it.
+
+Longer term, add integer `version` columns to mutable tables. Integer versions are better than timestamps for exact compare-and-swap updates.
+
+#### Repository pattern
+
+For risky writes, add compare-and-swap repository methods:
+
+```ts
+async updateStatusIfUnchanged(
+  taskId: string,
+  statusId: string,
+  expectedUpdatedAt: Date
+): Promise<Task | 'conflict' | null> {
+  const [updated] = await db
+    .update(tasks)
+    .set({ statusId, updatedAt: new Date() })
+    .where(and(eq(tasks.id, taskId), eq(tasks.updatedAt, expectedUpdatedAt)))
+    .returning();
+
+  if (updated) return updated;
+
+  const exists = await this.findById(taskId);
+  return exists ? 'conflict' : null;
+}
+```
+
+For low-risk additive writes like `create_time_entry`, no `expectedUpdatedAt` is needed, but `idempotencyKey` is recommended to prevent duplicates.
+
 ---
 
 ## Database Design
@@ -338,11 +468,12 @@ Input:
   "description": "optional markdown",
   "statusId": "uuid optional",
   "dueDate": "YYYY-MM-DD optional",
-  "assigneeIds": ["uuid"]
+  "assigneeIds": ["uuid"],
+  "idempotencyKey": "optional stable retry key"
 }
 ```
 
-Uses `taskService.createTask`.
+Uses `taskService.createTask`. If `idempotencyKey` is present and already used by the same token, return the original created task.
 
 ### `update_task_status`
 
@@ -353,11 +484,60 @@ Input:
 ```json
 {
   "taskId": "uuid",
-  "statusId": "uuid"
+  "statusId": "uuid",
+  "expectedUpdatedAt": "2026-05-30T12:34:56.000Z"
 }
 ```
 
-Uses `taskService.updateTaskStatus`.
+Uses a compare-and-swap update path. If the task's `updatedAt` no longer matches `expectedUpdatedAt`, return a conflict error and tell the agent to re-read the task.
+
+### `rename_task`
+
+Scope: `tasks:write`
+
+Input:
+
+```json
+{
+  "taskId": "uuid",
+  "title": "New task title",
+  "expectedUpdatedAt": "2026-05-30T12:34:56.000Z"
+}
+```
+
+Narrow rename tool. Avoids broad task replacement.
+
+### `update_task_description`
+
+Scope: `tasks:write`
+
+Input:
+
+```json
+{
+  "taskId": "uuid",
+  "description": "Markdown description",
+  "expectedUpdatedAt": "2026-05-30T12:34:56.000Z"
+}
+```
+
+Narrow description-only update with optimistic concurrency.
+
+### `assign_task`
+
+Scope: `tasks:write`
+
+Input:
+
+```json
+{
+  "taskId": "uuid",
+  "assigneeIds": ["uuid"],
+  "expectedUpdatedAt": "2026-05-30T12:34:56.000Z"
+}
+```
+
+Updates task assignees with optimistic concurrency. Agents must re-read on conflict.
 
 ### `list_project_docs`
 
@@ -491,9 +671,9 @@ mcp_servers:
 
 ## Backend Implementation Tasks
 
-### Task B1: Add MCP token schema and migration
+### Task B1: Add MCP token and idempotency schema/migration
 
-**Objective:** Persist MCP access tokens securely.
+**Objective:** Persist MCP access tokens securely and prevent duplicate create operations from client retries.
 
 **Files:**
 - Modify: `backend/src/db/schema.ts`
@@ -501,9 +681,10 @@ mcp_servers:
 
 **Steps:**
 1. Add `mcpTokens` table.
-2. Add relation from users to tokens.
-3. Generate migration.
-4. Run typecheck.
+2. Add `mcpIdempotencyKeys` table.
+3. Add relation from users to tokens.
+4. Generate migration.
+5. Run typecheck.
 
 **Commands:**
 
@@ -658,19 +839,25 @@ bun test src/mcp/tools.test.ts
 bun run typecheck
 ```
 
-### Task B9: Implement initial write tools
+### Task B9: Implement initial write tools with concurrency protection
 
-**Objective:** Controlled write operations.
+**Objective:** Controlled write operations that do not silently overwrite human/agent edits.
 
 Tools:
-- `create_task`
-- `update_task_status`
-- `create_time_entry`
+- `create_task` with optional `idempotencyKey`
+- `update_task_status` with required `expectedUpdatedAt`
+- `rename_task` with required `expectedUpdatedAt`
+- `update_task_description` with required `expectedUpdatedAt`
+- `assign_task` with required `expectedUpdatedAt`
+- `create_time_entry` with optional `idempotencyKey`
 
 All must:
 - check scope
-- reuse service layer
+- reuse service layer where possible
 - respect existing permissions
+- perform compare-and-swap for existing-resource updates
+- return MCP conflict errors on stale `expectedUpdatedAt`
+- use idempotency keys for retryable create operations
 - record activity/logging where relevant
 
 ### Task B10: Add audit logging
@@ -850,6 +1037,8 @@ Verify tools appear and can call `list_projects`.
 - Scope checks must happen server-side for every tool call.
 - MCP endpoint should be rate-limited separately from browser API.
 - Write tools should be limited in v1; avoid delete operations.
+- Write tools that mutate existing resources must require `expectedUpdatedAt` and reject stale writes.
+- Create tools should support idempotency keys to prevent duplicate tasks/time entries on retries.
 - Tool descriptions should not leak private project names during `tools/list`.
 - All tool handlers must use existing services, not direct DB queries, unless they replicate access checks exactly.
 
