@@ -6,12 +6,13 @@ import {
   taskService,
   docService,
 } from '../services';
+import { taskStatusRepository } from '../repositories/taskStatus';
 import { checkIdempotencyKey, storeIdempotencyKey } from './idempotency';
 import { db } from '../db/client';
 import { tasks, taskAssignees } from '../db/schema';
-import { eq, and } from 'drizzle-orm';
-import { sql } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { timeEntryService } from '../services/timeEntry';
+import { assertNotFreelancer, isFreelancer } from '../utils/permissions';
 
 // ============ ping ============
 
@@ -172,16 +173,24 @@ registerTool({
 
 // ============ WRITE TOOLS ============
 
-// Helper: compare-and-swap version check, returns updated row or throws conflict
+// Helper: compare-and-swap version check, returns updated row or throws conflict.
+// Always authorize by loading the task through taskService before mutating.
 async function casUpdate(
-  taskId: string, expectedVersion: number, setData: Record<string, unknown>
+  taskId: string,
+  expectedVersion: number,
+  setData: Record<string, unknown>,
+  ctx: McpContext
 ): Promise<{ id: string; version: number }> {
+  const task = await taskService.getTask(taskId, ctx.user);
+  if (!task) throw new Error('Task not found or access denied');
+
   const [updated] = await db
     .update(tasks)
     .set({ ...setData, updatedAt: new Date(), version: sql`${tasks.version} + 1` })
     .where(and(eq(tasks.id, taskId), eq(tasks.version, expectedVersion)))
     .returning({ id: tasks.id, version: tasks.version });
   if (updated) return updated;
+
   const exists = await db.query.tasks.findFirst({ where: eq(tasks.id, taskId) });
   if (!exists) throw new Error('Task not found');
   throw new Error('Conflict: task version changed. Re-read and retry with new expectedVersion.');
@@ -241,9 +250,23 @@ registerTool({
     required: ['taskId', 'statusId', 'expectedVersion'],
     additionalProperties: false,
   },
-  handler: async (input: unknown, _ctx: McpContext) => {
+  handler: async (input: unknown, ctx: McpContext) => {
     const { taskId, statusId, expectedVersion } = input as { taskId: string; statusId: string; expectedVersion: number };
-    return casUpdate(taskId, expectedVersion, { statusId });
+
+    const task = await taskService.getTask(taskId, ctx.user);
+    if (!task) throw new Error('Task not found or access denied');
+
+    if (isFreelancer(ctx.user)) {
+      const isAssigned = task.assignees?.some((assignee) => assignee.userId === ctx.user.id) ?? false;
+      if (!isAssigned) {
+        throw new Error('Freelancers cannot update tasks they are not assigned to');
+      }
+    }
+
+    const status = await taskStatusRepository.findById(statusId);
+    if (!status) throw new Error('Invalid status ID');
+
+    return casUpdate(taskId, expectedVersion, { statusId }, ctx);
   },
 });
 
@@ -259,9 +282,11 @@ registerTool({
     required: ['taskId', 'title', 'expectedVersion'],
     additionalProperties: false,
   },
-  handler: async (input: unknown, _ctx: McpContext) => {
+  handler: async (input: unknown, ctx: McpContext) => {
     const { taskId, title, expectedVersion } = input as { taskId: string; title: string; expectedVersion: number };
-    return casUpdate(taskId, expectedVersion, { title });
+    assertNotFreelancer(ctx.user, 'Freelancers cannot edit tasks (status only)');
+    if (!title.trim()) throw new Error('Task title cannot be empty');
+    return casUpdate(taskId, expectedVersion, { title: title.trim() }, ctx);
   },
 });
 
@@ -277,9 +302,10 @@ registerTool({
     required: ['taskId', 'description', 'expectedVersion'],
     additionalProperties: false,
   },
-  handler: async (input: unknown, _ctx: McpContext) => {
+  handler: async (input: unknown, ctx: McpContext) => {
     const { taskId, description, expectedVersion } = input as { taskId: string; description: string; expectedVersion: number };
-    return casUpdate(taskId, expectedVersion, { descriptionMd: description });
+    assertNotFreelancer(ctx.user, 'Freelancers cannot edit tasks (status only)');
+    return casUpdate(taskId, expectedVersion, { descriptionMd: description }, ctx);
   },
 });
 
@@ -297,9 +323,10 @@ registerTool({
   },
   handler: async (input: unknown, ctx: McpContext) => {
     const { taskId, assigneeIds, expectedVersion } = input as { taskId: string; assigneeIds: string[]; expectedVersion: number };
+    assertNotFreelancer(ctx.user, 'Freelancers cannot update task assignees');
     const task = await taskService.getTask(taskId, ctx.user);
     if (!task) throw new Error('Task not found or access denied');
-    const updated = await casUpdate(taskId, expectedVersion, {});
+    const updated = await casUpdate(taskId, expectedVersion, {}, ctx);
     await db.delete(taskAssignees).where(eq(taskAssignees.taskId, taskId));
     if (assigneeIds.length > 0) {
       await db.insert(taskAssignees).values(assigneeIds.map((userId) => ({ taskId, userId })));

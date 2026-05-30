@@ -1,4 +1,5 @@
 import { mcpTokenService, type AuthenticatedMcpUser } from '../services/mcpToken';
+import { userRepository } from '../repositories/user';
 import type { User } from '../types';
 
 /**
@@ -20,7 +21,7 @@ export function extractBearerToken(request: Request): string | null {
 
 /**
  * Authenticate an MCP request using a Bearer token.
- * Returns user + token info if valid, null otherwise.
+ * Returns the actual DB user + token info if valid, null otherwise.
  */
 export async function authenticateMcpRequest(
   request: Request
@@ -31,20 +32,8 @@ export async function authenticateMcpRequest(
   const result = await mcpTokenService.authenticateToken(rawToken);
   if (!result) return null;
 
-  // Build a minimal User object compatible with the existing User type
-  const user: User = {
-    id: result.userId,
-    email: result.userEmail,
-    name: result.userName,
-    role: result.userRole as User['role'],
-    avatarUrl: null,
-    employmentType: 'full_time',
-    hourlyRate: null,
-    isDisabled: false,
-    onboardingCompletedAt: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
+  const user = await userRepository.findById(result.userId);
+  if (!user || user.isDisabled) return null;
 
-  return { user, token: result };
+  return { user: user as User, token: result };
 }
