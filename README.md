@@ -127,6 +127,7 @@ See the [HTTPS & TLS Setup wiki page](https://github.com/SakamotoShun/Tuesday/wi
 | [Wiki Home](https://github.com/SakamotoShun/Tuesday/wiki) | Start here for all deployment and admin docs |
 | [Deployment Guide](https://github.com/SakamotoShun/Tuesday/wiki/Deployment-Guide) | Docker deployment, reverse proxy setup |
 | [Configuration](https://github.com/SakamotoShun/Tuesday/wiki/Configuration-Reference) | All environment variables |
+| [MCP Client Setup](https://github.com/SakamotoShun/Tuesday/wiki/MCP-Client-Setup) | Connect Tuesday to OpenCode, Codex, Claude Code, and Claude Desktop |
 | [Backup & Restore](https://github.com/SakamotoShun/Tuesday/wiki/Backup-and-Restore) | Backup and restore procedures |
 | [Upgrade Guide](https://github.com/SakamotoShun/Tuesday/wiki/Upgrade-Guide) | Version upgrades and rollback |
 | [Changelog](CHANGELOG.md) | Release history |
@@ -232,6 +233,8 @@ All settings are optional with sensible defaults.
 | `CORS_ORIGIN` | `http://localhost:5173` | CORS origin (dev only) |
 
 See the [Configuration Reference wiki page](https://github.com/SakamotoShun/Tuesday/wiki/Configuration-Reference) for the full reference.
+
+For AI client integrations, see [Tuesday MCP Setup](docs/mcp.md).
 
 </details>
 

@@ -62,6 +62,10 @@ These are set automatically in the Docker image and generally should not be chan
 
 For production images, pass `CORS_ORIGIN=https://app.example.com` at runtime when the browser origin differs from the API origin.
 
+## MCP clients
+
+Tuesday can also be consumed from MCP-compatible AI clients. For remote MCP setup instructions for OpenCode, Codex, Claude Code, and Claude Desktop, see [Tuesday MCP Setup](mcp.md).
+
 ## Example `.env` File
 
 ```env

@@ -24,6 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Top-bar live search UI with grouped results and content snippets
 - Personal docs route support (`/docs/personal/:docId`) for direct navigation from search results
 - Doc search indexing (`docs.search_text`) with backfill tooling from collaborative Yjs history
+- Tuesday MCP client setup documentation for OpenCode, Codex, Claude Code, and Claude Desktop
 
 ## [0.1.0] - 2026-02-06
 
