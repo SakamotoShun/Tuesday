@@ -1,12 +1,21 @@
+import { parseFragment, type DefaultTreeAdapterTypes } from 'parse5';
+
 export type DocSourceFormat = 'auto' | 'markdown' | 'html' | 'text';
 
 export type DocBlock = Record<string, unknown>;
+
+type HtmlChildNode = DefaultTreeAdapterTypes.ChildNode;
+type HtmlElement = DefaultTreeAdapterTypes.Element;
+type HtmlTextNode = DefaultTreeAdapterTypes.TextNode;
 
 const EMPTY_BLOCK_PROPS = {
   textColor: 'default',
   backgroundColor: 'default',
   textAlignment: 'left',
 };
+
+const DANGEROUS_HTML_TAGS = new Set(['script', 'style', 'iframe', 'object', 'embed', 'template', 'noscript']);
+const BLOCK_HTML_TAGS = new Set(['p', 'div', 'section', 'article', 'header', 'footer', 'blockquote', 'details', 'table', 'thead', 'tbody', 'tr', 'ul', 'ol']);
 
 function inlineText(text: string): Array<Record<string, unknown>> {
   return text ? [{ type: 'text', text, styles: {} }] : [];
@@ -21,17 +30,16 @@ function block(type: string, text: string, props: Record<string, unknown> = {}):
   };
 }
 
-function decodeHtmlEntities(value: string): string {
-  return value
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/&apos;/gi, "'")
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&amp;/gi, '&')
-    .replace(/&#(\d+);/g, (_match, code) => String.fromCodePoint(Number(code)))
-    .replace(/&#x([0-9a-f]+);/gi, (_match, code) => String.fromCodePoint(Number.parseInt(code, 16)));
+function isHtmlTextNode(node: HtmlChildNode): node is HtmlTextNode {
+  return node.nodeName === '#text';
+}
+
+function isHtmlIgnoredNode(node: HtmlChildNode): node is DefaultTreeAdapterTypes.CommentNode | DefaultTreeAdapterTypes.DocumentType {
+  return node.nodeName === '#comment' || node.nodeName === '#documentType';
+}
+
+function isHtmlElementNode(node: HtmlChildNode): node is HtmlElement {
+  return !isHtmlTextNode(node) && !isHtmlIgnoredNode(node);
 }
 
 function stripInlineMarkdown(value: string): string {
@@ -46,40 +54,124 @@ function stripInlineMarkdown(value: string): string {
     .trim();
 }
 
-function stripDangerousBlocks(value: string): string {
-  let previous: string;
-  let current = value;
-  do {
-    previous = current;
-    current = current
-      .replace(/<script\b[^>]*>[\s\S]*?<\s*\/\s*script\s*>/gi, '')
-      .replace(/<style\b[^>]*>[\s\S]*?<\s*\/\s*style\s*>/gi, '');
-  } while (current !== previous);
-  return current;
+function getElementAttribute(node: HtmlElement, name: string): string | undefined {
+  return node.attrs.find((attr) => attr.name === name)?.value;
+}
+
+function getHtmlTextContent(node: HtmlChildNode): string {
+  if (isHtmlTextNode(node)) {
+    return node.value;
+  }
+
+  if (isHtmlIgnoredNode(node)) {
+    return '';
+  }
+
+  if (!isHtmlElementNode(node) || DANGEROUS_HTML_TAGS.has(node.tagName)) {
+    return '';
+  }
+
+  return node.childNodes.map(getHtmlTextContent).join('');
+}
+
+function renderHtmlNodes(nodes: HtmlChildNode[]): string {
+  return nodes.map(renderHtmlNode).join('');
+}
+
+function renderHtmlNode(node: HtmlChildNode): string {
+  if (isHtmlTextNode(node)) {
+    return node.value;
+  }
+
+  if (isHtmlIgnoredNode(node)) {
+    return '';
+  }
+
+  if (!isHtmlElementNode(node) || DANGEROUS_HTML_TAGS.has(node.tagName)) {
+    return '';
+  }
+
+  if (node.tagName === 'br') {
+    return '\n';
+  }
+
+  if (node.tagName === 'hr') {
+    return '\n---\n';
+  }
+
+  if (/^h[1-6]$/.test(node.tagName)) {
+    const level = Number(node.tagName.slice(1));
+    return `\n${'#'.repeat(level)} ${renderHtmlNodes(node.childNodes)}\n`;
+  }
+
+  if (node.tagName === 'summary') {
+    return `\n### ${renderHtmlNodes(node.childNodes)}\n`;
+  }
+
+  if (node.tagName === 'li') {
+    const marker = node.parentNode && 'tagName' in node.parentNode && node.parentNode.tagName === 'ol' ? '1. ' : '- ';
+    return `\n${marker}${renderHtmlNodes(node.childNodes)}`;
+  }
+
+  if (node.tagName === 'pre') {
+    const code = node.childNodes.map(getHtmlTextContent).join('').replace(/\r\n/g, '\n').replace(/^\n+|\n+$/g, '');
+    return code ? `\n\`\`\`\n${code}\n\`\`\`\n` : '';
+  }
+
+  if (node.tagName === 'img') {
+    const src = getElementAttribute(node, 'src');
+    if (!src) {
+      return '';
+    }
+
+    const alt = getElementAttribute(node, 'alt') ?? '';
+    return `\n![${alt}](${src})\n`;
+  }
+
+  if (node.tagName === 'a') {
+    const text = renderHtmlNodes(node.childNodes);
+    const href = getElementAttribute(node, 'href');
+    if (!href) {
+      return text;
+    }
+
+    return `${text || href} (${href})`;
+  }
+
+  if (node.tagName === 'td' || node.tagName === 'th') {
+    return `${renderHtmlNodes(node.childNodes)} | `;
+  }
+
+  if (BLOCK_HTML_TAGS.has(node.tagName)) {
+    return `\n${renderHtmlNodes(node.childNodes)}\n`;
+  }
+
+  return renderHtmlNodes(node.childNodes);
+}
+
+function normalizeMarkdownish(value: string): string {
+  const lines = value.split('\n');
+  let inCodeBlock = false;
+
+  const normalized = lines.map((line) => {
+    if (/^\s*```/.test(line)) {
+      inCodeBlock = !inCodeBlock;
+      return line.trim();
+    }
+
+    if (inCodeBlock) {
+      return line.replace(/\r/g, '');
+    }
+
+    return line.replace(/[ \t\f\v]+/g, ' ').trim();
+  }).join('\n');
+
+  return normalized.replace(/\n{3,}/g, '\n\n').trim();
 }
 
 function htmlToMarkdownish(html: string): string {
-  let output = stripDangerousBlocks(html)
-    .replace(/<\s*br\s*\/?\s*>/gi, '\n')
-    .replace(/<\s*hr\s*\/?\s*>/gi, '\n---\n')
-    .replace(/<\s*h([1-6])[^>]*>([\s\S]*?)<\s*\/\s*h\1\s*>/gi, (_match, level, text) => `\n${'#'.repeat(Number(level))} ${text}\n`)
-    .replace(/<\s*summary[^>]*>([\s\S]*?)<\s*\/\s*summary\s*>/gi, '\n### $1\n')
-    .replace(/<\s*li[^>]*>([\s\S]*?)<\s*\/\s*li\s*>/gi, '\n- $1')
-    .replace(/<\s*pre[^>]*>\s*<\s*code[^>]*>([\s\S]*?)<\s*\/\s*code\s*>\s*<\s*\/\s*pre\s*>/gi, '\n```\n$1\n```\n')
-    .replace(/<\s*img[^>]*alt=["']([^"']*)["'][^>]*src=["']([^"']*)["'][^>]*>/gi, '\n![$1]($2)\n')
-    .replace(/<\s*img[^>]*src=["']([^"']*)["'][^>]*alt=["']([^"']*)["'][^>]*>/gi, '\n![$2]($1)\n')
-    .replace(/<\s*img[^>]*src=["']([^"']*)["'][^>]*>/gi, '\n![]($1)\n')
-    .replace(/<\s*a[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\s*\/\s*a\s*>/gi, '$2 ($1)')
-    .replace(/<\s*\/?\s*(p|div|section|article|header|footer|blockquote|details|table|thead|tbody|tr)[^>]*>/gi, '\n')
-    .replace(/<\s*\/?\s*(td|th)[^>]*>/gi, ' | ')
-    .replace(/<[^>]+>/g, '');
-
-  output = decodeHtmlEntities(output)
-    .split('\n')
-    .map((line) => line.replace(/\s+/g, ' ').trim())
-    .join('\n');
-
-  return output.replace(/\n{3,}/g, '\n\n').trim();
+  const fragment = parseFragment(html);
+  return normalizeMarkdownish(renderHtmlNodes(fragment.childNodes));
 }
 
 function detectFormat(source: string, format: DocSourceFormat = 'auto'): Exclude<DocSourceFormat, 'auto'> {

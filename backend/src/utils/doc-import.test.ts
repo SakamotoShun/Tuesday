@@ -32,12 +32,19 @@ const value = 1;
     expect(JSON.stringify(blocks)).not.toContain('<h1>');
   });
 
-  it('strips script blocks with spaced closing tags', () => {
-    const blocks = convertDocSourceToBlocks('<script>alert(1)</script ><p>Safe</p>', 'html');
+  it('ignores script blocks with malformed closing tags', () => {
+    const blocks = convertDocSourceToBlocks('<script>alert(1)</script\t\n bar><p>Safe</p>', 'html');
 
     expect(blocks).toHaveLength(1);
     expect(JSON.stringify(blocks)).not.toContain('alert(1)');
     expect(JSON.stringify(blocks)).not.toContain('<script');
+  });
+
+  it('ignores style blocks while keeping surrounding content', () => {
+    const blocks = convertDocSourceToBlocks('<p>Before</p><style>.hidden { display: none; }</style><p>After</p>', 'html');
+
+    expect(blocks.map((block) => block.type)).toEqual(['paragraph', 'paragraph']);
+    expect(JSON.stringify(blocks)).not.toContain('display: none');
   });
 
   it('treats plain text paragraphs as paragraph blocks', () => {
