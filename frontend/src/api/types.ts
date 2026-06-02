@@ -365,6 +365,7 @@ export interface Doc {
   isDatabase: boolean
   isPolicy: boolean
   schema: DatabaseSchema | null
+  version: number
   createdBy: string
   createdAt: string
   updatedAt: string
@@ -379,6 +380,8 @@ export interface DocWithChildren extends Doc {
 export interface CreateDocInput {
   title: string
   content?: Block[]
+  source?: string
+  sourceFormat?: "auto" | "markdown" | "html" | "text"
   parentId?: string | null
   isDatabase?: boolean
   schema?: DatabaseSchema | null
@@ -388,6 +391,8 @@ export interface CreateDocInput {
 export interface UpdateDocInput {
   title?: string
   content?: Block[]
+  source?: string
+  sourceFormat?: "auto" | "markdown" | "html" | "text"
   parentId?: string | null
   schema?: DatabaseSchema | null
   properties?: Record<string, PropertyValue>
@@ -1011,4 +1016,33 @@ export interface CreateInterviewNoteInput {
 export interface UpdateInterviewNoteInput {
   title?: string
   content?: Block[]
+}
+
+// MCP token types
+export type McpScope =
+  | 'projects:read' | 'tasks:read' | 'tasks:write'
+  | 'docs:read' | 'docs:write'
+  | 'meetings:read' | 'meetings:write'
+  | 'time:read' | 'time:write'
+  | 'search:read'
+
+export interface McpTokenListItem {
+  id: string
+  name: string
+  scopes: McpScope[]
+  lastUsedAt: string | null
+  expiresAt: string | null
+  revokedAt: string | null
+  createdAt: string
+}
+
+export interface CreateMcpTokenInput {
+  name: string
+  scopes: McpScope[]
+  expiresAt?: string | null
+}
+
+export interface CreatedMcpToken {
+  token: McpTokenListItem
+  rawToken: string
 }

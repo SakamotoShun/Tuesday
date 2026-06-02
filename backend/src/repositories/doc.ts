@@ -1,4 +1,4 @@
-import { eq, and, isNull, desc, exists, or } from 'drizzle-orm';
+import { eq, and, isNull, desc, exists, or, sql } from 'drizzle-orm';
 import { db } from '../db/client';
 import { docs, docShares, type Doc, type NewDoc } from '../db/schema';
 
@@ -42,6 +42,7 @@ export class DocRepository {
             isDatabase: true,
             isPolicy: true,
             schema: true,
+            version: true,
             createdBy: true,
             createdAt: true,
             updatedAt: true,
@@ -111,8 +112,17 @@ export class DocRepository {
   async update(id: string, data: Partial<NewDoc>): Promise<Doc | null> {
     const [doc] = await db
       .update(docs)
-      .set({ ...data, updatedAt: new Date() })
+      .set({ ...data, updatedAt: new Date(), version: sql`${docs.version} + 1` })
       .where(eq(docs.id, id))
+      .returning();
+    return doc || null;
+  }
+
+  async updateIfVersion(id: string, expectedVersion: number, data: Partial<NewDoc>): Promise<Doc | null> {
+    const [doc] = await db
+      .update(docs)
+      .set({ ...data, updatedAt: new Date(), version: sql`${docs.version} + 1` })
+      .where(and(eq(docs.id, id), eq(docs.version, expectedVersion)))
       .returning();
     return doc || null;
   }

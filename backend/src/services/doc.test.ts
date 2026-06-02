@@ -11,6 +11,7 @@ let replaceDocShares: (...args: any[]) => Promise<any> = async () => [];
 let findUserById: (...args: any[]) => Promise<any> = async () => null;
 let createDoc: (...args: any[]) => Promise<any> = async (data) => ({ id: 'doc-1', ...data });
 let updateDoc: (...args: any[]) => Promise<any> = async (_id, data) => ({ id: 'doc-1', ...data });
+let updateDocIfVersion: (...args: any[]) => Promise<any> = async (_id, _version, data) => ({ id: 'doc-1', version: 2, ...data });
 let deleteDoc: (...args: any[]) => Promise<any> = async () => true;
 let findDocShareLink: (...args: any[]) => Promise<any> = async () => null;
 let findShareLinkByToken: (...args: any[]) => Promise<any> = async () => null;
@@ -27,6 +28,7 @@ mock.module('../repositories/doc', () => ({
     findById: (docId: string) => findById(docId),
     create: (data: any) => createDoc(data),
     update: (docId: string, data: any) => updateDoc(docId, data),
+    updateIfVersion: (docId: string, expectedVersion: number, data: any) => updateDocIfVersion(docId, expectedVersion, data),
     delete: (docId: string) => deleteDoc(docId),
   },
 }));
@@ -121,6 +123,7 @@ describe('DocService', () => {
     findUserById = async () => null;
     createDoc = async (data) => ({ id: 'doc-1', ...data });
     updateDoc = async (_id, data) => ({ id: 'doc-1', ...data });
+    updateDocIfVersion = async (_id, _version, data) => ({ id: 'doc-1', projectId: 'project-1', title: 'Doc', version: 2, ...data });
     deleteDoc = async () => true;
     findDocShareLink = async () => null;
     findShareLinkByToken = async () => null;
@@ -163,6 +166,30 @@ describe('DocService', () => {
     expect(created.createdBy).toBe(adminUser.id);
   });
 
+  it('creates docs from markdown source', async () => {
+    let created: any;
+    createDoc = async (data) => {
+      created = data;
+      return { id: 'doc-1', ...data };
+    };
+
+    await docService.createDoc({ title: 'Doc', projectId: 'project-1', source: '# Imported', sourceFormat: 'markdown' }, adminUser);
+
+    expect(created.content[0].type).toBe('heading');
+    expect(created.searchText).toContain('Imported');
+  });
+
+  it('rejects ambiguous raw blocks and source input', async () => {
+    await expect(
+      docService.createDoc({
+        title: 'Doc',
+        projectId: 'project-1',
+        content: [{ type: 'paragraph', content: [] }],
+        source: '# Imported',
+      }, adminUser)
+    ).rejects.toThrow('Provide either content/blocks or source');
+  });
+
   it('rejects doc creation without title', async () => {
     await expect(docService.createDoc({ title: '' }, memberUser)).rejects.toThrow('Doc title is required');
   });
@@ -190,6 +217,98 @@ describe('DocService', () => {
     await expect(docService.updateDoc('doc-1', { parentId: 'doc-1' }, adminUser)).rejects.toThrow(
       'Doc cannot be its own parent'
     );
+  });
+
+  it('creates child docs from a doc parent', async () => {
+    let created: any;
+    findById = async () => ({ id: 'parent-1', projectId: 'project-1', createdBy: adminUser.id });
+    createDoc = async (data) => {
+      created = data;
+      return { id: 'doc-1', version: 1, ...data };
+    };
+
+    const doc = await docService.createDocFromParent(
+      { type: 'doc', id: 'parent-1' },
+      { title: 'Child', blocks: [{ id: 'block-1', type: 'paragraph', content: [] }] },
+      adminUser
+    );
+
+    expect(doc.id).toBe('doc-1');
+    expect(created.projectId).toBe('project-1');
+    expect(created.parentId).toBe('parent-1');
+  });
+
+  it('updates doc title with expected version', async () => {
+    let version: number | undefined;
+    let updateData: any;
+    findById = async () => ({ id: 'doc-1', projectId: 'project-1', createdBy: adminUser.id });
+    updateDocIfVersion = async (_id, expectedVersion, data) => {
+      version = expectedVersion;
+      updateData = data;
+      return { id: 'doc-1', title: data.title, projectId: 'project-1', version: 3 };
+    };
+
+    const doc = await docService.updateDocTitle('doc-1', ' Updated ', 2, adminUser);
+
+    expect(doc?.version).toBe(3);
+    expect(version).toBe(2);
+    expect(updateData.title).toBe('Updated');
+  });
+
+  it('rejects stale doc title updates', async () => {
+    findById = async () => ({ id: 'doc-1', projectId: 'project-1', createdBy: adminUser.id });
+    updateDocIfVersion = async () => null;
+
+    await expect(docService.updateDocTitle('doc-1', 'Updated', 1, adminUser)).rejects.toThrow(
+      'Conflict: doc version changed'
+    );
+  });
+
+  it('appends doc blocks after a root block', async () => {
+    let updateData: any;
+    findById = async () => ({
+      id: 'doc-1',
+      projectId: 'project-1',
+      createdBy: adminUser.id,
+      content: [
+        { id: 'a', type: 'paragraph', content: [] },
+        { id: 'c', type: 'paragraph', content: [] },
+      ],
+    });
+    updateDocIfVersion = async (_id, _expectedVersion, data) => {
+      updateData = data;
+      return { id: 'doc-1', title: 'Doc', projectId: 'project-1', version: 2, ...data };
+    };
+
+    const doc = await docService.appendDocBlocks(
+      'doc-1',
+      [{ id: 'b', type: 'paragraph', content: [] }],
+      1,
+      adminUser,
+      { type: 'after_block', afterBlockId: 'a' }
+    );
+
+    expect(doc?.version).toBe(2);
+    expect(updateData.content.map((block: any) => block.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('appends docs from html source', async () => {
+    let updateData: any;
+    findById = async () => ({
+      id: 'doc-1',
+      projectId: 'project-1',
+      createdBy: adminUser.id,
+      content: [{ id: 'a', type: 'paragraph', content: [] }],
+    });
+    updateDocIfVersion = async (_id, _expectedVersion, data) => {
+      updateData = data;
+      return { id: 'doc-1', title: 'Doc', projectId: 'project-1', version: 2, ...data };
+    };
+
+    await docService.appendDocSource('doc-1', '<h2>Section</h2>', 'html', 1, adminUser);
+
+    expect(updateData.content.map((block: any) => block.type)).toEqual(['paragraph', 'heading']);
+    expect(updateData.searchText).toContain('Section');
   });
 
   it('allows admin to delete personal docs', async () => {

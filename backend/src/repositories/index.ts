@@ -40,3 +40,4 @@ export { positionDocRepository, PositionDocRepository } from './positionDoc';
 export { docShareRepository, DocShareRepository, type DocShareWithUser } from './docShare';
 export { sharedLinkRepository, SharedLinkRepository } from './sharedLink';
 export { policyRepository, PolicyRepository } from './policy';
+export { mcpTokenRepository, McpTokenRepository } from './mcpToken';
