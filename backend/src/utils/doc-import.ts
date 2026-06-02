@@ -46,10 +46,20 @@ function stripInlineMarkdown(value: string): string {
     .trim();
 }
 
+function stripDangerousBlocks(value: string): string {
+  let previous: string;
+  let current = value;
+  do {
+    previous = current;
+    current = current
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '');
+  } while (current !== previous);
+  return current;
+}
+
 function htmlToMarkdownish(html: string): string {
-  let output = html
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
+  let output = stripDangerousBlocks(html)
     .replace(/<\s*br\s*\/?\s*>/gi, '\n')
     .replace(/<\s*hr\s*\/?\s*>/gi, '\n---\n')
     .replace(/<\s*h([1-6])[^>]*>([\s\S]*?)<\s*\/\s*h\1\s*>/gi, (_match, level, text) => `\n${'#'.repeat(Number(level))} ${text}\n`)
