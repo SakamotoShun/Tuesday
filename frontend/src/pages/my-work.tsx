@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { AlertTriangle, Calendar, Clock, ListTodo, Search } from "@/lib/icons"
 import { TimesheetHeader, TimesheetGrid, MonthlyOverview } from "@/components/timesheet"
+import { formatDateOnly, parseDateOnly } from "@/lib/date-only"
 import { isCompletedStatus } from "@/lib/task-status"
 
 function getMonday(date: Date): Date {
@@ -26,16 +27,11 @@ function getMonday(date: Date): Date {
 }
 
 function formatDateForWeek(date: Date): string {
-  return date.toISOString().slice(0, 10)
+  return formatDateOnly(date)
 }
 
 function formatDateForMonth(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
-}
-
-function parseDateOnly(value: string | null): Date | null {
-  if (!value) return null
-  return new Date(`${value}T00:00:00`)
 }
 
 function isSameCalendarDay(dateA: Date, dateB: Date): boolean {
@@ -47,7 +43,7 @@ function isSameCalendarDay(dateA: Date, dateB: Date): boolean {
 }
 
 function getDueDate(task: Task): Date | null {
-  return parseDateOnly(task.dueDate)
+  return task.dueDate ? parseDateOnly(task.dueDate) : null
 }
 
 function getTaskSortDate(task: Task): number {

@@ -8,14 +8,14 @@ import {
   useExportProjectTimeEntries,
 } from "@/hooks/use-time-entries"
 import type { TimeEntry, ProjectMonthlyOverview } from "@/api/types"
+import { addDaysToDateOnly, formatDateOnly, getDateOnlyRange, parseDateOnly } from "@/lib/date-only"
 
 interface ProjectTimeReportProps {
   projectId: string
 }
 
 function formatDate(dateStr: string): string {
-  const date = new Date(dateStr)
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+  return parseDateOnly(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" })
 }
 
 function getMonday(date: Date): Date {
@@ -26,7 +26,7 @@ function getMonday(date: Date): Date {
 }
 
 function formatDateForWeek(date: Date): string {
-  return date.toISOString().slice(0, 10)
+  return formatDateOnly(date)
 }
 
 function formatDateForMonth(date: Date): string {
@@ -36,12 +36,7 @@ function formatDateForMonth(date: Date): string {
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 function getWeekDates(weekStart: string): string[] {
-  const start = new Date(weekStart)
-  return Array.from({ length: 7 }, (_, i) => {
-    const date = new Date(start)
-    date.setDate(date.getDate() + i)
-    return date.toISOString().slice(0, 10)
-  })
+  return getDateOnlyRange(weekStart, 7)
 }
 
 export function ProjectTimeReport({ projectId }: ProjectTimeReportProps) {
@@ -88,10 +83,8 @@ export function ProjectTimeReport({ projectId }: ProjectTimeReportProps) {
   }
 
   const getWeekRange = () => {
-    const start = new Date(weekStart)
-    const end = new Date(start)
-    end.setDate(end.getDate() + 6)
-    return `${formatDate(weekStart)} - ${formatDate(end.toISOString().slice(0, 10))}, ${start.getFullYear()}`
+    const start = parseDateOnly(weekStart)
+    return `${formatDate(weekStart)} - ${formatDate(addDaysToDateOnly(weekStart, 6))}, ${start.getFullYear()}`
   }
 
   const getMonthName = () => {
@@ -104,14 +97,12 @@ export function ProjectTimeReport({ projectId }: ProjectTimeReportProps) {
 
     if (viewMode === "weekly") {
       start = weekStart
-      const weekEnd = new Date(weekStart)
-      weekEnd.setDate(weekEnd.getDate() + 6)
-      end = weekEnd.toISOString().slice(0, 10)
+      end = addDaysToDateOnly(weekStart, 6)
     } else {
       const year = currentDate.getFullYear()
       const month = currentDate.getMonth()
-      start = new Date(year, month, 1).toISOString().slice(0, 10)
-      end = new Date(year, month + 1, 0).toISOString().slice(0, 10)
+      start = formatDateOnly(new Date(year, month, 1))
+      end = formatDateOnly(new Date(year, month + 1, 0))
     }
 
     exportMutation.mutate({ start, end })
@@ -296,8 +287,6 @@ function ProjectMonthlyOverviewGrid({ data }: { data: ProjectMonthlyOverview }) 
   const { year, month, weeks, userTotals, grandTotal } = data
 
   const formatWeekRange = (weekStart: string, weekEnd: string): string => {
-    const start = new Date(weekStart)
-    const end = new Date(weekEnd)
     return `${formatDate(weekStart)} - ${formatDate(weekEnd)}`
   }
 

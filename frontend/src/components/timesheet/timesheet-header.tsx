@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react"
 import { ChevronLeft, ChevronRight, Download } from "@/lib/icons"
+import { formatDateOnly } from "@/lib/date-only"
 import { Button } from "@/components/ui/button"
 import { useExportTimeEntries } from "@/hooks/use-time-entries"
 
@@ -78,13 +79,13 @@ export function TimesheetHeader({
       const weekEnd = new Date(weekStart)
       weekEnd.setDate(weekEnd.getDate() + 6)
 
-      start = weekStart.toISOString().slice(0, 10)
-      end = weekEnd.toISOString().slice(0, 10)
+      start = formatDateOnly(weekStart)
+      end = formatDateOnly(weekEnd)
     } else {
       const year = currentDate.getFullYear()
       const month = currentDate.getMonth()
-      start = new Date(year, month, 1).toISOString().slice(0, 10)
-      end = new Date(year, month + 1, 0).toISOString().slice(0, 10)
+      start = formatDateOnly(new Date(year, month, 1))
+      end = formatDateOnly(new Date(year, month + 1, 0))
     }
 
     exportMutation.mutate({ start, end })

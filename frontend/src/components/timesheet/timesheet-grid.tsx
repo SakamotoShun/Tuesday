@@ -5,6 +5,7 @@ import { ItemCombobox } from "@/components/ui/item-combobox"
 import { TimesheetCell } from "./timesheet-cell"
 import { useUpsertTimeEntry } from "@/hooks/use-time-entries"
 import type { TimeEntry, Project } from "@/api/types"
+import { getDateOnlyRange, parseDateOnly } from "@/lib/date-only"
 
 interface TimesheetGridProps {
   entries: TimeEntry[]
@@ -16,18 +17,11 @@ interface TimesheetGridProps {
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 function getWeekDates(weekStart: string): string[] {
-  const [y, m, d] = weekStart.split("-").map(Number) as [number, number, number]
-  const start = new Date(Date.UTC(y, m - 1, d))
-  return Array.from({ length: 7 }, (_, i) => {
-    const date = new Date(start)
-    date.setUTCDate(date.getUTCDate() + i)
-    return date.toISOString().slice(0, 10)
-  })
+  return getDateOnlyRange(weekStart, 7)
 }
 
 function formatDate(dateStr: string): string {
-  const date = new Date(dateStr)
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })
+  return parseDateOnly(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" })
 }
 
 export function TimesheetGrid({
