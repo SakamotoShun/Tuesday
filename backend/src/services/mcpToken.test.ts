@@ -21,6 +21,12 @@ describe('McpTokenService', () => {
   it('has authenticateToken method', () => {
     expect(typeof mcpTokenService.authenticateToken).toBe('function');
   });
+
+  it('rejects invalid expiration dates before persisting', async () => {
+    await expect(
+      mcpTokenService.createToken('user-1', 'CLI token', ['projects:read'], 'not-a-date')
+    ).rejects.toThrow('Invalid expiration date');
+  });
 });
 
 describe('VALID_MCP_SCOPES', () => {

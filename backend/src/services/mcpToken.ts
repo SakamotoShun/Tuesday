@@ -75,6 +75,11 @@ export class McpTokenService {
       throw new Error(`Invalid scopes: ${invalidScopes.join(', ')}`);
     }
 
+    const parsedExpiresAt = expiresAt ? new Date(expiresAt) : null;
+    if (parsedExpiresAt && Number.isNaN(parsedExpiresAt.getTime())) {
+      throw new Error('Invalid expiration date');
+    }
+
     const rawToken = generateMcpToken();
     const tokenHash = hashMcpToken(rawToken);
 
@@ -83,7 +88,7 @@ export class McpTokenService {
       name: name.trim(),
       tokenHash,
       scopes: scopes as any,
-      expiresAt: expiresAt ? new Date(expiresAt) : null,
+      expiresAt: parsedExpiresAt,
     });
 
     return {

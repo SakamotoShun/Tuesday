@@ -52,8 +52,8 @@ function stripDangerousBlocks(value: string): string {
   do {
     previous = current;
     current = current
-      .replace(/<script[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[\s\S]*?<\/style>/gi, '');
+      .replace(/<script\b[^>]*>[\s\S]*?<\s*\/\s*script\s*>/gi, '')
+      .replace(/<style\b[^>]*>[\s\S]*?<\s*\/\s*style\s*>/gi, '');
   } while (current !== previous);
   return current;
 }
@@ -224,6 +224,6 @@ export function convertDocSourceToBlocks(source: string, format: DocSourceFormat
 
   const markdown = resolvedFormat === 'html'
     ? htmlToMarkdownish(trimmed)
-    : htmlToMarkdownish(trimmed);
+    : trimmed;
   return parseMarkdownBlocks(markdown);
 }

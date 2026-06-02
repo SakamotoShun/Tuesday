@@ -26,6 +26,10 @@ interface JsonRpcResponse {
   };
 }
 
+function isJsonRpcRequest(value: unknown): value is JsonRpcRequest {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
 function jsonRpcError(
   id: string | number | undefined | null,
   code: number,
@@ -51,7 +55,11 @@ const mcp = new Hono();
 mcp.post('/', async (c) => {
   let body: JsonRpcRequest;
   try {
-    body = await c.req.json();
+    const parsed = await c.req.json();
+    if (!isJsonRpcRequest(parsed) || typeof parsed.method !== 'string') {
+      return c.json(jsonRpcError(null, -32600, 'Invalid Request'), 400);
+    }
+    body = parsed;
   } catch {
     return c.json(jsonRpcError(null, -32700, 'Parse error'), 400);
   }
@@ -178,7 +186,7 @@ mcp.post('/', async (c) => {
       }
     }
   } catch (error) {
-    console.error('MCP internal error:', error);
+    log('error', 'mcp.internal_error', { error });
     return c.json(jsonRpcError(body.id, -32603, 'Internal error'));
   }
 });

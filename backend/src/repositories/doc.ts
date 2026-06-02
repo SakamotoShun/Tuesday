@@ -112,7 +112,7 @@ export class DocRepository {
   async update(id: string, data: Partial<NewDoc>): Promise<Doc | null> {
     const [doc] = await db
       .update(docs)
-      .set({ ...data, updatedAt: new Date() })
+      .set({ ...data, updatedAt: new Date(), version: sql`${docs.version} + 1` })
       .where(eq(docs.id, id))
       .returning();
     return doc || null;

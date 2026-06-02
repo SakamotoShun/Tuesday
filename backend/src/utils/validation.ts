@@ -623,7 +623,7 @@ export type CreatePositionDocInput = z.infer<typeof createPositionDocSchema>;
 export const createMcpTokenSchema = z.object({
   name: z.string().min(1, 'Token name is required').max(100),
   scopes: z.array(z.string().min(1)).min(1, 'At least one scope is required'),
-  expiresAt: z.string().optional().nullable(),
+  expiresAt: z.string().refine((value) => !Number.isNaN(Date.parse(value)), 'Invalid expiration date').optional().nullable(),
 });
 
 export type CreateMcpTokenInput = z.infer<typeof createMcpTokenSchema>;

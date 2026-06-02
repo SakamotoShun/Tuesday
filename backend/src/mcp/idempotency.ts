@@ -1,4 +1,4 @@
-import { eq, and, isNull } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { db } from '../db/client';
 import { mcpIdempotencyKeys } from '../db/schema';
 
@@ -15,29 +15,56 @@ export async function checkIdempotencyKey(
   const existing = await db.query.mcpIdempotencyKeys.findFirst({
     where: and(
       eq(mcpIdempotencyKeys.tokenId, tokenId),
-      eq(mcpIdempotencyKeys.key, key)
+      eq(mcpIdempotencyKeys.key, key),
+      eq(mcpIdempotencyKeys.toolName, toolName)
     ),
   });
   return existing ? (existing.responseJson as Record<string, unknown>) : null;
 }
 
-/**
- * Store the result of an idempotent operation so future retries return the same output.
- */
-export async function storeIdempotencyKey(
+export interface IdempotentOperationResult<T extends Record<string, unknown>> {
+  response: T;
+  resultEntityType?: string | null;
+  resultEntityId?: string | null;
+}
+
+export async function runIdempotentOperation<T extends Record<string, unknown>>(
   tokenId: string,
   key: string,
   toolName: string,
-  resultEntityType: string | null,
-  resultEntityId: string | null,
-  responseJson: Record<string, unknown>
-): Promise<void> {
-  await db.insert(mcpIdempotencyKeys).values({
-    tokenId,
-    key,
-    toolName,
-    resultEntityType: resultEntityType ?? null,
-    resultEntityId: resultEntityId ?? null,
-    responseJson: responseJson as any,
+  operation: () => Promise<IdempotentOperationResult<T>>
+): Promise<T> {
+  return db.transaction(async (tx) => {
+    // Serialize concurrent retries for the same token/tool/key triplet.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${tokenId}), hashtext(${`${toolName}:${key}`}))`);
+
+    const [existing] = await tx
+      .select({ responseJson: mcpIdempotencyKeys.responseJson })
+      .from(mcpIdempotencyKeys)
+      .where(and(
+        eq(mcpIdempotencyKeys.tokenId, tokenId),
+        eq(mcpIdempotencyKeys.key, key),
+        eq(mcpIdempotencyKeys.toolName, toolName)
+      ))
+      .limit(1);
+
+    if (existing) {
+      return existing.responseJson as T;
+    }
+
+    const result = await operation();
+
+    await tx.insert(mcpIdempotencyKeys).values({
+      tokenId,
+      key,
+      toolName,
+      resultEntityType: result.resultEntityType ?? null,
+      resultEntityId: result.resultEntityId ?? null,
+      responseJson: result.response as any,
+    }).onConflictDoNothing({
+      target: [mcpIdempotencyKeys.tokenId, mcpIdempotencyKeys.key, mcpIdempotencyKeys.toolName],
+    });
+
+    return result.response;
   });
 }

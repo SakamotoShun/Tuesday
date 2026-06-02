@@ -1098,7 +1098,7 @@ export const mcpIdempotencyKeys = pgTable('mcp_idempotency_keys', {
   responseJson: jsonb('response_json').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
-  tokenKeyUnique: uniqueIndex('mcp_idempotency_token_key_unique').on(table.tokenId, table.key),
+  tokenKeyToolUnique: uniqueIndex('mcp_idempotency_token_key_tool_unique').on(table.tokenId, table.key, table.toolName),
 }));
 
 // Interview tracking relations

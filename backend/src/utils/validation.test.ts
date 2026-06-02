@@ -11,6 +11,7 @@ import {
   createMessageSchema,
   updateTaskOrderSchema,
   createChannelSchema,
+  createMcpTokenSchema,
 } from './validation';
 
 describe('validation schemas', () => {
@@ -113,6 +114,22 @@ describe('validation schemas', () => {
   it('validates createChannel schema', () => {
     const ok = createChannelSchema.safeParse({ name: 'general' });
     const bad = createChannelSchema.safeParse({ name: '' });
+    expect(ok.success).toBe(true);
+    expect(bad.success).toBe(false);
+  });
+
+  it('validates MCP token expiration dates', () => {
+    const ok = createMcpTokenSchema.safeParse({
+      name: 'CLI token',
+      scopes: ['projects:read'],
+      expiresAt: '2026-06-02T09:30:00.000Z',
+    });
+    const bad = createMcpTokenSchema.safeParse({
+      name: 'CLI token',
+      scopes: ['projects:read'],
+      expiresAt: 'not-a-date',
+    });
+
     expect(ok.success).toBe(true);
     expect(bad.success).toBe(false);
   });

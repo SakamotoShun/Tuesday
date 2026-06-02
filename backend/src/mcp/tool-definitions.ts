@@ -7,7 +7,7 @@ import {
   docService,
 } from '../services';
 import { taskStatusRepository } from '../repositories/taskStatus';
-import { checkIdempotencyKey, storeIdempotencyKey } from './idempotency';
+import { runIdempotentOperation } from './idempotency';
 import { db } from '../db/client';
 import { tasks, taskAssignees } from '../db/schema';
 import { eq, and, sql } from 'drizzle-orm';
@@ -208,27 +208,28 @@ registerTool({
       idempotencyKey?: string;
     };
 
-    if (idempotencyKey) {
-      const existing = await checkIdempotencyKey(ctx.token.tokenId, idempotencyKey, 'create_doc');
-      if (existing) return existing;
-    }
-
-    const doc = await docService.createDocFromParent(parent, { title, blocks, source, sourceFormat }, ctx.user);
-    const result = {
-      id: doc.id,
-      title: doc.title,
-      projectId: doc.projectId,
-      parentId: doc.parentId,
-      version: (doc as any).version ?? 1,
-      createdAt: doc.createdAt,
-      updatedAt: doc.updatedAt,
+    const createDoc = async () => {
+      const doc = await docService.createDocFromParent(parent, { title, blocks, source, sourceFormat }, ctx.user);
+      return {
+        response: {
+          id: doc.id,
+          title: doc.title,
+          projectId: doc.projectId,
+          parentId: doc.parentId,
+          version: (doc as any).version ?? 1,
+          createdAt: doc.createdAt,
+          updatedAt: doc.updatedAt,
+        },
+        resultEntityType: 'doc',
+        resultEntityId: doc.id,
+      };
     };
 
-    if (idempotencyKey) {
-      await storeIdempotencyKey(ctx.token.tokenId, idempotencyKey, 'create_doc', 'doc', doc.id, result);
+    if (!idempotencyKey) {
+      return (await createDoc()).response;
     }
 
-    return result;
+    return runIdempotentOperation(ctx.token.tokenId, idempotencyKey, 'create_doc', createDoc);
   },
 });
 
@@ -361,18 +362,29 @@ registerTool({
   handler: async (input: unknown, ctx: McpContext) => {
     const { projectId, title, description, statusId, dueDate, assigneeIds, idempotencyKey } =
       input as { projectId: string; title: string; description?: string; statusId?: string; dueDate?: string; assigneeIds?: string[]; idempotencyKey?: string };
-    if (idempotencyKey) {
-      const existing = await checkIdempotencyKey(ctx.token.tokenId, idempotencyKey, 'create_task');
-      if (existing) return existing;
+    const createTask = async () => {
+      const task = await taskService.createTask(projectId, {
+        title, descriptionMd: description, statusId, dueDate, assigneeIds,
+      }, ctx.user);
+      return {
+        response: {
+          id: task.id,
+          title: task.title,
+          projectId: task.projectId,
+          statusId: task.statusId,
+          version: (task as any).version ?? 1,
+          createdAt: task.createdAt,
+        },
+        resultEntityType: 'task',
+        resultEntityId: task.id,
+      };
+    };
+
+    if (!idempotencyKey) {
+      return (await createTask()).response;
     }
-    const task = await taskService.createTask(projectId, {
-      title, descriptionMd: description, statusId, dueDate, assigneeIds,
-    }, ctx.user);
-    const result = { id: task.id, title: task.title, projectId: task.projectId, statusId: task.statusId, version: (task as any).version ?? 1, createdAt: task.createdAt };
-    if (idempotencyKey) {
-      await storeIdempotencyKey(ctx.token.tokenId, idempotencyKey, 'create_task', 'task', task.id, result);
-    }
-    return result;
+
+    return runIdempotentOperation(ctx.token.tokenId, idempotencyKey, 'create_task', createTask);
   },
 });
 
@@ -497,15 +509,26 @@ registerTool({
   },
   handler: async (input: unknown, ctx: McpContext) => {
     const { projectId, date, hours, note, idempotencyKey } = input as { projectId?: string | null; date: string; hours: number; note?: string; idempotencyKey?: string };
-    if (idempotencyKey) {
-      const existing = await checkIdempotencyKey(ctx.token.tokenId, idempotencyKey, 'create_time_entry');
-      if (existing) return existing;
+    const createTimeEntry = async () => {
+      const entry = await timeEntryService.upsertEntry(ctx.user.id, { projectId: projectId ?? null, date, hours, note }, ctx.user);
+      return {
+        response: {
+          id: entry.id,
+          projectId: entry.projectId,
+          userId: entry.userId,
+          date: entry.date,
+          hours: entry.hours,
+          note: entry.note,
+        },
+        resultEntityType: 'time_entry',
+        resultEntityId: entry.id,
+      };
+    };
+
+    if (!idempotencyKey) {
+      return (await createTimeEntry()).response;
     }
-    const entry = await timeEntryService.upsertEntry(ctx.user.id, { projectId: projectId ?? null, date, hours, note }, ctx.user);
-    const result = { id: entry.id, projectId: entry.projectId, userId: entry.userId, date: entry.date, hours: entry.hours, note: entry.note };
-    if (idempotencyKey) {
-      await storeIdempotencyKey(ctx.token.tokenId, idempotencyKey, 'create_time_entry', 'time_entry', entry.id, result);
-    }
-    return result;
+
+    return runIdempotentOperation(ctx.token.tokenId, idempotencyKey, 'create_time_entry', createTimeEntry);
   },
 });

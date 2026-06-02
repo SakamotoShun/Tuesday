@@ -32,6 +32,14 @@ const value = 1;
     expect(JSON.stringify(blocks)).not.toContain('<h1>');
   });
 
+  it('strips script blocks with spaced closing tags', () => {
+    const blocks = convertDocSourceToBlocks('<script>alert(1)</script ><p>Safe</p>', 'html');
+
+    expect(blocks).toHaveLength(1);
+    expect(JSON.stringify(blocks)).not.toContain('alert(1)');
+    expect(JSON.stringify(blocks)).not.toContain('<script');
+  });
+
   it('treats plain text paragraphs as paragraph blocks', () => {
     const blocks = convertDocSourceToBlocks('First paragraph\n\nSecond paragraph', 'text');
 
