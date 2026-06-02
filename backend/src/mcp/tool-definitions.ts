@@ -146,7 +146,7 @@ registerTool({
     return docs.map((d) => ({
       id: d.id, title: d.title, parentId: d.parentId, isDatabase: d.isDatabase,
       searchText: (d as any).searchText ?? '', properties: (d as any).properties ?? {},
-      createdAt: d.createdAt, updatedAt: d.updatedAt,
+      version: (d as any).version ?? 1, createdAt: d.createdAt, updatedAt: d.updatedAt,
     }));
   },
 });
@@ -168,6 +168,148 @@ registerTool({
     const doc = await docService.getDoc(docId, ctx.user);
     if (!doc) throw new Error('Doc not found or access denied');
     return doc;
+  },
+});
+
+// ============ create_doc ============
+
+registerTool({
+  name: 'create_doc',
+  description: 'Create a doc under a project or another doc. Provide either BlockNote blocks or source text with sourceFormat (auto, markdown, html, text); source is converted to Tuesday/BlockNote format. Supports idempotencyKey.',
+  requiredScope: 'docs:write',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      parent: {
+        type: 'object',
+        properties: {
+          type: { type: 'string', enum: ['project', 'doc'] },
+          id: { type: 'string' },
+        },
+        required: ['type', 'id'],
+        additionalProperties: false,
+      },
+      title: { type: 'string', description: 'Doc title' },
+      blocks: { type: 'array', items: { type: 'object' }, description: 'Optional BlockNote blocks' },
+      source: { type: 'string', description: 'Optional source content to convert into Tuesday doc blocks' },
+      sourceFormat: { type: 'string', enum: ['auto', 'markdown', 'html', 'text'], description: 'Format of source content. Defaults to auto.' },
+      idempotencyKey: { type: 'string', description: 'Optional deduplication key' },
+    },
+    required: ['parent', 'title'],
+    additionalProperties: false,
+  },
+  handler: async (input: unknown, ctx: McpContext) => {
+    const { parent, title, blocks, source, sourceFormat, idempotencyKey } = input as {
+      parent: { type: 'project' | 'doc'; id: string };
+      title: string;
+      blocks?: Array<Record<string, unknown>>;
+      source?: string;
+      sourceFormat?: 'auto' | 'markdown' | 'html' | 'text';
+      idempotencyKey?: string;
+    };
+
+    if (idempotencyKey) {
+      const existing = await checkIdempotencyKey(ctx.token.tokenId, idempotencyKey, 'create_doc');
+      if (existing) return existing;
+    }
+
+    const doc = await docService.createDocFromParent(parent, { title, blocks, source, sourceFormat }, ctx.user);
+    const result = {
+      id: doc.id,
+      title: doc.title,
+      projectId: doc.projectId,
+      parentId: doc.parentId,
+      version: (doc as any).version ?? 1,
+      createdAt: doc.createdAt,
+      updatedAt: doc.updatedAt,
+    };
+
+    if (idempotencyKey) {
+      await storeIdempotencyKey(ctx.token.tokenId, idempotencyKey, 'create_doc', 'doc', doc.id, result);
+    }
+
+    return result;
+  },
+});
+
+// ============ update_doc_title ============
+
+registerTool({
+  name: 'update_doc_title',
+  description: 'Update a doc title. Requires expectedVersion.',
+  requiredScope: 'docs:write',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      docId: { type: 'string' },
+      title: { type: 'string' },
+      expectedVersion: { type: 'number' },
+    },
+    required: ['docId', 'title', 'expectedVersion'],
+    additionalProperties: false,
+  },
+  handler: async (input: unknown, ctx: McpContext) => {
+    const { docId, title, expectedVersion } = input as { docId: string; title: string; expectedVersion: number };
+    const doc = await docService.updateDocTitle(docId, title, expectedVersion, ctx.user);
+    if (!doc) throw new Error('Doc not found or access denied');
+    return { id: doc.id, title: doc.title, version: (doc as any).version ?? expectedVersion + 1, updatedAt: doc.updatedAt };
+  },
+});
+
+// ============ append_doc_blocks ============
+
+registerTool({
+  name: 'append_doc_blocks',
+  description: 'Append content to a doc. Provide either BlockNote blocks or source text with sourceFormat (auto, markdown, html, text); source is converted to Tuesday/BlockNote format. Requires expectedVersion.',
+  requiredScope: 'docs:write',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      docId: { type: 'string' },
+      blocks: { type: 'array', items: { type: 'object' } },
+      source: { type: 'string', description: 'Optional source content to convert into Tuesday doc blocks' },
+      sourceFormat: { type: 'string', enum: ['auto', 'markdown', 'html', 'text'], description: 'Format of source content. Defaults to auto.' },
+      expectedVersion: { type: 'number' },
+      position: {
+        type: 'object',
+        properties: {
+          type: { type: 'string', enum: ['end', 'start', 'after_block'] },
+          afterBlockId: { type: 'string' },
+        },
+        additionalProperties: false,
+      },
+    },
+    required: ['docId', 'expectedVersion'],
+    additionalProperties: false,
+  },
+  handler: async (input: unknown, ctx: McpContext) => {
+    const { docId, blocks, source, sourceFormat, expectedVersion, position } = input as {
+      docId: string;
+      blocks?: Array<Record<string, unknown>>;
+      source?: string;
+      sourceFormat?: 'auto' | 'markdown' | 'html' | 'text';
+      expectedVersion: number;
+      position?: { type: 'end' } | { type: 'start' } | { type: 'after_block'; afterBlockId: string };
+    };
+
+    if (blocks !== undefined && source !== undefined) {
+      throw new Error('Provide either blocks or source, not both');
+    }
+
+    if (blocks === undefined && source === undefined) {
+      throw new Error('Either blocks or source is required');
+    }
+
+    const doc = source !== undefined
+      ? await docService.appendDocSource(docId, source, sourceFormat, expectedVersion, ctx.user, position)
+      : await docService.appendDocBlocks(docId, blocks ?? [], expectedVersion, ctx.user, position);
+    if (!doc) throw new Error('Doc not found or access denied');
+    return {
+      id: doc.id,
+      version: (doc as any).version ?? expectedVersion + 1,
+      appendedCount: source !== undefined ? undefined : blocks?.length ?? 0,
+      updatedAt: doc.updatedAt,
+    };
   },
 });
 

@@ -250,9 +250,13 @@ export const reorderStatusSchema = z.object({
 export type ReorderStatusInput = z.infer<typeof reorderStatusSchema>;
 
 // Doc validation schemas
+export const docSourceFormatSchema = z.enum(['auto', 'markdown', 'html', 'text']);
+
 export const createDocSchema = z.object({
   title: z.string().min(1, 'Doc title is required').max(255),
   content: z.array(z.record(z.unknown())).optional(),
+  source: z.string().optional(),
+  sourceFormat: docSourceFormatSchema.optional().default('auto'),
   parentId: uuidSchema.optional().nullable(),
   isDatabase: z.boolean().default(false),
   schema: z.record(z.unknown()).optional().nullable(),
@@ -264,6 +268,8 @@ export type CreateDocInput = z.infer<typeof createDocSchema>;
 export const updateDocSchema = z.object({
   title: z.string().min(1).max(255).optional(),
   content: z.array(z.record(z.unknown())).optional(),
+  source: z.string().optional(),
+  sourceFormat: docSourceFormatSchema.optional().default('auto'),
   parentId: uuidSchema.optional().nullable(),
   schema: z.record(z.unknown()).optional().nullable(),
   properties: z.record(z.unknown()).optional(),

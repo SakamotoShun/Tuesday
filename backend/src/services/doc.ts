@@ -8,11 +8,15 @@ import { activityService } from './activity';
 import { type Doc, type NewDoc, type SharedLink } from '../db/schema';
 import type { User } from '../types';
 import { extractSearchTextFromDocContent } from '../utils/doc-search';
+import { convertDocSourceToBlocks, type DocSourceFormat } from '../utils/doc-import';
 import { assertNotFreelancer, isFreelancer } from '../utils/permissions';
+import { docCollabHub } from '../collab/hub';
 
 export interface CreateDocInput {
   title: string;
   content?: Array<Record<string, unknown>>;
+  source?: string;
+  sourceFormat?: DocSourceFormat;
   projectId?: string | null;
   parentId?: string | null;
   isDatabase?: boolean;
@@ -23,10 +27,21 @@ export interface CreateDocInput {
 export interface UpdateDocInput {
   title?: string;
   content?: Array<Record<string, unknown>>;
+  source?: string;
+  sourceFormat?: DocSourceFormat;
   parentId?: string | null;
   schema?: Record<string, unknown> | null;
   properties?: Record<string, unknown>;
 }
+
+export type DocMcpParent =
+  | { type: 'project'; id: string }
+  | { type: 'doc'; id: string };
+
+export type AppendDocBlocksPosition =
+  | { type: 'end' }
+  | { type: 'start' }
+  | { type: 'after_block'; afterBlockId: string };
 
 export interface DocWithChildren extends Doc {
   children?: Doc[];
@@ -89,6 +104,69 @@ export class DocService {
     }
 
     return docShareRepository.hasUserAccess(doc.id, user.id);
+  }
+
+  private async assertCanEditDoc(doc: Doc, user: User): Promise<void> {
+    assertNotFreelancer(user, 'Freelancers cannot edit docs');
+
+    const hasAccess = await this.canAccessDoc(doc, user);
+    if (!hasAccess) {
+      throw new Error('Access denied to this doc');
+    }
+  }
+
+  private assertValidBlocks(blocks: Array<Record<string, unknown>> | undefined): void {
+    if (blocks === undefined) {
+      return;
+    }
+
+    if (!Array.isArray(blocks)) {
+      throw new Error('Blocks must be an array');
+    }
+
+    for (const block of blocks) {
+      if (!block || typeof block !== 'object' || Array.isArray(block)) {
+        throw new Error('Each block must be an object');
+      }
+    }
+  }
+
+  private resolveContent(input: { content?: Array<Record<string, unknown>>; source?: string; sourceFormat?: DocSourceFormat }): Array<Record<string, unknown>> | undefined {
+    if (input.content !== undefined && input.source !== undefined) {
+      throw new Error('Provide either content/blocks or source, not both');
+    }
+
+    if (input.content !== undefined) {
+      this.assertValidBlocks(input.content);
+      return input.content;
+    }
+
+    if (input.source !== undefined) {
+      return convertDocSourceToBlocks(input.source, input.sourceFormat);
+    }
+
+    return undefined;
+  }
+
+  private insertBlocks(
+    content: Array<Record<string, unknown>>,
+    blocks: Array<Record<string, unknown>>,
+    position: AppendDocBlocksPosition = { type: 'end' }
+  ): Array<Record<string, unknown>> {
+    if (position.type === 'end') {
+      return [...content, ...blocks];
+    }
+
+    if (position.type === 'start') {
+      return [...blocks, ...content];
+    }
+
+    const index = content.findIndex((block) => block.id === position.afterBlockId);
+    if (index === -1) {
+      throw new Error('afterBlockId not found in doc content');
+    }
+
+    return [...content.slice(0, index + 1), ...blocks, ...content.slice(index + 1)];
   }
 
   /**
@@ -178,10 +256,12 @@ export class DocService {
       }
     }
 
+    const content = this.resolveContent(input) ?? [];
+
     const doc = await docRepository.create({
       title: input.title.trim(),
-      content: input.content ?? [],
-      searchText: extractSearchTextFromDocContent(input.content ?? []),
+      content,
+      searchText: extractSearchTextFromDocContent(content),
       projectId: input.projectId || null,
       parentId: input.parentId || null,
       isDatabase: input.isDatabase || false,
@@ -200,6 +280,157 @@ export class DocService {
     });
 
     return doc;
+  }
+
+  async createDocFromParent(
+    parent: DocMcpParent,
+    input: { title: string; blocks?: Array<Record<string, unknown>>; source?: string; sourceFormat?: DocSourceFormat },
+    user: User
+  ): Promise<Doc> {
+    if (!parent || (parent.type !== 'project' && parent.type !== 'doc') || !parent.id) {
+      throw new Error('Invalid doc parent');
+    }
+
+    if (typeof input.title !== 'string') {
+      throw new Error('Doc title is required');
+    }
+
+    const content = this.resolveContent({ content: input.blocks, source: input.source, sourceFormat: input.sourceFormat });
+
+    if (parent.type === 'project') {
+      return this.createDoc({ title: input.title, content, projectId: parent.id }, user);
+    }
+
+    const parentDoc = await docRepository.findById(parent.id);
+    if (!parentDoc) {
+      throw new Error('Parent doc not found');
+    }
+
+    await this.assertCanEditDoc(parentDoc, user);
+    return this.createDoc({
+      title: input.title,
+      content,
+      projectId: parentDoc.projectId,
+      parentId: parentDoc.id,
+    }, user);
+  }
+
+  async updateDocTitle(docId: string, title: string, expectedVersion: number, user: User): Promise<Doc | null> {
+    if (!docId) {
+      throw new Error('Doc ID is required');
+    }
+
+    if (typeof title !== 'string') {
+      throw new Error('Doc title is required');
+    }
+
+    if (!Number.isInteger(expectedVersion) || expectedVersion < 1) {
+      throw new Error('expectedVersion must be a positive integer');
+    }
+
+    const doc = await docRepository.findById(docId);
+    if (!doc) {
+      return null;
+    }
+
+    await this.assertCanEditDoc(doc, user);
+
+    if (title.trim() === '') {
+      throw new Error('Doc title cannot be empty');
+    }
+
+    const updated = await docRepository.updateIfVersion(docId, expectedVersion, { title: title.trim() });
+    if (!updated) {
+      throw new Error('Conflict: doc version changed. Re-read and retry with new expectedVersion.');
+    }
+
+    await activityService.record({
+      actorId: user.id,
+      action: 'doc.updated',
+      entityType: 'doc',
+      entityId: updated.id,
+      entityName: updated.title,
+      projectId: updated.projectId,
+      metadata: { changedFields: ['title'] },
+    });
+
+    return updated;
+  }
+
+  async appendDocBlocks(
+    docId: string,
+    blocks: Array<Record<string, unknown>>,
+    expectedVersion: number,
+    user: User,
+    position?: AppendDocBlocksPosition
+  ): Promise<Doc | null> {
+    if (!docId) {
+      throw new Error('Doc ID is required');
+    }
+
+    if (!Number.isInteger(expectedVersion) || expectedVersion < 1) {
+      throw new Error('expectedVersion must be a positive integer');
+    }
+
+    if (blocks === undefined) {
+      throw new Error('Blocks are required');
+    }
+
+    this.assertValidBlocks(blocks);
+
+    const doc = await docRepository.findById(docId);
+    if (!doc) {
+      return null;
+    }
+
+    await this.assertCanEditDoc(doc, user);
+
+    if (blocks.length === 0) {
+      throw new Error('At least one block is required');
+    }
+
+    if (blocks.length > 100) {
+      throw new Error('Cannot append more than 100 blocks at once');
+    }
+
+    if (docCollabHub.getActiveClientCount(docId) > 0) {
+      throw new Error('Doc has active collaborators. Retry after collaborators disconnect.');
+    }
+
+    const currentContent = Array.isArray(doc.content) ? doc.content as Array<Record<string, unknown>> : [];
+    const content = this.insertBlocks(currentContent, blocks, position);
+    const updated = await docRepository.updateIfVersion(docId, expectedVersion, {
+      content,
+      searchText: extractSearchTextFromDocContent(content),
+    });
+
+    if (!updated) {
+      throw new Error('Conflict: doc version changed. Re-read and retry with new expectedVersion.');
+    }
+
+    await activityService.record({
+      actorId: user.id,
+      action: 'doc.updated',
+      entityType: 'doc',
+      entityId: updated.id,
+      entityName: updated.title,
+      projectId: updated.projectId,
+      metadata: { changedFields: ['content'] },
+    });
+
+    return updated;
+  }
+
+  async appendDocSource(
+    docId: string,
+    source: string,
+    sourceFormat: DocSourceFormat | undefined,
+    expectedVersion: number,
+    user: User,
+    position?: AppendDocBlocksPosition
+  ): Promise<Doc | null> {
+    const blocks = convertDocSourceToBlocks(source, sourceFormat);
+    return this.appendDocBlocks(docId, blocks, expectedVersion, user, position);
   }
 
   /**
@@ -244,9 +475,10 @@ export class DocService {
       updateData.title = input.title.trim();
     }
 
-    if (input.content !== undefined) {
-      updateData.content = input.content;
-      updateData.searchText = extractSearchTextFromDocContent(input.content);
+    const content = this.resolveContent(input);
+    if (content !== undefined) {
+      updateData.content = content;
+      updateData.searchText = extractSearchTextFromDocContent(content);
     }
 
     if (input.parentId !== undefined) {
@@ -306,6 +538,7 @@ export class DocService {
     }
 
     await sharedLinkRepository.deleteDocLink(docId);
+    docCollabHub.closeRoom(docId, 1008, 'Doc deleted');
 
     const deleted = await docRepository.delete(docId);
     if (deleted) {

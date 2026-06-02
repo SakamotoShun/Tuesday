@@ -183,87 +183,93 @@ collab.get(
           return;
         }
 
-        if (message.type === 'pong') {
-          docCollabHub.markPong(docId, ws);
-          return;
-        }
-
-        docCollabHub.touch(docId, ws);
-
-        if (message.type === 'doc.update') {
-          if (isFreelancer(user)) {
-            sendReadOnlyError(ws, 'doc.update', { hub: 'doc_collab', doc_id: docId, user_id: user.id });
+        try {
+          if (message.type === 'pong') {
+            docCollabHub.markPong(docId, ws);
             return;
           }
 
-          const update = decodeBase64(message.update);
-          const seq = await docCollabRepository.appendUpdate(docId, update, user.id);
-          docCollabHub.broadcast(
-            docId,
-            JSON.stringify({
-              type: 'doc.update',
-              update: message.update,
-              seq,
-              actorId: user.id,
-            }),
-            ws
-          );
+          docCollabHub.touch(docId, ws);
 
-          if (docCollabHub.shouldRequestSnapshot(docId, seq)) {
-            sendWebSocketMessage(ws, JSON.stringify({ type: 'doc.snapshot.request', seq }), {
+          if (message.type === 'doc.update') {
+            if (isFreelancer(user)) {
+              sendReadOnlyError(ws, 'doc.update', { hub: 'doc_collab', doc_id: docId, user_id: user.id });
+              return;
+            }
+
+            const update = decodeBase64(message.update);
+            const seq = await docCollabRepository.appendUpdate(docId, update, user.id);
+            docCollabHub.broadcast(
+              docId,
+              JSON.stringify({
+                type: 'doc.update',
+                update: message.update,
+                seq,
+                actorId: user.id,
+              }),
+              ws
+            );
+
+            if (docCollabHub.shouldRequestSnapshot(docId, seq)) {
+              sendWebSocketMessage(ws, JSON.stringify({ type: 'doc.snapshot.request', seq }), {
+                hub: 'doc_collab',
+                event: 'snapshot_request',
+                doc_id: docId,
+                user_id: user.id,
+              });
+            }
+
+            sendWebSocketMessage(ws, JSON.stringify({ type: 'doc.ack', seq }), {
               hub: 'doc_collab',
-              event: 'snapshot_request',
+              event: 'ack',
               doc_id: docId,
               user_id: user.id,
             });
-          }
-
-          sendWebSocketMessage(ws, JSON.stringify({ type: 'doc.ack', seq }), {
-            hub: 'doc_collab',
-            event: 'ack',
-            doc_id: docId,
-            user_id: user.id,
-          });
-          return;
-        }
-
-        if (message.type === 'presence.update') {
-          if (isFreelancer(user)) {
-            sendReadOnlyError(ws, 'presence.update', { hub: 'doc_collab', doc_id: docId, user_id: user.id });
             return;
           }
 
-          docCollabHub.broadcast(
-            docId,
-            JSON.stringify({ type: 'presence.broadcast', update: message.update }),
-            ws
-          );
-          return;
-        }
+          if (message.type === 'presence.update') {
+            if (isFreelancer(user)) {
+              sendReadOnlyError(ws, 'presence.update', { hub: 'doc_collab', doc_id: docId, user_id: user.id });
+              return;
+            }
 
-        if (message.type === 'doc.snapshot') {
-          if (isFreelancer(user)) {
-            sendReadOnlyError(ws, 'doc.snapshot', { hub: 'doc_collab', doc_id: docId, user_id: user.id });
+            docCollabHub.broadcast(
+              docId,
+              JSON.stringify({ type: 'presence.broadcast', update: message.update }),
+              ws
+            );
             return;
           }
 
-          const snapshot = decodeBase64(message.snapshot);
-          const latestSeq = await docCollabRepository.getLatestSeq(docId);
-          const snapshotSeq = resolveDocSnapshotSeq(message.seq, latestSeq);
+          if (message.type === 'doc.snapshot') {
+            if (isFreelancer(user)) {
+              sendReadOnlyError(ws, 'doc.snapshot', { hub: 'doc_collab', doc_id: docId, user_id: user.id });
+              return;
+            }
 
-          if (snapshotSeq === null) {
-            return;
+            const snapshot = decodeBase64(message.snapshot);
+            const latestSeq = await docCollabRepository.getLatestSeq(docId);
+            const snapshotSeq = resolveDocSnapshotSeq(message.seq, latestSeq);
+
+            if (snapshotSeq === null) {
+              return;
+            }
+
+            await docCollabRepository.createSnapshot(docId, snapshot, snapshotSeq);
+            await docCollabRepository.compactHistory(docId, snapshotSeq);
+
+            if (shouldPersistCanonicalDocContent(snapshotSeq, latestSeq, message.content)) {
+              await docRepository.update(docId, {
+                content: message.content,
+                searchText: extractSearchTextFromDocContent(message.content),
+              });
+            }
           }
-
-          await docCollabRepository.createSnapshot(docId, snapshot, snapshotSeq);
-          await docCollabRepository.compactHistory(docId, snapshotSeq);
-
-          if (shouldPersistCanonicalDocContent(snapshotSeq, latestSeq, message.content)) {
-            await docRepository.update(docId, {
-              content: message.content,
-              searchText: extractSearchTextFromDocContent(message.content),
-            });
-          }
+        } catch (error) {
+          console.error('Doc collab message failed:', error);
+          docCollabHub.leave(docId, ws);
+          safeCloseWebSocket(ws, 1011, 'Doc collaboration failed');
         }
       },
       onClose: (_event, ws) => {

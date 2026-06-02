@@ -365,6 +365,7 @@ export interface Doc {
   isDatabase: boolean
   isPolicy: boolean
   schema: DatabaseSchema | null
+  version: number
   createdBy: string
   createdAt: string
   updatedAt: string
@@ -379,6 +380,8 @@ export interface DocWithChildren extends Doc {
 export interface CreateDocInput {
   title: string
   content?: Block[]
+  source?: string
+  sourceFormat?: "auto" | "markdown" | "html" | "text"
   parentId?: string | null
   isDatabase?: boolean
   schema?: DatabaseSchema | null
@@ -388,6 +391,8 @@ export interface CreateDocInput {
 export interface UpdateDocInput {
   title?: string
   content?: Block[]
+  source?: string
+  sourceFormat?: "auto" | "markdown" | "html" | "text"
   parentId?: string | null
   schema?: DatabaseSchema | null
   properties?: Record<string, PropertyValue>

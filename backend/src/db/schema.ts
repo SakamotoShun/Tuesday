@@ -358,6 +358,7 @@ export const docs = pgTable('docs', {
   isDatabase: boolean('is_database').notNull().default(false),
   isPolicy: boolean('is_policy').notNull().default(false),
   schema: jsonb('schema'),
+  version: integer('version').notNull().default(1),
   createdBy: uuid('created_by').notNull().references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

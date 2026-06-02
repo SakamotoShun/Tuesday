@@ -95,6 +95,24 @@ class DocCollabHub {
     }
   }
 
+  closeRoom(docId: string, code: number, reason: string, message?: string) {
+    const room = this.rooms.get(docId);
+    if (!room) return;
+
+    const payload = message ?? JSON.stringify({ type: 'doc.deleted' });
+    for (const client of room.clients) {
+      sendWebSocketMessage(
+        client.ws,
+        payload,
+        { hub: 'doc_collab', event: 'room_closed', doc_id: docId, user_id: client.user.id },
+        { closeOnFailure: false }
+      );
+      safeCloseWebSocket(client.ws, code, reason);
+    }
+
+    this.rooms.delete(docId);
+  }
+
   shouldRequestSnapshot(docId: string, seq: number) {
     const room = this.getRoom(docId);
     const now = Date.now();
@@ -107,6 +125,10 @@ class DocCollabHub {
     }
 
     return false;
+  }
+
+  getActiveClientCount(docId: string) {
+    return this.rooms.get(docId)?.clients.size ?? 0;
   }
 
   reapStaleClients(now = Date.now()) {

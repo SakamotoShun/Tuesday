@@ -56,6 +56,7 @@ export class PolicyRepository {
             isDatabase: true,
             isPolicy: true,
             schema: true,
+            version: true,
             createdBy: true,
             createdAt: true,
             updatedAt: true,
