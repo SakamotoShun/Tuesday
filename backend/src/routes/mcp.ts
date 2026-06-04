@@ -65,6 +65,16 @@ function setAuthChallenge(c: any): void {
   }
 }
 
+mcp.get('/', (c) => {
+  c.header('Allow', 'POST');
+  return c.json(jsonRpcError(null, -32000, 'Method not allowed'), 405);
+});
+
+mcp.delete('/', (c) => {
+  c.header('Allow', 'POST');
+  return c.json(jsonRpcError(null, -32000, 'Method not allowed'), 405);
+});
+
 mcp.post('/', async (c) => {
   let body: JsonRpcRequest;
   try {
@@ -92,13 +102,13 @@ mcp.post('/', async (c) => {
           capabilities: { tools: {} },
           serverInfo: { name: 'Tuesday', version: TUESDAY_VERSION },
         };
-        if (isNotification) return new Response(null, { status: 204 });
+        if (isNotification) return new Response(null, { status: 202 });
         return c.json(jsonRpcResult(body.id, result));
       }
 
       case 'notifications/initialized': {
         // No-op ack
-        if (isNotification) return new Response(null, { status: 204 });
+        if (isNotification) return new Response(null, { status: 202 });
         return c.json(jsonRpcResult(body.id, {}));
       }
 
