@@ -1,7 +1,7 @@
 import { createHash, pbkdf2Sync, randomBytes, timingSafeEqual } from 'node:crypto';
 import { config } from '../config';
 
-const BASE64URL_CHARACTERS = /[^A-Za-z0-9_-]/g;
+const PKCE_VERIFIER_PATTERN = /^[A-Za-z0-9\-._~]{43,128}$/;
 
 function base64Url(buffer: Buffer): string {
   return buffer.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
@@ -40,7 +40,7 @@ export function pkceS256Challenge(verifier: string): string {
 }
 
 export function verifyPkceS256(verifier: string, expectedChallenge: string): boolean {
-  if (!verifier || BASE64URL_CHARACTERS.test(verifier)) return false;
+  if (!PKCE_VERIFIER_PATTERN.test(verifier)) return false;
 
   const actual = pkceS256Challenge(verifier);
   const actualBuffer = Buffer.from(actual);

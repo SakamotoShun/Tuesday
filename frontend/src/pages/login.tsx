@@ -30,7 +30,7 @@ export function LoginPage() {
 
   const locationState = location.state as { from?: { pathname?: string }; registered?: boolean; passwordReset?: boolean } | null
   const redirect = new URLSearchParams(location.search).get("redirect")
-  const from = redirect && redirect.startsWith("/") ? redirect : locationState?.from?.pathname || "/"
+  const from = redirect && /^\/(?!\/)/.test(redirect) ? redirect : locationState?.from?.pathname || "/"
   const showRegisteredMessage = Boolean(locationState?.registered)
   const showPasswordResetMessage = Boolean(locationState?.passwordReset)
 

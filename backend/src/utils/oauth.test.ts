@@ -14,10 +14,32 @@ describe('oauth utils', () => {
     expect(fingerprint).not.toContain('secret-token');
   });
 
-  it('verifies S256 PKCE challenges', () => {
-    const verifier = 'a-valid-pkce-verifier-with-enough-entropy_123';
-    const challenge = pkceS256Challenge(verifier);
-    expect(verifyPkceS256(verifier, challenge)).toBe(true);
-    expect(verifyPkceS256('different-verifier', challenge)).toBe(false);
+  it('verifies S256 PKCE challenges for RFC-valid verifiers', () => {
+    const validVerifiers = [
+      'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ',
+      'a-valid-pkce-verifier.with~rfc7636_chars-123',
+      '0123456789-._~ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef',
+    ];
+
+    for (const verifier of validVerifiers) {
+      const challenge = pkceS256Challenge(verifier);
+      expect(verifyPkceS256(verifier, challenge)).toBe(true);
+      expect(verifyPkceS256(`${verifier}x`, challenge)).toBe(false);
+    }
+  });
+
+  it('rejects invalid PKCE verifiers', () => {
+    const challenge = pkceS256Challenge('a-valid-pkce-verifier.with~rfc7636_chars-123');
+    const invalidVerifiers = [
+      '',
+      'too-short',
+      'contains+plus-character-and-is-long-enough-123456',
+      'contains/slash-character-and-is-long-enough-123456',
+      'contains space character and is long enough 123456',
+    ];
+
+    for (const verifier of invalidVerifiers) {
+      expect(verifyPkceS256(verifier, challenge)).toBe(false);
+    }
   });
 });

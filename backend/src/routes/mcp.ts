@@ -52,9 +52,17 @@ function jsonRpcResult(id: string | number | undefined | null, result: unknown):
 
 const mcp = new Hono();
 
-function authChallenge(requestUrl: string): string {
-  const origin = config.publicBaseUrl ?? new URL(requestUrl).origin;
-  return `Bearer resource_metadata="${origin.replace(/\/+$/, '')}/.well-known/oauth-protected-resource"`;
+function authChallenge(): string {
+  if (!config.publicBaseUrl) return '';
+  const origin = config.publicBaseUrl.replace(/\/+$/, '');
+  return `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource"`;
+}
+
+function setAuthChallenge(c: any): void {
+  const challenge = authChallenge();
+  if (challenge) {
+    c.header('WWW-Authenticate', challenge);
+  }
 }
 
 mcp.post('/', async (c) => {
@@ -98,7 +106,7 @@ mcp.post('/', async (c) => {
         // Authenticate
         const auth = await authenticateMcpRequest(c.req.raw);
         if (!auth) {
-          c.header('WWW-Authenticate', authChallenge(c.req.url));
+          setAuthChallenge(c);
           return c.json(jsonRpcError(body.id, -32001, 'Unauthorized: invalid or missing MCP token'), 401);
         }
 
@@ -120,7 +128,7 @@ mcp.post('/', async (c) => {
       case 'tools/call': {
         const auth = await authenticateMcpRequest(c.req.raw);
         if (!auth) {
-          c.header('WWW-Authenticate', authChallenge(c.req.url));
+          setAuthChallenge(c);
           return c.json(jsonRpcError(body.id, -32001, 'Unauthorized: invalid or missing MCP token'), 401);
         }
 

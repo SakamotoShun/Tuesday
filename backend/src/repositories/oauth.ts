@@ -19,6 +19,10 @@ import {
 } from '../db/schema';
 
 export class OauthRepository {
+  async transaction<T>(callback: (tx: any) => Promise<T>): Promise<T> {
+    return db.transaction(callback);
+  }
+
   async createClient(data: NewOauthClient): Promise<OauthClient> {
     const [client] = await db.insert(oauthClients).values(data).returning();
     return client;
@@ -31,8 +35,8 @@ export class OauthRepository {
     return client ?? null;
   }
 
-  async createAuthorizationCode(data: NewOauthAuthorizationCode): Promise<OauthAuthorizationCode> {
-    const [code] = await db.insert(oauthAuthorizationCodes).values(data).returning();
+  async createAuthorizationCode(data: NewOauthAuthorizationCode, executor: any = db): Promise<OauthAuthorizationCode> {
+    const [code] = await executor.insert(oauthAuthorizationCodes).values(data).returning();
     return code;
   }
 
@@ -47,10 +51,10 @@ export class OauthRepository {
     return code ?? null;
   }
 
-  async markAuthorizationCodeUsed(id: string): Promise<boolean> {
-    const result = await db
+  async markAuthorizationCodeUsed(id: string, executor: any = db): Promise<boolean> {
+    const result = await executor
       .update(oauthAuthorizationCodes)
-      .set({ usedAt: new Date() })
+      .set({ usedAt: new Date(), updatedAt: new Date() })
       .where(and(eq(oauthAuthorizationCodes.id, id), isNull(oauthAuthorizationCodes.usedAt), gt(oauthAuthorizationCodes.expiresAt, new Date())))
       .returning({ id: oauthAuthorizationCodes.id });
     return result.length > 0;
@@ -72,13 +76,13 @@ export class OauthRepository {
     return consent;
   }
 
-  async createAccessToken(data: NewOauthAccessToken): Promise<OauthAccessToken> {
-    const [token] = await db.insert(oauthAccessTokens).values(data).returning();
+  async createAccessToken(data: NewOauthAccessToken, executor: any = db): Promise<OauthAccessToken> {
+    const [token] = await executor.insert(oauthAccessTokens).values(data).returning();
     return token;
   }
 
-  async createRefreshToken(data: NewOauthRefreshToken): Promise<OauthRefreshToken> {
-    const [token] = await db.insert(oauthRefreshTokens).values(data).returning();
+  async createRefreshToken(data: NewOauthRefreshToken, executor: any = db): Promise<OauthRefreshToken> {
+    const [token] = await executor.insert(oauthRefreshTokens).values(data).returning();
     return token;
   }
 
@@ -100,10 +104,10 @@ export class OauthRepository {
     return token ?? null;
   }
 
-  async revokeRefreshToken(id: string): Promise<boolean> {
-    const result = await db
+  async revokeRefreshToken(id: string, executor: any = db): Promise<boolean> {
+    const result = await executor
       .update(oauthRefreshTokens)
-      .set({ revokedAt: new Date() })
+      .set({ revokedAt: new Date(), updatedAt: new Date() })
       .where(and(eq(oauthRefreshTokens.id, id), isNull(oauthRefreshTokens.revokedAt)))
       .returning({ id: oauthRefreshTokens.id });
     return result.length > 0;
@@ -112,7 +116,7 @@ export class OauthRepository {
   async revokeRefreshTokenByHash(tokenHash: string, clientId: string): Promise<boolean> {
     const result = await db
       .update(oauthRefreshTokens)
-      .set({ revokedAt: new Date() })
+      .set({ revokedAt: new Date(), updatedAt: new Date() })
       .where(and(eq(oauthRefreshTokens.tokenHash, tokenHash), eq(oauthRefreshTokens.clientId, clientId), isNull(oauthRefreshTokens.revokedAt)))
       .returning({ id: oauthRefreshTokens.id });
     return result.length > 0;
@@ -137,13 +141,13 @@ export class OauthRepository {
   }
 
   async markAccessTokenUsed(id: string): Promise<void> {
-    await db.update(oauthAccessTokens).set({ lastUsedAt: new Date() }).where(eq(oauthAccessTokens.id, id));
+    await db.update(oauthAccessTokens).set({ lastUsedAt: new Date(), updatedAt: new Date() }).where(eq(oauthAccessTokens.id, id));
   }
 
   async revokeAccessTokenByHash(tokenHash: string, clientId: string): Promise<boolean> {
     const result = await db
       .update(oauthAccessTokens)
-      .set({ revokedAt: new Date() })
+      .set({ revokedAt: new Date(), updatedAt: new Date() })
       .where(and(eq(oauthAccessTokens.tokenHash, tokenHash), eq(oauthAccessTokens.clientId, clientId), isNull(oauthAccessTokens.revokedAt)))
       .returning({ id: oauthAccessTokens.id });
     return result.length > 0;

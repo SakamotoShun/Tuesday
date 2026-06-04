@@ -16,6 +16,8 @@ const ACCESS_TOKEN_TTL_SECONDS = 60 * 60;
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 const DEFAULT_SCOPES: McpScope[] = ['projects:read', 'tasks:read', 'docs:read', 'search:read'];
+const SUPPORTED_GRANT_TYPES = ['authorization_code', 'refresh_token'] as const;
+const SUPPORTED_RESPONSE_TYPES = ['code'] as const;
 
 interface RegisterClientInput {
   client_name?: string;
@@ -84,6 +86,10 @@ function getIssuer(publicBaseUrl: string): string {
   return publicBaseUrl.replace(/\/+$/, '');
 }
 
+function includesValue(values: unknown, expected: string): boolean {
+  return Array.isArray(values) && values.includes(expected);
+}
+
 export class OauthService {
   private async validateClientCredentials(clientId: string, clientSecret?: string | null) {
     const client = await oauthRepository.findClient(clientId);
@@ -138,7 +144,7 @@ export class OauthService {
 
     const grantTypes = input.grant_types?.length ? input.grant_types : ['authorization_code'];
     const responseTypes = input.response_types?.length ? input.response_types : ['code'];
-    if (grantTypes.some((type) => !['authorization_code', 'refresh_token'].includes(type)) || responseTypes.some((type) => type !== 'code')) {
+    if (grantTypes.some((type) => !SUPPORTED_GRANT_TYPES.includes(type as any)) || responseTypes.some((type) => !SUPPORTED_RESPONSE_TYPES.includes(type as any))) {
       throw new Error('Only authorization_code, refresh_token, and code clients are supported');
     }
 
@@ -177,6 +183,8 @@ export class OauthService {
   async getAuthorizeDetails(input: AuthorizeInput) {
     const client = await oauthRepository.findClient(input.clientId);
     if (!client) throw new Error('Unknown OAuth client');
+    if (!includesValue(client.grantTypes, 'authorization_code')) throw new Error('Client is not allowed to use authorization_code');
+    if (!includesValue(client.responseTypes, 'code')) throw new Error('Client is not allowed to use code response_type');
     if (input.responseType !== 'code') throw new Error('Unsupported response_type');
     if (input.codeChallengeMethod !== 'S256') throw new Error('code_challenge_method must be S256');
     if (!input.codeChallenge) throw new Error('code_challenge is required');
@@ -226,12 +234,21 @@ export class OauthService {
     return redirect.toString();
   }
 
+  async denyAuthorization(input: AuthorizeInput) {
+    await this.getAuthorizeDetails(input);
+    const redirect = new URL(input.redirectUri);
+    redirect.searchParams.set('error', 'access_denied');
+    if (input.state) redirect.searchParams.set('state', input.state);
+    return redirect.toString();
+  }
+
   async exchangeAuthorizationCode(input: TokenInput) {
     if (input.grantType !== 'authorization_code') {
       throw new Error('Unsupported grant_type');
     }
 
-    await this.validateClientCredentials(input.clientId, input.clientSecret);
+    const client = await this.validateClientCredentials(input.clientId, input.clientSecret);
+    if (!includesValue(client.grantTypes, 'authorization_code')) throw new Error('Client is not allowed to use authorization_code');
 
     const code = await oauthRepository.findActiveAuthorizationCode(fingerprintOauthToken(input.code ?? ''));
     if (!code) throw new Error('Invalid or expired authorization code');
@@ -242,29 +259,31 @@ export class OauthService {
       throw new Error('Invalid PKCE verifier');
     }
 
-    const consumed = await oauthRepository.markAuthorizationCodeUsed(code.id);
-    if (!consumed) throw new Error('Invalid or expired authorization code');
-
     const rawAccessToken = generateOauthAccessToken();
     const rawRefreshToken = generateOauthRefreshToken();
     const accessExpiresAt = new Date(Date.now() + ACCESS_TOKEN_TTL_SECONDS * 1000);
 
-    await oauthRepository.createAccessToken({
-      tokenHash: fingerprintOauthToken(rawAccessToken),
-      clientId: code.clientId,
-      userId: code.userId,
-      scopes: code.scopes,
-      resource: code.resource,
-      expiresAt: accessExpiresAt,
-    });
+    await oauthRepository.transaction(async (tx) => {
+      const consumed = await oauthRepository.markAuthorizationCodeUsed(code.id, tx);
+      if (!consumed) throw new Error('Invalid or expired authorization code');
 
-    await oauthRepository.createRefreshToken({
-      tokenHash: fingerprintOauthToken(rawRefreshToken),
-      clientId: code.clientId,
-      userId: code.userId,
-      scopes: code.scopes,
-      resource: code.resource,
-      expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
+      await oauthRepository.createAccessToken({
+        tokenHash: fingerprintOauthToken(rawAccessToken),
+        clientId: code.clientId,
+        userId: code.userId,
+        scopes: code.scopes,
+        resource: code.resource,
+        expiresAt: accessExpiresAt,
+      }, tx);
+
+      await oauthRepository.createRefreshToken({
+        tokenHash: fingerprintOauthToken(rawRefreshToken),
+        clientId: code.clientId,
+        userId: code.userId,
+        scopes: code.scopes,
+        resource: code.resource,
+        expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
+      }, tx);
     });
 
     return {
@@ -281,36 +300,39 @@ export class OauthService {
       throw new Error('Unsupported grant_type');
     }
 
-    await this.validateClientCredentials(input.clientId, input.clientSecret);
+    const client = await this.validateClientCredentials(input.clientId, input.clientSecret);
+    if (!includesValue(client.grantTypes, 'refresh_token')) throw new Error('Client is not allowed to use refresh_token');
 
     const refreshToken = await oauthRepository.findActiveRefreshToken(fingerprintOauthToken(input.refreshToken ?? ''));
     if (!refreshToken || refreshToken.clientId !== input.clientId || refreshToken.user?.isDisabled) {
       throw new Error('Invalid refresh token');
     }
 
-    const revoked = await oauthRepository.revokeRefreshToken(refreshToken.id);
-    if (!revoked) throw new Error('Invalid refresh token');
-
     const rawAccessToken = generateOauthAccessToken();
     const rawRefreshToken = generateOauthRefreshToken();
 
-    await oauthRepository.createAccessToken({
-      tokenHash: fingerprintOauthToken(rawAccessToken),
-      clientId: refreshToken.clientId,
-      userId: refreshToken.userId,
-      scopes: refreshToken.scopes,
-      resource: refreshToken.resource,
-      expiresAt: new Date(Date.now() + ACCESS_TOKEN_TTL_SECONDS * 1000),
-    });
+    await oauthRepository.transaction(async (tx) => {
+      const revoked = await oauthRepository.revokeRefreshToken(refreshToken.id, tx);
+      if (!revoked) throw new Error('Invalid refresh token');
 
-    await oauthRepository.createRefreshToken({
-      tokenHash: fingerprintOauthToken(rawRefreshToken),
-      clientId: refreshToken.clientId,
-      userId: refreshToken.userId,
-      scopes: refreshToken.scopes,
-      resource: refreshToken.resource,
-      expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
-      rotatedFromId: refreshToken.id,
+      await oauthRepository.createAccessToken({
+        tokenHash: fingerprintOauthToken(rawAccessToken),
+        clientId: refreshToken.clientId,
+        userId: refreshToken.userId,
+        scopes: refreshToken.scopes,
+        resource: refreshToken.resource,
+        expiresAt: new Date(Date.now() + ACCESS_TOKEN_TTL_SECONDS * 1000),
+      }, tx);
+
+      await oauthRepository.createRefreshToken({
+        tokenHash: fingerprintOauthToken(rawRefreshToken),
+        clientId: refreshToken.clientId,
+        userId: refreshToken.userId,
+        scopes: refreshToken.scopes,
+        resource: refreshToken.resource,
+        expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
+        rotatedFromId: refreshToken.id,
+      }, tx);
     });
 
     return {

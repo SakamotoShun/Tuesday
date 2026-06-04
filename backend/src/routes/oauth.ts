@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { randomBytes } from 'node:crypto';
 import { config } from '../config';
 import { rateLimit } from '../middleware';
 import { authService, oauthService } from '../services';
@@ -12,6 +13,8 @@ const oauthRegistrationRateLimit = rateLimit({
   requireIp: true,
   missingIpMessage: 'Unable to determine client IP for OAuth registration request',
 });
+const APPROVAL_NONCE_TTL_MS = 5 * 60 * 1000;
+const approvalNonces = new Map<string, { userId: string; clientId: string; expiresAt: number }>();
 
 function publicBaseUrl(requestUrl: string): string {
   return config.publicBaseUrl ?? new URL(requestUrl).origin;
@@ -38,6 +41,22 @@ function htmlEscape(value: string): string {
 
 function oauthError(error: string, description: string, status = 400) {
   return Response.json({ error, error_description: description }, { status });
+}
+
+function createApprovalNonce(userId: string, clientId: string): string {
+  const now = Date.now();
+  for (const [otherNonce, record] of approvalNonces) {
+    if (record.expiresAt <= now) approvalNonces.delete(otherNonce);
+  }
+  const nonce = randomBytes(32).toString('base64url');
+  approvalNonces.set(nonce, { userId, clientId, expiresAt: now + APPROVAL_NONCE_TTL_MS });
+  return nonce;
+}
+
+function consumeApprovalNonce(nonce: string, userId: string, clientId: string): boolean {
+  const record = approvalNonces.get(nonce);
+  approvalNonces.delete(nonce);
+  return !!record && record.userId === userId && record.clientId === clientId && record.expiresAt > Date.now();
 }
 
 function parseAuthorize(c: any) {
@@ -83,11 +102,13 @@ function renderConsentPage({
   clientName,
   scopes,
   query,
+  approvalNonce,
 }: {
   user: User;
   clientName: string;
   scopes: string[];
   query: string;
+  approvalNonce: string;
 }) {
   const scopeItems = scopes.map((scope) => `<li>${htmlEscape(scope)}</li>`).join('');
   return `<!doctype html>
@@ -117,9 +138,15 @@ function renderConsentPage({
       <p>This MCP client is requesting access to your Tuesday workspace with these scopes:</p>
       <ul>${scopeItems}</ul>
       <form method="post" action="/oauth/authorize/approve?${htmlEscape(query)}">
+        <input type="hidden" name="approval_nonce" value="${htmlEscape(approvalNonce)}" />
         <div class="actions">
           <button type="submit">Allow access</button>
-          <a href="/">Cancel</a>
+        </div>
+      </form>
+      <form method="post" action="/oauth/authorize/deny?${htmlEscape(query)}">
+        <input type="hidden" name="approval_nonce" value="${htmlEscape(approvalNonce)}" />
+        <div class="actions">
+          <button type="submit">Deny access</button>
         </div>
       </form>
     </main>
@@ -160,11 +187,13 @@ oauth.get('/oauth/authorize', async (c) => {
 
   try {
     const details = await oauthService.getAuthorizeDetails(input);
+    const approvalNonce = createApprovalNonce(user.id, input.clientId);
     return c.html(renderConsentPage({
       user,
       clientName: details.client.clientName,
       scopes: details.scopes,
       query,
+      approvalNonce,
     }));
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Invalid authorization request';
@@ -181,7 +210,34 @@ oauth.post('/oauth/authorize/approve', async (c) => {
   }
 
   try {
+    const form = await c.req.formData();
+    const approvalNonce = String(form.get('approval_nonce') ?? '');
+    if (!consumeApprovalNonce(approvalNonce, user.id, input.clientId)) {
+      return oauthError('invalid_request', 'Invalid approval nonce');
+    }
     const redirectUrl = await oauthService.approveAuthorization(input, user.id);
+    return c.redirect(redirectUrl);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Invalid authorization request';
+    return oauthError('invalid_request', message);
+  }
+});
+
+oauth.post('/oauth/authorize/deny', async (c) => {
+  const input = parseAuthorize(c);
+  const user = await getUserFromCookie(c.req.header('Cookie'));
+  if (!user) {
+    const query = new URL(c.req.url).searchParams.toString();
+    return c.redirect(`/login?redirect=${encodeURIComponent(`/oauth/authorize?${query}`)}`);
+  }
+
+  try {
+    const form = await c.req.formData();
+    const approvalNonce = String(form.get('approval_nonce') ?? '');
+    if (!consumeApprovalNonce(approvalNonce, user.id, input.clientId)) {
+      return oauthError('invalid_request', 'Invalid approval nonce');
+    }
+    const redirectUrl = await oauthService.denyAuthorization(input);
     return c.redirect(redirectUrl);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Invalid authorization request';
@@ -235,10 +291,10 @@ oauth.post('/oauth/revoke', async (c) => {
       clientId,
       clientSecret,
     });
-    return c.body(null, 200);
+    return c.json({ revoked: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Invalid revocation request';
-    return oauthError(message === 'Invalid client' ? 'invalid_client' : 'invalid_request', message);
+    return oauthError(message === 'Invalid client' ? 'invalid_client' : 'invalid_request', message, message === 'Invalid client' ? 401 : 400);
   }
 });
 

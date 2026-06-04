@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, boolean, timestamp, jsonb, integer, date, primaryKey, bigserial, bigint, customType, numeric, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, boolean, timestamp, jsonb, integer, date, primaryKey, bigserial, bigint, customType, numeric, index, uniqueIndex, foreignKey } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // User roles
@@ -1133,10 +1133,12 @@ export const oauthAuthorizationCodes = pgTable('oauth_authorization_codes', {
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   usedAt: timestamp('used_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   codeHashUnique: uniqueIndex('oauth_authorization_codes_code_hash_unique').on(table.codeHash),
   clientIdx: index('oauth_authorization_codes_client_id_idx').on(table.clientId),
   userIdx: index('oauth_authorization_codes_user_id_idx').on(table.userId),
+  clientFk: foreignKey({ columns: [table.clientId], foreignColumns: [oauthClients.clientId] }).onDelete('cascade'),
 }));
 
 export const oauthAccessTokens = pgTable('oauth_access_tokens', {
@@ -1150,6 +1152,7 @@ export const oauthAccessTokens = pgTable('oauth_access_tokens', {
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
   lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   tokenHashUnique: uniqueIndex('oauth_access_tokens_token_hash_unique').on(table.tokenHash),
   clientIdx: index('oauth_access_tokens_client_id_idx').on(table.clientId),
@@ -1167,6 +1170,7 @@ export const oauthRefreshTokens = pgTable('oauth_refresh_tokens', {
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
   rotatedFromId: uuid('rotated_from_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   tokenHashUnique: uniqueIndex('oauth_refresh_tokens_token_hash_unique').on(table.tokenHash),
   clientIdx: index('oauth_refresh_tokens_client_id_idx').on(table.clientId),
@@ -1184,6 +1188,7 @@ export const oauthConsents = pgTable('oauth_consents', {
 }, (table) => ({
   userClientUnique: uniqueIndex('oauth_consents_user_client_unique').on(table.userId, table.clientId),
   clientIdx: index('oauth_consents_client_id_idx').on(table.clientId),
+  clientFk: foreignKey({ columns: [table.clientId], foreignColumns: [oauthClients.clientId] }).onDelete('cascade'),
 }));
 
 // Interview tracking relations
@@ -1311,6 +1316,10 @@ export const oauthClientsRelations = relations(oauthClients, ({ many }) => ({
 }));
 
 export const oauthAuthorizationCodesRelations = relations(oauthAuthorizationCodes, ({ one }) => ({
+  client: one(oauthClients, {
+    fields: [oauthAuthorizationCodes.clientId],
+    references: [oauthClients.clientId],
+  }),
   user: one(users, {
     fields: [oauthAuthorizationCodes.userId],
     references: [users.id],
@@ -1318,6 +1327,10 @@ export const oauthAuthorizationCodesRelations = relations(oauthAuthorizationCode
 }));
 
 export const oauthAccessTokensRelations = relations(oauthAccessTokens, ({ one }) => ({
+  client: one(oauthClients, {
+    fields: [oauthAccessTokens.clientId],
+    references: [oauthClients.clientId],
+  }),
   user: one(users, {
     fields: [oauthAccessTokens.userId],
     references: [users.id],
@@ -1325,6 +1338,10 @@ export const oauthAccessTokensRelations = relations(oauthAccessTokens, ({ one })
 }));
 
 export const oauthRefreshTokensRelations = relations(oauthRefreshTokens, ({ one }) => ({
+  client: one(oauthClients, {
+    fields: [oauthRefreshTokens.clientId],
+    references: [oauthClients.clientId],
+  }),
   user: one(users, {
     fields: [oauthRefreshTokens.userId],
     references: [users.id],
@@ -1332,6 +1349,10 @@ export const oauthRefreshTokensRelations = relations(oauthRefreshTokens, ({ one 
 }));
 
 export const oauthConsentsRelations = relations(oauthConsents, ({ one }) => ({
+  client: one(oauthClients, {
+    fields: [oauthConsents.clientId],
+    references: [oauthClients.clientId],
+  }),
   user: one(users, {
     fields: [oauthConsents.userId],
     references: [users.id],
