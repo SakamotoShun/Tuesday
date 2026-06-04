@@ -54,6 +54,8 @@ export interface AuthenticatedMcpUser {
   userRole: string;
   tokenId: string;
   scopes: Set<string>;
+  authType?: 'pat' | 'oauth';
+  clientId?: string;
 }
 
 export class McpTokenService {
@@ -152,6 +154,7 @@ export class McpTokenService {
       userRole: token.user.role,
       tokenId: token.id,
       scopes: new Set(token.scopes as string[]),
+      authType: 'pat',
     };
   }
 }

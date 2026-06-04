@@ -1101,6 +1101,91 @@ export const mcpIdempotencyKeys = pgTable('mcp_idempotency_keys', {
   tokenKeyToolUnique: uniqueIndex('mcp_idempotency_token_key_tool_unique').on(table.tokenId, table.key, table.toolName),
 }));
 
+// OAuth clients for MCP authorization-code flows
+export const oauthClients = pgTable('oauth_clients', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientId: varchar('client_id', { length: 128 }).notNull(),
+  clientSecretHash: varchar('client_secret_hash', { length: 128 }),
+  clientName: varchar('client_name', { length: 200 }).notNull(),
+  redirectUris: jsonb('redirect_uris').notNull().default([]),
+  grantTypes: jsonb('grant_types').notNull().default(['authorization_code']),
+  responseTypes: jsonb('response_types').notNull().default(['code']),
+  scopes: jsonb('scopes').notNull().default([]),
+  clientUri: text('client_uri'),
+  logoUri: text('logo_uri'),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  clientIdUnique: uniqueIndex('oauth_clients_client_id_unique').on(table.clientId),
+}));
+
+export const oauthAuthorizationCodes = pgTable('oauth_authorization_codes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  codeHash: varchar('code_hash', { length: 128 }).notNull(),
+  clientId: varchar('client_id', { length: 128 }).notNull(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  redirectUri: text('redirect_uri').notNull(),
+  scopes: jsonb('scopes').notNull().default([]),
+  codeChallenge: varchar('code_challenge', { length: 256 }).notNull(),
+  codeChallengeMethod: varchar('code_challenge_method', { length: 20 }).notNull(),
+  resource: text('resource'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  usedAt: timestamp('used_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  codeHashUnique: uniqueIndex('oauth_authorization_codes_code_hash_unique').on(table.codeHash),
+  clientIdx: index('oauth_authorization_codes_client_id_idx').on(table.clientId),
+  userIdx: index('oauth_authorization_codes_user_id_idx').on(table.userId),
+}));
+
+export const oauthAccessTokens = pgTable('oauth_access_tokens', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tokenHash: varchar('token_hash', { length: 128 }).notNull(),
+  clientId: varchar('client_id', { length: 128 }).notNull(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  scopes: jsonb('scopes').notNull().default([]),
+  resource: text('resource'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  tokenHashUnique: uniqueIndex('oauth_access_tokens_token_hash_unique').on(table.tokenHash),
+  clientIdx: index('oauth_access_tokens_client_id_idx').on(table.clientId),
+  userIdx: index('oauth_access_tokens_user_id_idx').on(table.userId),
+}));
+
+export const oauthRefreshTokens = pgTable('oauth_refresh_tokens', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tokenHash: varchar('token_hash', { length: 128 }).notNull(),
+  clientId: varchar('client_id', { length: 128 }).notNull(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  scopes: jsonb('scopes').notNull().default([]),
+  resource: text('resource'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  rotatedFromId: uuid('rotated_from_id'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  tokenHashUnique: uniqueIndex('oauth_refresh_tokens_token_hash_unique').on(table.tokenHash),
+  clientIdx: index('oauth_refresh_tokens_client_id_idx').on(table.clientId),
+  userIdx: index('oauth_refresh_tokens_user_id_idx').on(table.userId),
+}));
+
+export const oauthConsents = pgTable('oauth_consents', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  clientId: varchar('client_id', { length: 128 }).notNull(),
+  scopes: jsonb('scopes').notNull().default([]),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  userClientUnique: uniqueIndex('oauth_consents_user_client_unique').on(table.userId, table.clientId),
+  clientIdx: index('oauth_consents_client_id_idx').on(table.clientId),
+}));
+
 // Interview tracking relations
 export const interviewStagesRelations = relations(interviewStages, ({ many }) => ({
   applications: many(jobApplications),
@@ -1221,6 +1306,38 @@ export const mcpIdempotencyKeysRelations = relations(mcpIdempotencyKeys, ({ one 
   }),
 }));
 
+export const oauthClientsRelations = relations(oauthClients, ({ many }) => ({
+  consents: many(oauthConsents),
+}));
+
+export const oauthAuthorizationCodesRelations = relations(oauthAuthorizationCodes, ({ one }) => ({
+  user: one(users, {
+    fields: [oauthAuthorizationCodes.userId],
+    references: [users.id],
+  }),
+}));
+
+export const oauthAccessTokensRelations = relations(oauthAccessTokens, ({ one }) => ({
+  user: one(users, {
+    fields: [oauthAccessTokens.userId],
+    references: [users.id],
+  }),
+}));
+
+export const oauthRefreshTokensRelations = relations(oauthRefreshTokens, ({ one }) => ({
+  user: one(users, {
+    fields: [oauthRefreshTokens.userId],
+    references: [users.id],
+  }),
+}));
+
+export const oauthConsentsRelations = relations(oauthConsents, ({ one }) => ({
+  user: one(users, {
+    fields: [oauthConsents.userId],
+    references: [users.id],
+  }),
+}));
+
 // Extend users relations
 const _mcpUsersExtension = relations(users, ({ many }) => ({
   mcpTokens: many(mcpTokens),
@@ -1309,3 +1426,13 @@ export type McpToken = typeof mcpTokens.$inferSelect;
 export type NewMcpToken = typeof mcpTokens.$inferInsert;
 export type McpIdempotencyKey = typeof mcpIdempotencyKeys.$inferSelect;
 export type NewMcpIdempotencyKey = typeof mcpIdempotencyKeys.$inferInsert;
+export type OauthClient = typeof oauthClients.$inferSelect;
+export type NewOauthClient = typeof oauthClients.$inferInsert;
+export type OauthAuthorizationCode = typeof oauthAuthorizationCodes.$inferSelect;
+export type NewOauthAuthorizationCode = typeof oauthAuthorizationCodes.$inferInsert;
+export type OauthAccessToken = typeof oauthAccessTokens.$inferSelect;
+export type NewOauthAccessToken = typeof oauthAccessTokens.$inferInsert;
+export type OauthRefreshToken = typeof oauthRefreshTokens.$inferSelect;
+export type NewOauthRefreshToken = typeof oauthRefreshTokens.$inferInsert;
+export type OauthConsent = typeof oauthConsents.$inferSelect;
+export type NewOauthConsent = typeof oauthConsents.$inferInsert;

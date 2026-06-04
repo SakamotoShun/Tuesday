@@ -29,10 +29,13 @@ import { policies } from './policies';
 import { shared } from './shared';
 import { mcpTokens } from './mcp-tokens';
 import { mcp } from './mcp';
+import { oauth } from './oauth';
 import { checkReadiness } from '../runtime';
 import { log } from '../utils/logger';
 
 const routes = new Hono();
+
+routes.route('/', oauth);
 
 // API v1 routes
 routes.route('/api/v1/setup', setupRouter);

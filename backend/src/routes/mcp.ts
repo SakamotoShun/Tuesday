@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
-import { extractBearerToken, authenticateMcpRequest } from '../mcp/auth';
-import { mcpTokenService } from '../services/mcpToken';
+import { authenticateMcpRequest } from '../mcp/auth';
+import { config } from '../config';
 import { getAllTools, getTool } from '../mcp/tools';
 import '../mcp/tool-definitions'; // registers tools at import time
 import type { McpContext } from '../mcp/types';
@@ -52,6 +52,11 @@ function jsonRpcResult(id: string | number | undefined | null, result: unknown):
 
 const mcp = new Hono();
 
+function authChallenge(requestUrl: string): string {
+  const origin = config.publicBaseUrl ?? new URL(requestUrl).origin;
+  return `Bearer resource_metadata="${origin.replace(/\/+$/, '')}/.well-known/oauth-protected-resource"`;
+}
+
 mcp.post('/', async (c) => {
   let body: JsonRpcRequest;
   try {
@@ -93,6 +98,7 @@ mcp.post('/', async (c) => {
         // Authenticate
         const auth = await authenticateMcpRequest(c.req.raw);
         if (!auth) {
+          c.header('WWW-Authenticate', authChallenge(c.req.url));
           return c.json(jsonRpcError(body.id, -32001, 'Unauthorized: invalid or missing MCP token'), 401);
         }
 
@@ -114,6 +120,7 @@ mcp.post('/', async (c) => {
       case 'tools/call': {
         const auth = await authenticateMcpRequest(c.req.raw);
         if (!auth) {
+          c.header('WWW-Authenticate', authChallenge(c.req.url));
           return c.json(jsonRpcError(body.id, -32001, 'Unauthorized: invalid or missing MCP token'), 401);
         }
 
