@@ -1,4 +1,5 @@
 import { oauthRepository } from '../repositories/oauth';
+import { config } from '../config';
 import { VALID_MCP_SCOPES, type McpScope, type AuthenticatedMcpUser } from './mcpToken';
 import {
   fingerprintOauthToken,
@@ -49,6 +50,7 @@ interface TokenInput {
   clientSecret?: string | null;
   codeVerifier?: string;
   refreshToken?: string;
+  resource?: string;
 }
 
 interface RevokeTokenInput {
@@ -84,6 +86,19 @@ function isHttpsOrLocalhostUrl(value: string): boolean {
 
 function getIssuer(publicBaseUrl: string): string {
   return publicBaseUrl.replace(/\/+$/, '');
+}
+
+function getExpectedResource(): string | null {
+  if (!config.publicBaseUrl) return null;
+  return `${getIssuer(config.publicBaseUrl)}/api/mcp`;
+}
+
+function validateResourceIndicator(resource?: string | null): void {
+  if (!resource) return;
+  const expectedResource = getExpectedResource();
+  if (expectedResource && resource !== expectedResource) {
+    throw new Error('Invalid resource');
+  }
 }
 
 function includesValue(values: unknown, expected: string): boolean {
@@ -181,6 +196,8 @@ export class OauthService {
   }
 
   async getAuthorizeDetails(input: AuthorizeInput) {
+    validateResourceIndicator(input.resource);
+
     const client = await oauthRepository.findClient(input.clientId);
     if (!client) throw new Error('Unknown OAuth client');
     if (!includesValue(client.grantTypes, 'authorization_code')) throw new Error('Client is not allowed to use authorization_code');
@@ -255,6 +272,10 @@ export class OauthService {
     if (code.clientId !== input.clientId || code.redirectUri !== input.redirectUri) {
       throw new Error('Invalid authorization code');
     }
+    if (code.resource && input.resource && code.resource !== input.resource) {
+      throw new Error('Invalid resource');
+    }
+    validateResourceIndicator(input.resource ?? code.resource);
     if (code.codeChallengeMethod !== 'S256' || !verifyPkceS256(input.codeVerifier ?? '', code.codeChallenge)) {
       throw new Error('Invalid PKCE verifier');
     }

@@ -4,6 +4,7 @@ import { config } from '../config';
 import { rateLimit } from '../middleware';
 import { authService, oauthService } from '../services';
 import type { User } from '../types';
+import { log } from '../utils/logger';
 
 const oauth = new Hono();
 const oauthRegistrationRateLimit = rateLimit({
@@ -39,8 +40,41 @@ function htmlEscape(value: string): string {
     .replace(/'/g, '&#39;');
 }
 
-function oauthError(error: string, description: string, status = 400) {
-  return Response.json({ error, error_description: description }, { status });
+function isAllowedOauthCorsOrigin(origin: string): boolean {
+  try {
+    const url = new URL(origin);
+    return url.protocol === 'https:' || (url.protocol === 'http:' && ['localhost', '127.0.0.1', '::1'].includes(url.hostname));
+  } catch {
+    return false;
+  }
+}
+
+function setOauthCorsHeaders(c: any): boolean {
+  const origin = c.req.header('Origin');
+  c.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  c.header('Access-Control-Max-Age', '86400');
+
+  if (!origin) return true;
+  if (!isAllowedOauthCorsOrigin(origin)) return false;
+
+  c.header('Access-Control-Allow-Origin', origin);
+  c.header('Vary', 'Origin');
+  return true;
+}
+
+function oauthCors(c: any) {
+  if (!setOauthCorsHeaders(c)) {
+    return c.text('Origin not allowed', 403);
+  }
+  if (c.req.method === 'OPTIONS') {
+    return c.body(null, 204);
+  }
+  return null;
+}
+
+function oauthError(c: any, error: string, description: string, status = 400) {
+  return c.json({ error, error_description: description }, status);
 }
 
 function createApprovalNonce(userId: string, clientId: string): string {
@@ -167,15 +201,20 @@ oauth.get('/.well-known/oauth-protected-resource/api/mcp', (c) => {
 });
 
 oauth.post('/oauth/register', oauthRegistrationRateLimit, async (c) => {
+  const corsResponse = oauthCors(c);
+  if (corsResponse) return corsResponse;
+
   try {
     const body = await c.req.json();
     const result = await oauthService.registerClient(body);
     return c.json(result, 201);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Invalid client metadata';
-    return oauthError('invalid_client_metadata', message);
+    return oauthError(c, 'invalid_client_metadata', message);
   }
 });
+
+oauth.options('/oauth/register', (c) => oauthCors(c) ?? c.body(null, 204));
 
 oauth.get('/oauth/authorize', async (c) => {
   const input = parseAuthorize(c);
@@ -197,7 +236,7 @@ oauth.get('/oauth/authorize', async (c) => {
     }));
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Invalid authorization request';
-    return oauthError('invalid_request', message);
+    return oauthError(c, 'invalid_request', message);
   }
 });
 
@@ -213,13 +252,13 @@ oauth.post('/oauth/authorize/approve', async (c) => {
     const form = await c.req.formData();
     const approvalNonce = String(form.get('approval_nonce') ?? '');
     if (!consumeApprovalNonce(approvalNonce, user.id, input.clientId)) {
-      return oauthError('invalid_request', 'Invalid approval nonce');
+      return oauthError(c, 'invalid_request', 'Invalid approval nonce');
     }
     const redirectUrl = await oauthService.approveAuthorization(input, user.id);
     return c.redirect(redirectUrl);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Invalid authorization request';
-    return oauthError('invalid_request', message);
+    return oauthError(c, 'invalid_request', message);
   }
 });
 
@@ -235,23 +274,37 @@ oauth.post('/oauth/authorize/deny', async (c) => {
     const form = await c.req.formData();
     const approvalNonce = String(form.get('approval_nonce') ?? '');
     if (!consumeApprovalNonce(approvalNonce, user.id, input.clientId)) {
-      return oauthError('invalid_request', 'Invalid approval nonce');
+      return oauthError(c, 'invalid_request', 'Invalid approval nonce');
     }
     const redirectUrl = await oauthService.denyAuthorization(input);
     return c.redirect(redirectUrl);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Invalid authorization request';
-    return oauthError('invalid_request', message);
+    return oauthError(c, 'invalid_request', message);
   }
 });
 
 oauth.post('/oauth/token', async (c) => {
+  const corsResponse = oauthCors(c);
+  if (corsResponse) return corsResponse;
+
+  let tokenLogContext: Record<string, unknown> = { grantType: 'unavailable' };
   try {
     const basic = parseBasicAuth(c.req.header('Authorization'));
     const body = await parseTokenBody(c);
     const clientId = basic?.clientId ?? String(body.client_id ?? '');
     const clientSecret = basic?.clientSecret ?? (body.client_secret ? String(body.client_secret) : null);
     const grantType = String(body.grant_type ?? '');
+    tokenLogContext = {
+      grantType,
+      clientId: clientId || null,
+      hasCode: !!body.code,
+      hasCodeVerifier: !!body.code_verifier,
+      hasRedirectUri: !!body.redirect_uri,
+      hasResource: !!body.resource,
+      hasRefreshToken: !!body.refresh_token,
+      authMethod: basic ? 'client_secret_basic' : (body.client_secret ? 'client_secret_post' : 'none'),
+    };
     const input = {
       grantType,
       code: String(body.code ?? ''),
@@ -260,6 +313,7 @@ oauth.post('/oauth/token', async (c) => {
       clientSecret,
       codeVerifier: String(body.code_verifier ?? ''),
       refreshToken: String(body.refresh_token ?? ''),
+      resource: body.resource ? String(body.resource) : undefined,
     };
     const result = grantType === 'refresh_token' ? await oauthService.refreshAccessToken(input) : await oauthService.exchangeAuthorizationCode({
       grantType: String(body.grant_type ?? ''),
@@ -268,17 +322,27 @@ oauth.post('/oauth/token', async (c) => {
       clientId,
       clientSecret,
       codeVerifier: String(body.code_verifier ?? ''),
+      resource: body.resource ? String(body.resource) : undefined,
     });
     c.header('Cache-Control', 'no-store');
     c.header('Pragma', 'no-cache');
     return c.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Invalid token request';
-    return oauthError('invalid_grant', message);
+    log('warn', 'oauth.token_failed', {
+      error: message,
+      ...tokenLogContext,
+    });
+    return oauthError(c, 'invalid_grant', message);
   }
 });
 
+oauth.options('/oauth/token', (c) => oauthCors(c) ?? c.body(null, 204));
+
 oauth.post('/oauth/revoke', async (c) => {
+  const corsResponse = oauthCors(c);
+  if (corsResponse) return corsResponse;
+
   try {
     const basic = parseBasicAuth(c.req.header('Authorization'));
     const body = await parseTokenBody(c);
@@ -294,8 +358,10 @@ oauth.post('/oauth/revoke', async (c) => {
     return c.json({ revoked: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Invalid revocation request';
-    return oauthError(message === 'Invalid client' ? 'invalid_client' : 'invalid_request', message, message === 'Invalid client' ? 401 : 400);
+    return oauthError(c, message === 'Invalid client' ? 'invalid_client' : 'invalid_request', message, message === 'Invalid client' ? 401 : 400);
   }
 });
+
+oauth.options('/oauth/revoke', (c) => oauthCors(c) ?? c.body(null, 204));
 
 export { oauth };
