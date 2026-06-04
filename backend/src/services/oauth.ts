@@ -1,6 +1,14 @@
 import { oauthRepository } from '../repositories/oauth';
 import { VALID_MCP_SCOPES, type McpScope, type AuthenticatedMcpUser } from './mcpToken';
-import { generateOauthToken, hashOauthToken, verifyPkceS256 } from '../utils/oauth';
+import {
+  fingerprintOauthToken,
+  generateOauthAccessToken,
+  generateOauthAuthorizationCode,
+  generateOauthClientId,
+  generateOauthClientSecret,
+  generateOauthRefreshToken,
+  verifyPkceS256,
+} from '../utils/oauth';
 import { hashPassword, verifyPassword } from '../utils/password';
 
 const AUTH_CODE_TTL_MS = 5 * 60 * 1000;
@@ -140,8 +148,8 @@ export class OauthService {
       throw new Error('Unsupported token_endpoint_auth_method');
     }
 
-    const clientId = generateOauthToken('tue_oauth_client', 24);
-    const clientSecret = authMethod === 'none' ? null : generateOauthToken('tue_oauth_secret', 32);
+    const clientId = generateOauthClientId();
+    const clientSecret = authMethod === 'none' ? null : generateOauthClientSecret();
     const client = await oauthRepository.createClient({
       clientId,
       clientSecretHash: clientSecret ? await hashPassword(clientSecret) : null,
@@ -199,9 +207,9 @@ export class OauthService {
       scopes: details.scopes as any,
     });
 
-    const rawCode = generateOauthToken('tue_oauth_code', 32);
+    const rawCode = generateOauthAuthorizationCode();
     await oauthRepository.createAuthorizationCode({
-      codeHash: hashOauthToken(rawCode),
+      codeHash: fingerprintOauthToken(rawCode),
       clientId: input.clientId,
       userId,
       redirectUri: input.redirectUri,
@@ -225,7 +233,7 @@ export class OauthService {
 
     await this.validateClientCredentials(input.clientId, input.clientSecret);
 
-    const code = await oauthRepository.findActiveAuthorizationCode(hashOauthToken(input.code ?? ''));
+    const code = await oauthRepository.findActiveAuthorizationCode(fingerprintOauthToken(input.code ?? ''));
     if (!code) throw new Error('Invalid or expired authorization code');
     if (code.clientId !== input.clientId || code.redirectUri !== input.redirectUri) {
       throw new Error('Invalid authorization code');
@@ -237,12 +245,12 @@ export class OauthService {
     const consumed = await oauthRepository.markAuthorizationCodeUsed(code.id);
     if (!consumed) throw new Error('Invalid or expired authorization code');
 
-    const rawAccessToken = generateOauthToken('tue_oauth_access', 32);
-    const rawRefreshToken = generateOauthToken('tue_oauth_refresh', 32);
+    const rawAccessToken = generateOauthAccessToken();
+    const rawRefreshToken = generateOauthRefreshToken();
     const accessExpiresAt = new Date(Date.now() + ACCESS_TOKEN_TTL_SECONDS * 1000);
 
     await oauthRepository.createAccessToken({
-      tokenHash: hashOauthToken(rawAccessToken),
+      tokenHash: fingerprintOauthToken(rawAccessToken),
       clientId: code.clientId,
       userId: code.userId,
       scopes: code.scopes,
@@ -251,7 +259,7 @@ export class OauthService {
     });
 
     await oauthRepository.createRefreshToken({
-      tokenHash: hashOauthToken(rawRefreshToken),
+      tokenHash: fingerprintOauthToken(rawRefreshToken),
       clientId: code.clientId,
       userId: code.userId,
       scopes: code.scopes,
@@ -275,7 +283,7 @@ export class OauthService {
 
     await this.validateClientCredentials(input.clientId, input.clientSecret);
 
-    const refreshToken = await oauthRepository.findActiveRefreshToken(hashOauthToken(input.refreshToken ?? ''));
+    const refreshToken = await oauthRepository.findActiveRefreshToken(fingerprintOauthToken(input.refreshToken ?? ''));
     if (!refreshToken || refreshToken.clientId !== input.clientId || refreshToken.user?.isDisabled) {
       throw new Error('Invalid refresh token');
     }
@@ -283,11 +291,11 @@ export class OauthService {
     const revoked = await oauthRepository.revokeRefreshToken(refreshToken.id);
     if (!revoked) throw new Error('Invalid refresh token');
 
-    const rawAccessToken = generateOauthToken('tue_oauth_access', 32);
-    const rawRefreshToken = generateOauthToken('tue_oauth_refresh', 32);
+    const rawAccessToken = generateOauthAccessToken();
+    const rawRefreshToken = generateOauthRefreshToken();
 
     await oauthRepository.createAccessToken({
-      tokenHash: hashOauthToken(rawAccessToken),
+      tokenHash: fingerprintOauthToken(rawAccessToken),
       clientId: refreshToken.clientId,
       userId: refreshToken.userId,
       scopes: refreshToken.scopes,
@@ -296,7 +304,7 @@ export class OauthService {
     });
 
     await oauthRepository.createRefreshToken({
-      tokenHash: hashOauthToken(rawRefreshToken),
+      tokenHash: fingerprintOauthToken(rawRefreshToken),
       clientId: refreshToken.clientId,
       userId: refreshToken.userId,
       scopes: refreshToken.scopes,
@@ -315,7 +323,7 @@ export class OauthService {
   }
 
   async authenticateAccessToken(rawToken: string): Promise<AuthenticatedMcpUser | null> {
-    const token = await oauthRepository.findActiveAccessToken(hashOauthToken(rawToken));
+    const token = await oauthRepository.findActiveAccessToken(fingerprintOauthToken(rawToken));
     if (!token || !token.user || token.user.isDisabled) return null;
 
     oauthRepository.markAccessTokenUsed(token.id).catch(() => {});
@@ -339,7 +347,7 @@ export class OauthService {
 
     await this.validateClientCredentials(input.clientId, input.clientSecret);
 
-    const tokenHash = hashOauthToken(input.token);
+    const tokenHash = fingerprintOauthToken(input.token);
     if (input.tokenTypeHint === 'access_token') {
       await oauthRepository.revokeAccessTokenByHash(tokenHash, input.clientId);
       return;
