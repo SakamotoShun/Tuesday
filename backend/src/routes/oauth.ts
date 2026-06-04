@@ -1,9 +1,17 @@
 import { Hono } from 'hono';
 import { config } from '../config';
+import { rateLimit } from '../middleware';
 import { authService, oauthService } from '../services';
 import type { User } from '../types';
 
 const oauth = new Hono();
+const oauthRegistrationRateLimit = rateLimit({
+  name: 'oauth-registration',
+  windowMs: 60 * 1000,
+  maxRequests: 10,
+  requireIp: true,
+  missingIpMessage: 'Unable to determine client IP for OAuth registration request',
+});
 
 function publicBaseUrl(requestUrl: string): string {
   return config.publicBaseUrl ?? new URL(requestUrl).origin;
@@ -131,7 +139,7 @@ oauth.get('/.well-known/oauth-protected-resource/api/mcp', (c) => {
   return c.json(oauthService.getProtectedResourceMetadata(publicBaseUrl(c.req.url)));
 });
 
-oauth.post('/oauth/register', async (c) => {
+oauth.post('/oauth/register', oauthRegistrationRateLimit, async (c) => {
   try {
     const body = await c.req.json();
     const result = await oauthService.registerClient(body);
@@ -214,8 +222,24 @@ oauth.post('/oauth/token', async (c) => {
   }
 });
 
-oauth.post('/oauth/revoke', (c) => {
-  return c.body(null, 200);
+oauth.post('/oauth/revoke', async (c) => {
+  try {
+    const basic = parseBasicAuth(c.req.header('Authorization'));
+    const body = await parseTokenBody(c);
+    const clientId = basic?.clientId ?? String(body.client_id ?? '');
+    const clientSecret = basic?.clientSecret ?? (body.client_secret ? String(body.client_secret) : null);
+
+    await oauthService.revokeToken({
+      token: String(body.token ?? ''),
+      tokenTypeHint: body.token_type_hint ? String(body.token_type_hint) : undefined,
+      clientId,
+      clientSecret,
+    });
+    return c.body(null, 200);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Invalid revocation request';
+    return oauthError(message === 'Invalid client' ? 'invalid_client' : 'invalid_request', message);
+  }
 });
 
 export { oauth };

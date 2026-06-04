@@ -109,6 +109,15 @@ export class OauthRepository {
     return result.length > 0;
   }
 
+  async revokeRefreshTokenByHash(tokenHash: string, clientId: string): Promise<boolean> {
+    const result = await db
+      .update(oauthRefreshTokens)
+      .set({ revokedAt: new Date() })
+      .where(and(eq(oauthRefreshTokens.tokenHash, tokenHash), eq(oauthRefreshTokens.clientId, clientId), isNull(oauthRefreshTokens.revokedAt)))
+      .returning({ id: oauthRefreshTokens.id });
+    return result.length > 0;
+  }
+
   async findActiveAccessToken(tokenHash: string): Promise<(OauthAccessToken & {
     user?: { id: string; name: string; email: string; role: string; isDisabled: boolean } | null;
   }) | null> {
@@ -129,6 +138,15 @@ export class OauthRepository {
 
   async markAccessTokenUsed(id: string): Promise<void> {
     await db.update(oauthAccessTokens).set({ lastUsedAt: new Date() }).where(eq(oauthAccessTokens.id, id));
+  }
+
+  async revokeAccessTokenByHash(tokenHash: string, clientId: string): Promise<boolean> {
+    const result = await db
+      .update(oauthAccessTokens)
+      .set({ revokedAt: new Date() })
+      .where(and(eq(oauthAccessTokens.tokenHash, tokenHash), eq(oauthAccessTokens.clientId, clientId), isNull(oauthAccessTokens.revokedAt)))
+      .returning({ id: oauthAccessTokens.id });
+    return result.length > 0;
   }
 }
 

@@ -1,6 +1,7 @@
 import { oauthRepository } from '../repositories/oauth';
 import { VALID_MCP_SCOPES, type McpScope, type AuthenticatedMcpUser } from './mcpToken';
-import { generateOauthToken, hashOauthToken, timingSafeStringEqual, verifyPkceS256 } from '../utils/oauth';
+import { generateOauthToken, hashOauthToken, verifyPkceS256 } from '../utils/oauth';
+import { hashPassword, verifyPassword } from '../utils/password';
 
 const AUTH_CODE_TTL_MS = 5 * 60 * 1000;
 const ACCESS_TOKEN_TTL_SECONDS = 60 * 60;
@@ -40,6 +41,13 @@ interface TokenInput {
   refreshToken?: string;
 }
 
+interface RevokeTokenInput {
+  token: string;
+  tokenTypeHint?: string;
+  clientId: string;
+  clientSecret?: string | null;
+}
+
 function parseScopes(scope?: string | null): string[] {
   if (!scope?.trim()) return [...DEFAULT_SCOPES];
   return Array.from(new Set(scope.split(/\s+/).map((s) => s.trim()).filter(Boolean)));
@@ -69,6 +77,20 @@ function getIssuer(publicBaseUrl: string): string {
 }
 
 export class OauthService {
+  private async validateClientCredentials(clientId: string, clientSecret?: string | null) {
+    const client = await oauthRepository.findClient(clientId);
+    if (!client) throw new Error('Invalid client');
+
+    if (client.clientSecretHash) {
+      const validSecret = await verifyPassword(clientSecret ?? '', client.clientSecretHash);
+      if (!validSecret) {
+        throw new Error('Invalid client');
+      }
+    }
+
+    return client;
+  }
+
   getAuthorizationServerMetadata(publicBaseUrl: string) {
     const issuer = getIssuer(publicBaseUrl);
     return {
@@ -122,7 +144,7 @@ export class OauthService {
     const clientSecret = authMethod === 'none' ? null : generateOauthToken('tue_oauth_secret', 32);
     const client = await oauthRepository.createClient({
       clientId,
-      clientSecretHash: clientSecret ? hashOauthToken(clientSecret) : null,
+      clientSecretHash: clientSecret ? await hashPassword(clientSecret) : null,
       clientName: input.client_name?.trim() || 'MCP Client',
       redirectUris: redirectUris as any,
       grantTypes: grantTypes as any,
@@ -201,15 +223,7 @@ export class OauthService {
       throw new Error('Unsupported grant_type');
     }
 
-    const client = await oauthRepository.findClient(input.clientId);
-    if (!client) throw new Error('Invalid client');
-
-    if (client.clientSecretHash) {
-      const secretHash = hashOauthToken(input.clientSecret ?? '');
-      if (!timingSafeStringEqual(secretHash, client.clientSecretHash)) {
-        throw new Error('Invalid client');
-      }
-    }
+    await this.validateClientCredentials(input.clientId, input.clientSecret);
 
     const code = await oauthRepository.findActiveAuthorizationCode(hashOauthToken(input.code ?? ''));
     if (!code) throw new Error('Invalid or expired authorization code');
@@ -259,15 +273,7 @@ export class OauthService {
       throw new Error('Unsupported grant_type');
     }
 
-    const client = await oauthRepository.findClient(input.clientId);
-    if (!client) throw new Error('Invalid client');
-
-    if (client.clientSecretHash) {
-      const secretHash = hashOauthToken(input.clientSecret ?? '');
-      if (!timingSafeStringEqual(secretHash, client.clientSecretHash)) {
-        throw new Error('Invalid client');
-      }
-    }
+    await this.validateClientCredentials(input.clientId, input.clientSecret);
 
     const refreshToken = await oauthRepository.findActiveRefreshToken(hashOauthToken(input.refreshToken ?? ''));
     if (!refreshToken || refreshToken.clientId !== input.clientId || refreshToken.user?.isDisabled) {
@@ -324,6 +330,29 @@ export class OauthService {
       authType: 'oauth',
       clientId: token.clientId,
     };
+  }
+
+  async revokeToken(input: RevokeTokenInput): Promise<void> {
+    if (!input.token) {
+      throw new Error('token is required');
+    }
+
+    await this.validateClientCredentials(input.clientId, input.clientSecret);
+
+    const tokenHash = hashOauthToken(input.token);
+    if (input.tokenTypeHint === 'access_token') {
+      await oauthRepository.revokeAccessTokenByHash(tokenHash, input.clientId);
+      return;
+    }
+    if (input.tokenTypeHint === 'refresh_token') {
+      await oauthRepository.revokeRefreshTokenByHash(tokenHash, input.clientId);
+      return;
+    }
+
+    const accessRevoked = await oauthRepository.revokeAccessTokenByHash(tokenHash, input.clientId);
+    if (!accessRevoked) {
+      await oauthRepository.revokeRefreshTokenByHash(tokenHash, input.clientId);
+    }
   }
 }
 

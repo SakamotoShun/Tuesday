@@ -56,6 +56,10 @@ export function LoginPage() {
     try {
       setError(null)
       await login.mutateAsync(data)
+      if (from.startsWith("/oauth/")) {
+        window.location.assign(from)
+        return
+      }
       navigate(from, { replace: true })
     } catch (err) {
       if (err instanceof ApiErrorResponse) {

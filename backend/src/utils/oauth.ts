@@ -1,4 +1,5 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { config } from '../config';
 
 const BASE64URL_CHARACTERS = /[^A-Za-z0-9_-]/g;
 
@@ -11,7 +12,7 @@ export function generateOauthToken(prefix: string, bytes = 32): string {
 }
 
 export function hashOauthToken(rawToken: string): string {
-  return createHash('sha256').update(rawToken).digest('hex');
+  return createHmac('sha256', config.sessionSecret).update(rawToken).digest('hex');
 }
 
 export function pkceS256Challenge(verifier: string): string {
@@ -26,11 +27,4 @@ export function verifyPkceS256(verifier: string, expectedChallenge: string): boo
   const expectedBuffer = Buffer.from(expectedChallenge);
   if (actualBuffer.length !== expectedBuffer.length) return false;
   return timingSafeEqual(actualBuffer, expectedBuffer);
-}
-
-export function timingSafeStringEqual(left: string, right: string): boolean {
-  const leftBuffer = Buffer.from(left);
-  const rightBuffer = Buffer.from(right);
-  if (leftBuffer.length !== rightBuffer.length) return false;
-  return timingSafeEqual(leftBuffer, rightBuffer);
 }
