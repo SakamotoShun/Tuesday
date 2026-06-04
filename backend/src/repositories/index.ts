@@ -41,3 +41,4 @@ export { docShareRepository, DocShareRepository, type DocShareWithUser } from '.
 export { sharedLinkRepository, SharedLinkRepository } from './sharedLink';
 export { policyRepository, PolicyRepository } from './policy';
 export { mcpTokenRepository, McpTokenRepository } from './mcpToken';
+export { oauthRepository, OauthRepository } from './oauth';

@@ -5,9 +5,38 @@ Tuesday exposes a remote MCP endpoint that can be connected to compatible AI cli
 ## Endpoint
 
 - URL: `https://tuesday.ultreonai.com/api/mcp`
-- Auth: `Authorization: Bearer <your-token>`
+- Manual auth: `Authorization: Bearer <your-token>`
+- OAuth auth: OAuth 2.1 authorization code with PKCE
 
 Do not commit bearer tokens to the repository. Prefer environment variables or client-specific secret storage.
+
+## OAuth connectors
+
+Tuesday publishes OAuth discovery metadata for web-based MCP clients:
+
+- Protected resource metadata: `https://tuesday.ultreonai.com/.well-known/oauth-protected-resource`
+- Path-specific protected resource metadata: `https://tuesday.ultreonai.com/.well-known/oauth-protected-resource/api/mcp`
+- Authorization server metadata: `https://tuesday.ultreonai.com/.well-known/oauth-authorization-server`
+- Authorization endpoint: `https://tuesday.ultreonai.com/oauth/authorize`
+- Token endpoint: `https://tuesday.ultreonai.com/oauth/token`
+- Dynamic client registration: `https://tuesday.ultreonai.com/oauth/register`
+
+Use OAuth for clients such as `claude.ai` web connectors that require an interactive sign-in flow. OAuth clients should request only the scopes they need.
+
+Available scopes:
+
+- `projects:read`
+- `tasks:read`
+- `tasks:write`
+- `docs:read`
+- `docs:write`
+- `meetings:read`
+- `meetings:write`
+- `time:read`
+- `time:write`
+- `search:read`
+
+When prompted for a connector URL, use the MCP endpoint URL: `https://tuesday.ultreonai.com/api/mcp`. Compatible clients should discover the OAuth endpoints automatically.
 
 ## Get a token
 

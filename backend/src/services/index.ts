@@ -17,3 +17,4 @@ export { noticeBoardService, NoticeBoardService } from './noticeBoard';
 export { hiringService, HiringService } from './hiring';
 export { policyService, PolicyService } from './policy';
 export { mcpTokenService, McpTokenService, type McpScope, type AuthenticatedMcpUser } from './mcpToken';
+export { oauthService, OauthService } from './oauth';

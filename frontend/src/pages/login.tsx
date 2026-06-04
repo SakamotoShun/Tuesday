@@ -29,7 +29,8 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null)
 
   const locationState = location.state as { from?: { pathname?: string }; registered?: boolean; passwordReset?: boolean } | null
-  const from = locationState?.from?.pathname || "/"
+  const redirect = new URLSearchParams(location.search).get("redirect")
+  const from = redirect && /^\/(?!\/)/.test(redirect) ? redirect : locationState?.from?.pathname || "/"
   const showRegisteredMessage = Boolean(locationState?.registered)
   const showPasswordResetMessage = Boolean(locationState?.passwordReset)
 
@@ -55,6 +56,10 @@ export function LoginPage() {
     try {
       setError(null)
       await login.mutateAsync(data)
+      if (from.startsWith("/oauth/")) {
+        window.location.assign(from)
+        return
+      }
       navigate(from, { replace: true })
     } catch (err) {
       if (err instanceof ApiErrorResponse) {

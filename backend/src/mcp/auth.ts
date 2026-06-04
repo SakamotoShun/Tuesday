@@ -1,4 +1,5 @@
 import { mcpTokenService, type AuthenticatedMcpUser } from '../services/mcpToken';
+import { oauthService } from '../services/oauth';
 import { userRepository } from '../repositories/user';
 import type { User } from '../types';
 
@@ -30,10 +31,11 @@ export async function authenticateMcpRequest(
   if (!rawToken) return null;
 
   const result = await mcpTokenService.authenticateToken(rawToken);
-  if (!result) return null;
+  const authResult = result ?? await oauthService.authenticateAccessToken(rawToken);
+  if (!authResult) return null;
 
-  const user = await userRepository.findById(result.userId);
+  const user = await userRepository.findById(authResult.userId);
   if (!user || user.isDisabled) return null;
 
-  return { user: user as User, token: result };
+  return { user: user as User, token: authResult };
 }
