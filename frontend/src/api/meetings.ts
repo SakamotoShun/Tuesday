@@ -3,6 +3,8 @@ import type {
   Meeting,
   CreateMeetingInput,
   UpdateMeetingInput,
+  MeetingVideoSettings,
+  MeetingJoinInfo,
   MeetingAttendee,
   User,
   Project,
@@ -42,9 +44,17 @@ export const meetingsApi = {
     return normalizeMeetings(meetings)
   },
 
+  videoSettings: (): Promise<MeetingVideoSettings> => {
+    return api.get<MeetingVideoSettings>("/meetings/video-settings")
+  },
+
   get: async (meetingId: string): Promise<Meeting> => {
     const meeting = await api.get<BackendMeeting>(`/meetings/${meetingId}`)
     return normalizeMeeting(meeting)
+  },
+
+  join: (meetingId: string): Promise<MeetingJoinInfo> => {
+    return api.get<MeetingJoinInfo>(`/meetings/${meetingId}/join`)
   },
 
   create: async (projectId: string, input: CreateMeetingInput): Promise<Meeting> => {

@@ -49,6 +49,12 @@ const updateSettingsSchema = z.object({
   siteUrl: z.union([z.string().url('Invalid site URL').max(2000), z.literal('')]).optional(),
   openaiApiKey: z.union([z.string().max(500), z.literal('')]).optional(),
   openrouterApiKey: z.union([z.string().max(500), z.literal('')]).optional(),
+  jaasEnabled: z.boolean().optional(),
+  jaasAppId: z.union([z.string().max(255), z.literal('')]).optional(),
+  jaasDomain: z.union([z.string().max(255), z.literal('')]).optional(),
+  jaasDefaultProvider: z.boolean().optional(),
+  jaasKeyId: z.union([z.string().max(255), z.literal('')]).optional(),
+  jaasPrivateKey: z.union([z.string().max(10000), z.literal('')]).optional(),
   smtpHost: z.union([z.string().max(255), z.literal('')]).optional(),
   smtpPort: z.number().int().min(1).max(65535).optional(),
   smtpUser: z.union([z.string().max(255), z.literal('')]).optional(),
@@ -92,6 +98,10 @@ function maskSecret(value: string | null | undefined): string {
   }
 
   return '********';
+}
+
+function normalizeJaasDomain(domain: string): string {
+  return domain.trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
 }
 
 const createUserSchema = z.object({
@@ -184,6 +194,12 @@ admin.get('/settings', async (c) => {
     const siteUrl = await settingsRepository.get<string>('site_url');
     const openaiApiKey = await settingsRepository.get<string>('openai_api_key');
     const openrouterApiKey = await settingsRepository.get<string>('openrouter_api_key');
+    const jaasEnabled = await settingsRepository.get<boolean>('jaas_enabled');
+    const jaasAppId = await settingsRepository.get<string>('jaas_app_id');
+    const jaasDomain = await settingsRepository.get<string>('jaas_domain');
+    const jaasDefaultProvider = await settingsRepository.get<boolean>('jaas_default_provider');
+    const jaasKeyId = await settingsRepository.get<string>('jaas_key_id');
+    const jaasPrivateKey = await settingsRepository.get<string>('jaas_private_key');
     const smtpHost = await settingsRepository.get<string>('smtp_host');
     const smtpPort = await settingsRepository.get<number>('smtp_port');
     const smtpUser = await settingsRepository.get<string>('smtp_user');
@@ -197,6 +213,12 @@ admin.get('/settings', async (c) => {
       siteUrl: siteUrl ?? '',
       openaiApiKey: maskApiKey(openaiApiKey),
       openrouterApiKey: maskApiKey(openrouterApiKey),
+      jaasEnabled: jaasEnabled ?? false,
+      jaasAppId: jaasAppId ?? '',
+      jaasDomain: jaasDomain ?? '8x8.vc',
+      jaasDefaultProvider: jaasDefaultProvider ?? true,
+      jaasKeyId: jaasKeyId ?? '',
+      jaasPrivateKey: maskSecret(jaasPrivateKey),
       smtpHost: smtpHost ?? '',
       smtpPort: smtpPort ?? 587,
       smtpUser: smtpUser ?? '',
@@ -283,6 +305,50 @@ admin.patch('/settings', async (c) => {
       openRouterModelsCache = null;
     }
 
+    if (validation.data.jaasEnabled !== undefined) {
+      await settingsRepository.set('jaas_enabled', validation.data.jaasEnabled);
+    }
+
+    if (validation.data.jaasAppId !== undefined) {
+      const trimmedAppId = validation.data.jaasAppId.trim();
+      if (trimmedAppId.length === 0) {
+        await settingsRepository.delete('jaas_app_id');
+      } else {
+        await settingsRepository.set('jaas_app_id', trimmedAppId);
+      }
+    }
+
+    if (validation.data.jaasDomain !== undefined) {
+      const normalizedDomain = normalizeJaasDomain(validation.data.jaasDomain);
+      if (normalizedDomain.length === 0) {
+        await settingsRepository.delete('jaas_domain');
+      } else {
+        await settingsRepository.set('jaas_domain', normalizedDomain);
+      }
+    }
+
+    if (validation.data.jaasDefaultProvider !== undefined) {
+      await settingsRepository.set('jaas_default_provider', validation.data.jaasDefaultProvider);
+    }
+
+    if (validation.data.jaasKeyId !== undefined) {
+      const trimmedKeyId = validation.data.jaasKeyId.trim();
+      if (trimmedKeyId.length === 0) {
+        await settingsRepository.delete('jaas_key_id');
+      } else {
+        await settingsRepository.set('jaas_key_id', trimmedKeyId);
+      }
+    }
+
+    if (validation.data.jaasPrivateKey !== undefined) {
+      const trimmedPrivateKey = validation.data.jaasPrivateKey.trim();
+      if (trimmedPrivateKey.length === 0) {
+        await settingsRepository.delete('jaas_private_key');
+      } else {
+        await settingsRepository.set('jaas_private_key', trimmedPrivateKey);
+      }
+    }
+
     if (validation.data.smtpHost !== undefined) {
       const trimmedHost = validation.data.smtpHost.trim();
       if (trimmedHost.length === 0) {
@@ -333,6 +399,12 @@ admin.patch('/settings', async (c) => {
     const updatedSiteUrl = await settingsRepository.get<string>('site_url');
     const updatedOpenaiApiKey = await settingsRepository.get<string>('openai_api_key');
     const updatedOpenrouterApiKey = await settingsRepository.get<string>('openrouter_api_key');
+    const updatedJaasEnabled = await settingsRepository.get<boolean>('jaas_enabled');
+    const updatedJaasAppId = await settingsRepository.get<string>('jaas_app_id');
+    const updatedJaasDomain = await settingsRepository.get<string>('jaas_domain');
+    const updatedJaasDefaultProvider = await settingsRepository.get<boolean>('jaas_default_provider');
+    const updatedJaasKeyId = await settingsRepository.get<string>('jaas_key_id');
+    const updatedJaasPrivateKey = await settingsRepository.get<string>('jaas_private_key');
     const updatedSmtpHost = await settingsRepository.get<string>('smtp_host');
     const updatedSmtpPort = await settingsRepository.get<number>('smtp_port');
     const updatedSmtpUser = await settingsRepository.get<string>('smtp_user');
@@ -346,6 +418,12 @@ admin.patch('/settings', async (c) => {
       siteUrl: updatedSiteUrl ?? '',
       openaiApiKey: maskApiKey(updatedOpenaiApiKey),
       openrouterApiKey: maskApiKey(updatedOpenrouterApiKey),
+      jaasEnabled: updatedJaasEnabled ?? false,
+      jaasAppId: updatedJaasAppId ?? '',
+      jaasDomain: updatedJaasDomain ?? '8x8.vc',
+      jaasDefaultProvider: updatedJaasDefaultProvider ?? true,
+      jaasKeyId: updatedJaasKeyId ?? '',
+      jaasPrivateKey: maskSecret(updatedJaasPrivateKey),
       smtpHost: updatedSmtpHost ?? '',
       smtpPort: updatedSmtpPort ?? 587,
       smtpUser: updatedSmtpUser ?? '',

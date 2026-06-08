@@ -4,14 +4,14 @@ import { MeetingDialog } from "@/components/calendar/meeting-dialog"
 import { MeetingDetail } from "@/components/calendar/meeting-detail"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useMeetings } from "@/hooks/use-meetings"
+import { useMeetingVideoSettings, useMeetings } from "@/hooks/use-meetings"
 import { useWorkspaceUsers } from "@/hooks/use-project-members"
 import { useTeams } from "@/hooks/use-teams"
-import { useAuth } from "@/hooks/use-auth"
 import type { Meeting, CreateMeetingInput, UpdateMeetingInput } from "@/api/types"
 
 interface ProjectSchedulePageProps {
   projectId: string
+  canScheduleMeetings: boolean
 }
 
 const withHourOffset = (date: Date, hours: number) => {
@@ -20,12 +20,11 @@ const withHourOffset = (date: Date, hours: number) => {
   return next
 }
 
-export function ProjectSchedulePage({ projectId }: ProjectSchedulePageProps) {
-  const { user } = useAuth()
+export function ProjectSchedulePage({ projectId, canScheduleMeetings }: ProjectSchedulePageProps) {
   const { meetings, isLoading, createMeeting, updateMeeting, deleteMeeting } = useMeetings(projectId)
+  const { data: videoSettings, isLoading: isVideoSettingsLoading } = useMeetingVideoSettings()
   const { data: users = [], isLoading: isUsersLoading } = useWorkspaceUsers()
   const { teams, isLoading: isTeamsLoading } = useTeams()
-  const isFreelancer = user?.role === "freelancer"
 
   const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -54,7 +53,7 @@ export function ProjectSchedulePage({ projectId }: ProjectSchedulePageProps) {
     setSelectedMeeting(meeting)
   }
 
-  if (isLoading || isUsersLoading || isTeamsLoading) {
+  if (isLoading || isUsersLoading || isTeamsLoading || isVideoSettingsLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-12 w-full" />
@@ -70,20 +69,20 @@ export function ProjectSchedulePage({ projectId }: ProjectSchedulePageProps) {
           <h2 className="text-lg font-semibold">Project Schedule</h2>
           <p className="text-sm text-muted-foreground">Plan meetings with your team.</p>
         </div>
-        {!isFreelancer && <Button onClick={() => openCreateDialog()}>Schedule Meeting</Button>}
+        {canScheduleMeetings && <Button onClick={() => openCreateDialog()}>Schedule Meeting</Button>}
       </div>
 
       <CalendarView
         meetings={meetings}
         onSelectDate={(date, allDay) => {
-          if (isFreelancer) return
+          if (!canScheduleMeetings) return
           openCreateDialog(date, allDay)
         }}
         onSelectMeeting={handleSelectMeeting}
       />
 
       {selectedMeeting ? (
-        <MeetingDetail meeting={selectedMeeting} onEdit={isFreelancer ? undefined : () => setDialogOpen(true)} />
+        <MeetingDetail meeting={selectedMeeting} onEdit={canScheduleMeetings ? () => setDialogOpen(true) : undefined} />
       ) : null}
 
       <MeetingDialog
@@ -94,6 +93,7 @@ export function ProjectSchedulePage({ projectId }: ProjectSchedulePageProps) {
         initialEndTime={draftEnd}
         members={users}
         teams={teams}
+        videoSettings={videoSettings}
         isSubmitting={createMeeting.isPending || updateMeeting.isPending || deleteMeeting.isPending}
         onDelete={
           selectedMeeting
