@@ -23,10 +23,14 @@ const specialMentions = [
   { key: "everyone", label: "@everyone", description: "Notify everyone in the workspace" },
 ]
 
-const createTempId = () =>
-  typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `${Date.now()}_${Math.random().toString(16).slice(2)}`
+let tempIdCounter = 0
+
+const createTempId = () => {
+  const cryptoApi = typeof globalThis.crypto === "undefined" ? undefined : globalThis.crypto
+  if (cryptoApi?.randomUUID) return cryptoApi.randomUUID()
+  if (cryptoApi?.getRandomValues) return `${Date.now()}_${cryptoApi.getRandomValues(new Uint32Array(2)).join("")}`
+  return `${Date.now()}_${(tempIdCounter += 1)}`
+}
 
 interface PendingUpload {
   tempId: string

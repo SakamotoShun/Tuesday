@@ -22,10 +22,14 @@ interface SchemaEditorProps {
   trigger?: React.ReactNode
 }
 
-const createColumnId = () =>
-  typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `col_${Date.now()}_${Math.random().toString(16).slice(2)}`
+let columnIdCounter = 0
+
+const createColumnId = () => {
+  const cryptoApi = typeof globalThis.crypto === "undefined" ? undefined : globalThis.crypto
+  if (cryptoApi?.randomUUID) return cryptoApi.randomUUID()
+  if (cryptoApi?.getRandomValues) return `col_${Date.now()}_${cryptoApi.getRandomValues(new Uint32Array(2)).join("")}`
+  return `col_${Date.now()}_${(columnIdCounter += 1)}`
+}
 
 const createColumn = (): SchemaColumn => ({
   id: createColumnId(),

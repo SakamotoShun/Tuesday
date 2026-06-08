@@ -14,6 +14,7 @@ type PendingOptimisticMessage = {
 }
 
 const PENDING_OPTIMISTIC_TTL_MS = 60_000
+let optimisticIdCounter = 0
 
 const normalizeAttachmentIds = (attachments?: Message["attachments"]) =>
   (attachments ?? [])
@@ -29,10 +30,12 @@ const areAttachmentIdsEqual = (left: string[], right: string[]) => {
   return true
 }
 
-const createOptimisticId = () =>
-  typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? `temp_${crypto.randomUUID()}`
-    : `temp_${Date.now()}_${Math.random().toString(16).slice(2)}`
+const createOptimisticId = () => {
+  const cryptoApi = typeof globalThis.crypto === "undefined" ? undefined : globalThis.crypto
+  if (cryptoApi?.randomUUID) return `temp_${cryptoApi.randomUUID()}`
+  if (cryptoApi?.getRandomValues) return `temp_${Date.now()}_${cryptoApi.getRandomValues(new Uint32Array(2)).join("")}`
+  return `temp_${Date.now()}_${(optimisticIdCounter += 1)}`
+}
 
 const reorderChannelSubset = (channels: Channel[], orderedIds: string[]) => {
   if (orderedIds.length === 0) return channels
