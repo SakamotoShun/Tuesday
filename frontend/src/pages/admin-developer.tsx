@@ -146,10 +146,24 @@ export function AdminDeveloperPage() {
   }
 
   const handleSaveJaas = () => {
-    if (jaasEnabled && !jaasAppId.trim()) {
-      setJaasError("JaaS App ID is required when JaaS is enabled")
-      setJaasMessage(null)
-      return
+    if (jaasEnabled) {
+      if (!jaasAppId.trim()) {
+        setJaasError("JaaS App ID is required when JaaS is enabled")
+        setJaasMessage(null)
+        return
+      }
+
+      if (!jaasKeyId.trim()) {
+        setJaasError("JaaS Key ID is required when JaaS is enabled")
+        setJaasMessage(null)
+        return
+      }
+
+      if (!hasJaasPrivateKey && !jaasPrivateKey.trim()) {
+        setJaasError("JaaS private key is required when JaaS is enabled")
+        setJaasMessage(null)
+        return
+      }
     }
 
     setJaasError(null)

@@ -260,9 +260,24 @@ function DateTimePicker({ id, label, value, onChange, minDate }: DateTimePickerP
   )
 }
 
-const isGeneratedJaasLink = (meeting?: Meeting | null) => {
+type MeetingWithVideoProvider = Meeting & { videoProvider?: "jaas" | "custom" | "none" }
+
+const isGeneratedJaasLink = (meeting?: Meeting | null, videoSettings?: MeetingVideoSettings | null) => {
+  const explicitProvider = (meeting as MeetingWithVideoProvider | null | undefined)?.videoProvider
+  if (explicitProvider === "jaas") return true
+  if (explicitProvider === "custom" || explicitProvider === "none") return false
+
   const link = meeting?.link?.trim()
-  return Boolean(link && link.includes("8x8.vc/"))
+  if (!link || !videoSettings?.domain) return false
+
+  try {
+    const linkUrl = new URL(link)
+    const jaasUrl = new URL(`https://${videoSettings.domain}`)
+    const appId = decodeURIComponent(linkUrl.pathname.split("/").filter(Boolean)[0] ?? "")
+    return linkUrl.host.toLowerCase() === jaasUrl.host.toLowerCase() && (!videoSettings.appId || appId === videoSettings.appId)
+  } catch {
+    return false
+  }
 }
 
 const slugifyRoomTitle = (value: string) => {
@@ -376,14 +391,14 @@ export function MeetingDialog({
     setLink(meeting?.link ?? "")
     setVideoProvider(
       meeting
-        ? isGeneratedJaasLink(meeting) ? "jaas" : meeting.link ? "custom" : "none"
+        ? isGeneratedJaasLink(meeting, videoSettings) ? "jaas" : meeting.link ? "custom" : "none"
         : videoSettings?.enabled && videoSettings.defaultProvider ? "jaas" : "none"
     )
     setNotes(meeting?.notesMd ?? "")
     setAttendeeIds(meeting?.attendees?.map((attendee) => attendee.userId) ?? [])
     setTeamIds([])
     setTeamToAdd(null)
-  }, [open, meeting, defaultStart, defaultEnd, videoSettings?.defaultProvider, videoSettings?.enabled])
+  }, [open, meeting, defaultStart, defaultEnd, videoSettings?.appId, videoSettings?.defaultProvider, videoSettings?.domain, videoSettings?.enabled])
 
   const addTeam = () => {
     if (!teamToAdd || teamIds.includes(teamToAdd)) {

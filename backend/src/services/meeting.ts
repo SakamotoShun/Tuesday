@@ -54,13 +54,6 @@ export class MeetingService {
       throw new Error('Access denied to this meeting');
     }
 
-    if (meeting.projectId) {
-      const isOwner = await projectService.isOwner(meeting.projectId, user);
-      if (!isOwner) {
-        throw new Error('Only project owners can edit project meetings');
-      }
-    }
-
     return meeting;
   }
 
@@ -88,11 +81,11 @@ export class MeetingService {
       throw new Error('Access denied to this meeting');
     }
 
-    if (!meeting.link?.includes('8x8.vc')) {
+    const settings = await getJaasSettings();
+    if (!this.isJaasMeetingLink(meeting.link, settings)) {
       throw new Error('Meeting is not configured for JaaS');
     }
 
-    const settings = await getJaasSettings();
     const moderator = await this.isMeetingModerator(meeting, user);
     return {
       url: await buildJaasJoinUrl(settings, {
@@ -208,6 +201,13 @@ export class MeetingService {
       throw new Error('Access denied to this meeting');
     }
 
+    if (meeting.projectId) {
+      const isOwner = await projectService.isOwner(meeting.projectId, user);
+      if (!isOwner) {
+        throw new Error('Only project owners or admins can modify project meetings');
+      }
+    }
+
     const updateData: Partial<NewMeeting> = {};
 
     if (input.title !== undefined) {
@@ -233,8 +233,11 @@ export class MeetingService {
       } else if (input.link !== undefined) {
         updateData.link = input.link?.trim() || null;
       }
-    } else if (updateData.title !== undefined && meeting.link?.includes('8x8.vc')) {
-      updateData.link = buildJaasMeetingUrl(await getJaasSettings(), meeting.id, updateData.title);
+    } else if (updateData.title !== undefined) {
+      const jaasSettings = await getJaasSettings();
+      if (this.isJaasMeetingLink(meeting.link, jaasSettings)) {
+        updateData.link = buildJaasMeetingUrl(jaasSettings, meeting.id, updateData.title);
+      }
     }
 
     if (input.notesMd !== undefined) {
@@ -426,6 +429,21 @@ export class MeetingService {
 
     if (!settings.domain) {
       throw new Error('JaaS domain is not configured');
+    }
+  }
+
+  private isJaasMeetingLink(link: string | null | undefined, settings: Awaited<ReturnType<typeof getJaasSettings>>): boolean {
+    if (!link || !settings.domain || !settings.appId) {
+      return false;
+    }
+
+    try {
+      const meetingUrl = new URL(link);
+      const jaasUrl = new URL(`https://${settings.domain}`);
+      const appId = decodeURIComponent(meetingUrl.pathname.split('/').filter(Boolean)[0] ?? '');
+      return meetingUrl.protocol === 'https:' && meetingUrl.host.toLowerCase() === jaasUrl.host.toLowerCase() && appId === settings.appId;
+    } catch {
+      return false;
     }
   }
 }
