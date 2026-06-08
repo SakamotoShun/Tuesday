@@ -294,21 +294,16 @@ const slugifyRoomTitle = (value: string) => {
 
 let previewPassphraseCounter = 0
 
-const getSecureRandomValue = () => {
-  const cryptoApi = typeof globalThis.crypto === "undefined" ? undefined : globalThis.crypto
-  if (cryptoApi?.getRandomValues) {
-    return cryptoApi.getRandomValues(new Uint32Array(1))[0] ?? 0
-  }
-
+const getPreviewValue = () => {
   previewPassphraseCounter += 1
   return Date.now() + previewPassphraseCounter
 }
 
 const generatePreviewPassphrase = () => {
   const words = ["cedar", "atlas", "river", "ember", "harbor", "signal", "orbit", "copper"]
-  const first = words[getSecureRandomValue() % words.length] ?? words[0]
-  const second = words[getSecureRandomValue() % words.length] ?? words[1]
-  const suffix = getSecureRandomValue().toString(36).slice(0, 4).padEnd(4, "0")
+  const first = words[getPreviewValue() % words.length] ?? words[0]
+  const second = words[getPreviewValue() % words.length] ?? words[1]
+  const suffix = getPreviewValue().toString(36).slice(-4).padStart(4, "0")
   return `${first}-${second}-${suffix}`
 }
 
