@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 # =============================================================================
 # Tuesday - Production Docker Image
 # Multi-stage build: frontend build -> compiled backend -> all-in-one container
@@ -7,7 +8,8 @@
 FROM oven/bun:1.3.9-slim AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/bun.lock ./
-RUN bun install --frozen-lockfile
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+    bun install --frozen-lockfile
 COPY frontend/ .
 RUN bun run build
 
@@ -15,7 +17,8 @@ RUN bun run build
 FROM oven/bun:1.3.9-slim AS backend-builder
 WORKDIR /app/backend
 COPY backend/package.json backend/bun.lock ./
-RUN bun install --frozen-lockfile
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+    bun install --frozen-lockfile
 COPY backend/ ./
 RUN bun run build
 
