@@ -3,6 +3,7 @@ import { meetingAttendeeRepository } from '../repositories/meetingAttendee';
 import { teamMemberRepository } from '../repositories/teamMember';
 import { projectService } from './project';
 import { activityService } from './activity';
+import { buildJaasJoinUrl, buildJaasMeetingUrl, getJaasSettings } from './jaas';
 import { type Meeting, type NewMeeting } from '../db/schema';
 import type { User } from '../types';
 import { assertNotFreelancer } from '../utils/permissions';
@@ -13,6 +14,7 @@ export interface CreateMeetingInput {
   endTime: string;
   location?: string;
   link?: string;
+  videoProvider?: 'jaas' | 'custom' | 'none';
   notesMd?: string;
   attendeeIds?: string[];
   teamIds?: string[];
@@ -24,6 +26,7 @@ export interface UpdateMeetingInput {
   endTime?: string | null;
   location?: string | null;
   link?: string | null;
+  videoProvider?: 'jaas' | 'custom' | 'none';
   notesMd?: string | null;
   attendeeIds?: string[];
   teamIds?: string[];
@@ -66,13 +69,47 @@ export class MeetingService {
     return meetingRepository.findByAttendee(userId);
   }
 
+  async getJaasJoinUrl(meetingId: string, user: User): Promise<{ url: string }> {
+    const meeting = await meetingRepository.findById(meetingId);
+
+    if (!meeting) {
+      throw new Error('Meeting not found');
+    }
+
+    const hasAccess = await this.hasMeetingAccess(meeting, user);
+    if (!hasAccess) {
+      throw new Error('Access denied to this meeting');
+    }
+
+    const settings = await getJaasSettings();
+    if (!this.isJaasMeetingLink(meeting.link, settings)) {
+      throw new Error('Meeting is not configured for JaaS');
+    }
+
+    const moderator = await this.isMeetingModerator(meeting, user);
+    return {
+      url: await buildJaasJoinUrl(settings, {
+        meetingId: meeting.id,
+        title: meeting.title,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          avatarUrl: user.avatarUrl,
+        },
+        moderator,
+      }),
+    };
+  }
+
+
   async createMeeting(projectId: string | null, input: CreateMeetingInput, user: User): Promise<Meeting> {
     assertNotFreelancer(user, 'Freelancers cannot create meetings');
 
     if (projectId) {
-      const hasAccess = await projectService.hasAccess(projectId, user);
-      if (!hasAccess) {
-        throw new Error('Access denied to this project');
+      const isOwner = await projectService.isOwner(projectId, user);
+      if (!isOwner) {
+        throw new Error('Only project owners can create project meetings');
       }
     }
 
@@ -87,16 +124,33 @@ export class MeetingService {
       throw new Error('Meeting end time must be after start time');
     }
 
+    const videoProvider = await this.resolveCreateVideoProvider(input.videoProvider, input.link);
+    const jaasSettings = videoProvider === 'jaas' ? await getJaasSettings() : null;
+    if (jaasSettings) {
+      this.assertJaasConfigured(jaasSettings);
+    }
+
+    let link: string | null = null;
+    if (videoProvider === 'custom') {
+      link = input.link?.trim() || null;
+    }
+
     const meeting = await meetingRepository.create({
       projectId: projectId ?? null,
       title: input.title.trim(),
       startTime,
       endTime,
       location: input.location?.trim() || null,
-      link: input.link?.trim() || null,
+      link,
       notesMd: input.notesMd ?? '',
       createdBy: user.id,
     } as NewMeeting);
+
+    let resolvedStoredMeeting = meeting;
+    if (videoProvider === 'jaas') {
+      const jaasUrl = buildJaasMeetingUrl(jaasSettings!, meeting.id, meeting.title);
+      resolvedStoredMeeting = await meetingRepository.update(meeting.id, { link: jaasUrl } as Partial<NewMeeting>) ?? meeting;
+    }
 
     const resolvedAttendeeIds = await this.resolveAttendeeIds(input.attendeeIds ?? [], input.teamIds ?? [], user);
     const attendeeIds = new Set(resolvedAttendeeIds);
@@ -116,7 +170,7 @@ export class MeetingService {
     }
 
     const completeMeeting = await meetingRepository.findById(meeting.id);
-    const resolvedMeeting = completeMeeting ?? meeting;
+    const resolvedMeeting = completeMeeting ?? resolvedStoredMeeting;
 
     await activityService.record({
       actorId: user.id,
@@ -147,6 +201,13 @@ export class MeetingService {
       throw new Error('Access denied to this meeting');
     }
 
+    if (meeting.projectId) {
+      const isOwner = await projectService.isOwner(meeting.projectId, user);
+      if (!isOwner) {
+        throw new Error('Only project owners or admins can modify project meetings');
+      }
+    }
+
     const updateData: Partial<NewMeeting> = {};
 
     if (input.title !== undefined) {
@@ -162,6 +223,21 @@ export class MeetingService {
 
     if (input.link !== undefined) {
       updateData.link = input.link?.trim() || null;
+    }
+
+    if (input.videoProvider !== undefined) {
+      if (input.videoProvider === 'jaas') {
+        updateData.link = buildJaasMeetingUrl(await getJaasSettings(), meeting.id, updateData.title ?? meeting.title);
+      } else if (input.videoProvider === 'none') {
+        updateData.link = null;
+      } else if (input.link !== undefined) {
+        updateData.link = input.link?.trim() || null;
+      }
+    } else if (updateData.title !== undefined) {
+      const jaasSettings = await getJaasSettings();
+      if (this.isJaasMeetingLink(meeting.link, jaasSettings)) {
+        updateData.link = buildJaasMeetingUrl(jaasSettings, meeting.id, updateData.title);
+      }
     }
 
     if (input.notesMd !== undefined) {
@@ -246,6 +322,13 @@ export class MeetingService {
       throw new Error('Access denied to this meeting');
     }
 
+    if (meeting.projectId) {
+      const isOwner = await projectService.isOwner(meeting.projectId, user);
+      if (!isOwner) {
+        throw new Error('Only project owners can delete project meetings');
+      }
+    }
+
     const deleted = await meetingRepository.delete(meetingId);
     if (deleted) {
       await activityService.record({
@@ -277,6 +360,18 @@ export class MeetingService {
     return meetingAttendeeRepository.isAttendee(meeting.id, user.id);
   }
 
+  private async isMeetingModerator(meeting: Meeting, user: User): Promise<boolean> {
+    if (user.role === 'admin' || meeting.createdBy === user.id) {
+      return true;
+    }
+
+    if (meeting.projectId) {
+      return projectService.isOwner(meeting.projectId, user);
+    }
+
+    return false;
+  }
+
   private async resolveAttendeeIds(attendeeIds: string[], teamIds: string[], user: User): Promise<string[]> {
     const resolvedIds = new Set<string>(attendeeIds);
 
@@ -301,6 +396,55 @@ export class MeetingService {
       throw new Error(`Invalid ${field} value`);
     }
     return parsed;
+  }
+
+  private async resolveCreateVideoProvider(
+    requestedProvider: CreateMeetingInput['videoProvider'],
+    link: string | undefined
+  ): Promise<'jaas' | 'custom' | 'none'> {
+    if (requestedProvider) {
+      return requestedProvider;
+    }
+
+    if (link?.trim()) {
+      return 'custom';
+    }
+
+    const jaasSettings = await getJaasSettings();
+    if (jaasSettings.enabled && jaasSettings.defaultProvider && jaasSettings.appId) {
+      return 'jaas';
+    }
+
+    return 'none';
+  }
+
+  private assertJaasConfigured(settings: Awaited<ReturnType<typeof getJaasSettings>>): void {
+    if (!settings.enabled) {
+      throw new Error('JaaS meetings are not enabled');
+    }
+
+    if (!settings.appId) {
+      throw new Error('JaaS App ID is not configured');
+    }
+
+    if (!settings.domain) {
+      throw new Error('JaaS domain is not configured');
+    }
+  }
+
+  private isJaasMeetingLink(link: string | null | undefined, settings: Awaited<ReturnType<typeof getJaasSettings>>): boolean {
+    if (!link || !settings.domain || !settings.appId) {
+      return false;
+    }
+
+    try {
+      const meetingUrl = new URL(link);
+      const jaasUrl = new URL(`https://${settings.domain}`);
+      const appId = decodeURIComponent(meetingUrl.pathname.split('/').filter(Boolean)[0] ?? '');
+      return meetingUrl.protocol === 'https:' && meetingUrl.host.toLowerCase() === jaasUrl.host.toLowerCase() && appId === settings.appId;
+    } catch {
+      return false;
+    }
   }
 }
 

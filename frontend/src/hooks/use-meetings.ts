@@ -72,3 +72,10 @@ export function useMyMeetings() {
     queryFn: () => meetingsApi.myMeetings(),
   })
 }
+
+export function useMeetingVideoSettings() {
+  return useQuery({
+    queryKey: ["meetings", "video-settings"],
+    queryFn: () => meetingsApi.videoSettings(),
+  })
+}

@@ -361,7 +361,7 @@ export function ProjectDetailPage() {
 
         <TabsContent value="schedule" className="mt-6">
           <ErrorBoundary title="Schedule unavailable" message="The schedule section crashed. Try reloading this section." resetKeys={[project.id, "schedule"]}>
-            <ProjectSchedulePage projectId={project.id} />
+            <ProjectSchedulePage projectId={project.id} canScheduleMeetings={canManageMembers} />
           </ErrorBoundary>
         </TabsContent>
 

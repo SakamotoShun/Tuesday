@@ -9,6 +9,7 @@ let deleteMeeting: (...args: any[]) => Promise<any> = async () => true;
 
 let setAttendees: (...args: any[]) => Promise<any> = async () => {};
 let findAttendees: (...args: any[]) => Promise<any> = async () => [];
+let getSetting: (key: string) => Promise<any> = async () => null;
 
 
 mock.module('../repositories/meeting', () => ({
@@ -28,6 +29,13 @@ mock.module('../repositories/meetingAttendee', () => ({
   meetingAttendeeRepository: {
     setAttendees: (meetingId: string, attendeeIds: string[]) => setAttendees(meetingId, attendeeIds),
     findByMeetingId: (meetingId: string) => findAttendees(meetingId),
+  },
+}));
+
+mock.module('../repositories/settings', () => ({
+  SettingsRepository: class {},
+  settingsRepository: {
+    get: (key: string) => getSetting(key),
   },
 }));
 
@@ -66,6 +74,7 @@ describe('MeetingService', () => {
     deleteMeeting = async () => true;
     setAttendees = async () => {};
     findAttendees = async () => [];
+    getSetting = async () => null;
     activityService.record = async () => {};
   });
 
@@ -119,6 +128,66 @@ describe('MeetingService', () => {
     );
 
     expect(attendees).toEqual(expect.arrayContaining([adminUser.id]));
+  });
+
+  it('generates a JaaS link by default when JaaS is enabled', async () => {
+    getSetting = async (key) => {
+      const settings: Record<string, unknown> = {
+        jaas_enabled: true,
+        jaas_app_id: 'vpaas-magic-cookie-test',
+        jaas_domain: '8x8.vc',
+        jaas_default_provider: true,
+      };
+      return settings[key] ?? null;
+    };
+
+    let updatedLink = '';
+    updateMeeting = async (_id, data) => {
+      updatedLink = data.link ?? '';
+      return { id: 'meeting-1', ...data };
+    };
+
+    await meetingService.createMeeting(
+      'project-1',
+      { title: 'Meet', startTime: '2024-01-01', endTime: '2024-01-02' },
+      adminUser
+    );
+
+    expect(updatedLink).toBe('https://8x8.vc/vpaas-magic-cookie-test/meet-meetin');
+  });
+
+  it('preserves custom meeting links', async () => {
+    let createdLink = '';
+    createMeeting = async (data) => {
+      createdLink = data.link ?? '';
+      return { id: 'meeting-1', ...data };
+    };
+
+    await meetingService.createMeeting(
+      'project-1',
+      {
+        title: 'Meet',
+        startTime: '2024-01-01',
+        endTime: '2024-01-02',
+        link: 'https://zoom.example/room',
+        videoProvider: 'custom',
+      },
+      adminUser
+    );
+
+    expect(createdLink).toBe('https://zoom.example/room');
+  });
+
+  it('rejects JaaS meetings when App ID is missing', async () => {
+    getSetting = async (key) => (key === 'jaas_enabled' ? true : null);
+
+    await expect(
+      meetingService.createMeeting(
+        'project-1',
+        { title: 'Meet', startTime: '2024-01-01', endTime: '2024-01-02', videoProvider: 'jaas' },
+        adminUser
+      )
+    ).rejects.toThrow('JaaS App ID is not configured');
   });
 
   it('rejects viewing other users meetings for non-admin', async () => {

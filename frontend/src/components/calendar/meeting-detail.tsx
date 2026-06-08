@@ -1,3 +1,5 @@
+import { useState } from "react"
+import { meetingsApi } from "@/api/meetings"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import type { Meeting } from "@/api/types"
@@ -7,8 +9,35 @@ interface MeetingDetailProps {
   onEdit?: () => void
 }
 
+const getSafeMeetingUrl = (value?: string | null) => {
+  if (!value) return null
+  try {
+    const url = new URL(value)
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null
+  } catch {
+    return null
+  }
+}
+
 export function MeetingDetail({ meeting, onEdit }: MeetingDetailProps) {
+  const [isJoining, setIsJoining] = useState(false)
   const contextLabel = meeting.project?.name ?? (meeting.projectId ? "Project meeting" : "Personal event")
+  const meetingLink = meeting.link?.trim()
+  const safeMeetingUrl = getSafeMeetingUrl(meetingLink)
+
+  const handleJoinMeeting = async () => {
+    if (!safeMeetingUrl) return
+
+    setIsJoining(true)
+    try {
+      const joinInfo = await meetingsApi.join(meeting.id)
+      window.open(getSafeMeetingUrl(joinInfo.url) ?? safeMeetingUrl, "_blank", "noopener,noreferrer")
+    } catch {
+      window.open(safeMeetingUrl, "_blank", "noopener,noreferrer")
+    } finally {
+      setIsJoining(false)
+    }
+  }
 
   return (
     <Card className="p-4">
@@ -22,22 +51,29 @@ export function MeetingDetail({ meeting, onEdit }: MeetingDetailProps) {
           {meeting.location ? (
             <p className="text-sm text-muted-foreground mt-1">{meeting.location}</p>
           ) : null}
-          {meeting.link ? (
+          {safeMeetingUrl ? (
             <a
-              href={meeting.link}
+              href={safeMeetingUrl}
               target="_blank"
               rel="noreferrer"
               className="mt-1 block text-sm text-primary hover:underline"
             >
-              {meeting.link}
+              {meetingLink}
             </a>
           ) : null}
         </div>
-        {onEdit ? (
-          <Button variant="outline" size="sm" onClick={onEdit}>
-            Edit
-          </Button>
-        ) : null}
+        <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+          {safeMeetingUrl ? (
+            <Button size="sm" onClick={handleJoinMeeting} disabled={isJoining}>
+              {isJoining ? "Joining..." : "Join Meeting"}
+            </Button>
+          ) : null}
+          {onEdit ? (
+            <Button variant="outline" size="sm" onClick={onEdit}>
+              Edit
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {meeting.notesMd ? (

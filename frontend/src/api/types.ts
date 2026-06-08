@@ -315,6 +315,7 @@ export interface CreateMeetingInput {
   endTime: string
   location?: string
   link?: string
+  videoProvider?: "jaas" | "custom" | "none"
   notesMd?: string
   attendeeIds?: string[]
   teamIds?: string[]
@@ -326,9 +327,21 @@ export interface UpdateMeetingInput {
   endTime?: string | null
   location?: string | null
   link?: string | null
+  videoProvider?: "jaas" | "custom" | "none"
   notesMd?: string | null
   attendeeIds?: string[]
   teamIds?: string[]
+}
+
+export interface MeetingVideoSettings {
+  enabled: boolean
+  defaultProvider: boolean
+  appId: string
+  domain: string
+}
+
+export interface MeetingJoinInfo {
+  url: string
 }
 
 // Doc types
@@ -435,6 +448,12 @@ export interface AdminSettings {
   siteUrl: string
   openaiApiKey: string
   openrouterApiKey: string
+  jaasEnabled: boolean
+  jaasAppId: string
+  jaasDomain: string
+  jaasDefaultProvider: boolean
+  jaasKeyId: string
+  jaasPrivateKey: string
   smtpHost: string
   smtpPort: number
   smtpUser: string
@@ -449,6 +468,12 @@ export interface UpdateAdminSettingsInput {
   siteUrl?: string
   openaiApiKey?: string
   openrouterApiKey?: string
+  jaasEnabled?: boolean
+  jaasAppId?: string
+  jaasDomain?: string
+  jaasDefaultProvider?: boolean
+  jaasKeyId?: string
+  jaasPrivateKey?: string
   smtpHost?: string
   smtpPort?: number
   smtpUser?: string

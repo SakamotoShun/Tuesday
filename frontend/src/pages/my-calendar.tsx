@@ -5,7 +5,7 @@ import { MeetingDialog } from "@/components/calendar/meeting-dialog"
 import { MeetingDetail } from "@/components/calendar/meeting-detail"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useMyMeetings } from "@/hooks/use-meetings"
+import { useMeetingVideoSettings, useMyMeetings } from "@/hooks/use-meetings"
 import { useWorkspaceUsers } from "@/hooks/use-project-members"
 import { useTeams } from "@/hooks/use-teams"
 import { meetingsApi } from "@/api/meetings"
@@ -19,6 +19,7 @@ const withHourOffset = (date: Date, hours: number) => {
 
 export function MyCalendarPage() {
   const { data: meetings = [], isLoading } = useMyMeetings()
+  const { data: videoSettings, isLoading: isVideoSettingsLoading } = useMeetingVideoSettings()
   const { data: users = [], isLoading: isUsersLoading } = useWorkspaceUsers()
   const { teams, isLoading: isTeamsLoading } = useTeams()
   const queryClient = useQueryClient()
@@ -68,7 +69,7 @@ export function MyCalendarPage() {
     },
   })
 
-  if (isLoading || isUsersLoading || isTeamsLoading) {
+  if (isLoading || isUsersLoading || isTeamsLoading || isVideoSettingsLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-12 w-full" />
@@ -106,6 +107,7 @@ export function MyCalendarPage() {
         initialEndTime={draftEnd}
         members={users}
         teams={teams}
+        videoSettings={videoSettings}
         isSubmitting={createMeeting.isPending || updateMeeting.isPending || deleteMeeting.isPending}
         onDelete={
           selectedMeeting

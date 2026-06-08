@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
 import { BotManagement } from "@/components/admin/bot-management"
 import { ApiErrorResponse } from "@/api/client"
 
@@ -17,6 +18,14 @@ export function AdminDeveloperPage() {
   const [openaiApiKey, setOpenaiApiKey] = useState("")
   const [openrouterApiKey, setOpenrouterApiKey] = useState("")
   const [siteUrl, setSiteUrl] = useState("")
+  const [jaasEnabled, setJaasEnabled] = useState(false)
+  const [jaasAppId, setJaasAppId] = useState("")
+  const [jaasDomain, setJaasDomain] = useState("8x8.vc")
+  const [jaasDefaultProvider, setJaasDefaultProvider] = useState(true)
+  const [jaasKeyId, setJaasKeyId] = useState("")
+  const [jaasPrivateKey, setJaasPrivateKey] = useState("")
+  const [jaasMessage, setJaasMessage] = useState<string | null>(null)
+  const [jaasError, setJaasError] = useState<string | null>(null)
   const [smtpHost, setSmtpHost] = useState("")
   const [smtpPort, setSmtpPort] = useState("587")
   const [smtpUser, setSmtpUser] = useState("")
@@ -29,6 +38,26 @@ export function AdminDeveloperPage() {
   useEffect(() => {
     setSiteUrl(settings?.siteUrl ?? "")
   }, [settings?.siteUrl])
+
+  useEffect(() => {
+    setJaasEnabled(settings?.jaasEnabled ?? false)
+  }, [settings?.jaasEnabled])
+
+  useEffect(() => {
+    setJaasAppId(settings?.jaasAppId ?? "")
+  }, [settings?.jaasAppId])
+
+  useEffect(() => {
+    setJaasDomain(settings?.jaasDomain ?? "8x8.vc")
+  }, [settings?.jaasDomain])
+
+  useEffect(() => {
+    setJaasDefaultProvider(settings?.jaasDefaultProvider ?? true)
+  }, [settings?.jaasDefaultProvider])
+
+  useEffect(() => {
+    setJaasKeyId(settings?.jaasKeyId ?? "")
+  }, [settings?.jaasKeyId])
 
   useEffect(() => {
     setSmtpHost(settings?.smtpHost ?? "")
@@ -61,6 +90,7 @@ export function AdminDeveloperPage() {
   const hasOpenAiApiKey = Boolean(settings?.openaiApiKey)
   const hasOpenRouterApiKey = Boolean(settings?.openrouterApiKey)
   const hasSmtpPassword = Boolean(settings?.smtpPass)
+  const hasJaasPrivateKey = Boolean(settings?.jaasPrivateKey)
 
   const handleSaveSmtp = () => {
     const parsedPort = Number.parseInt(smtpPort, 10)
@@ -113,6 +143,54 @@ export function AdminDeveloperPage() {
         }
       },
     })
+  }
+
+  const handleSaveJaas = () => {
+    if (jaasEnabled) {
+      if (!jaasAppId.trim()) {
+        setJaasError("JaaS App ID is required when JaaS is enabled")
+        setJaasMessage(null)
+        return
+      }
+
+      if (!jaasKeyId.trim()) {
+        setJaasError("JaaS Key ID is required when JaaS is enabled")
+        setJaasMessage(null)
+        return
+      }
+
+      if (!hasJaasPrivateKey && !jaasPrivateKey.trim()) {
+        setJaasError("JaaS private key is required when JaaS is enabled")
+        setJaasMessage(null)
+        return
+      }
+    }
+
+    setJaasError(null)
+    setJaasMessage(null)
+    updateSettings.mutate(
+      {
+        jaasEnabled,
+        jaasAppId: jaasAppId.trim(),
+        jaasDomain: jaasDomain.trim() || "8x8.vc",
+        jaasDefaultProvider,
+        jaasKeyId: jaasKeyId.trim(),
+        jaasPrivateKey: jaasPrivateKey.trim() || undefined,
+      },
+      {
+        onSuccess: () => {
+          setJaasPrivateKey("")
+          setJaasMessage("JaaS settings saved")
+        },
+        onError: (error) => {
+          if (error instanceof ApiErrorResponse) {
+            setJaasError(error.message)
+          } else {
+            setJaasError("Failed to save JaaS settings")
+          }
+        },
+      }
+    )
   }
 
   return (
@@ -313,6 +391,90 @@ export function AdminDeveloperPage() {
               )}
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Jitsi as a Service</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {jaasError && <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{jaasError}</div>}
+          {jaasMessage && <div className="rounded-md bg-emerald-500/10 p-3 text-sm text-emerald-700">{jaasMessage}</div>}
+
+          <div className="flex items-center justify-between rounded-lg border border-border p-3">
+            <Label htmlFor="jaas-enabled" className="flex flex-col gap-1">
+              <span>Enable JaaS meetings</span>
+              <span className="font-normal text-sm text-muted-foreground">Allow Tuesday to create JaaS meeting links for scheduled meetings.</span>
+            </Label>
+            <Switch id="jaas-enabled" checked={jaasEnabled} onCheckedChange={setJaasEnabled} />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="jaas-app-id">JaaS App ID</Label>
+            <div className="text-sm text-muted-foreground">
+              Use the tenant prefix from your JaaS account, for example <span className="font-medium text-foreground">vpaas-magic-cookie-...</span>.
+            </div>
+            <Input
+              id="jaas-app-id"
+              value={jaasAppId}
+              onChange={(event) => setJaasAppId(event.target.value)}
+              placeholder="vpaas-magic-cookie-..."
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="jaas-domain">JaaS domain</Label>
+            <div className="text-sm text-muted-foreground">JaaS uses 8x8.vc, not meet.jit.si.</div>
+            <Input
+              id="jaas-domain"
+              value={jaasDomain}
+              onChange={(event) => setJaasDomain(event.target.value)}
+              placeholder="8x8.vc"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="jaas-key-id">JaaS Key ID</Label>
+            <div className="text-sm text-muted-foreground">
+              Use the API key ID from JaaS. Either the short key ID or full <span className="font-medium text-foreground">appId/keyId</span> value is accepted.
+            </div>
+            <Input
+              id="jaas-key-id"
+              value={jaasKeyId}
+              onChange={(event) => setJaasKeyId(event.target.value)}
+              placeholder="key-id"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="jaas-private-key">JaaS private key</Label>
+            <Textarea
+              id="jaas-private-key"
+              value={jaasPrivateKey}
+              onChange={(event) => setJaasPrivateKey(event.target.value)}
+              placeholder={hasJaasPrivateKey ? "Enter a new private key to replace the current one" : "-----BEGIN PRIVATE KEY-----"}
+              rows={5}
+            />
+            {hasJaasPrivateKey && <div className="text-xs text-muted-foreground">A JaaS private key is currently configured.</div>}
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border border-border p-3">
+            <Label htmlFor="jaas-default-provider" className="flex flex-col gap-1">
+              <span>Use JaaS by default</span>
+              <span className="font-normal text-sm text-muted-foreground">New meetings will use JaaS unless a user selects a custom link or no video.</span>
+            </Label>
+            <Switch id="jaas-default-provider" checked={jaasDefaultProvider} onCheckedChange={setJaasDefaultProvider} />
+          </div>
+
+          <Button onClick={handleSaveJaas} disabled={updateSettings.isPending}>
+            {updateSettings.isPending ? "Saving..." : "Save JaaS Settings"}
+          </Button>
+          {hasJaasPrivateKey && (
+            <Button variant="outline" onClick={() => updateSettings.mutate({ jaasPrivateKey: "" })} disabled={updateSettings.isPending}>
+              Remove JaaS Private Key
+            </Button>
+          )}
         </CardContent>
       </Card>
 
