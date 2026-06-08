@@ -320,9 +320,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=tuesday-image
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@v4.1.2
-        with:
-          cosign-release: v3.0.6
+        uses: sigstore/cosign-installer@v3.8.1
 
       - name: Sign published image
         run: cosign sign --yes "${{ steps.image.outputs.image }}@${{ steps.build.outputs.digest }}"
