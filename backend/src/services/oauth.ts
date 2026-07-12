@@ -16,7 +16,6 @@ const AUTH_CODE_TTL_MS = 5 * 60 * 1000;
 const ACCESS_TOKEN_TTL_SECONDS = 60 * 60;
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
-const DEFAULT_SCOPES: McpScope[] = ['projects:read', 'tasks:read', 'docs:read', 'search:read'];
 const SUPPORTED_GRANT_TYPES = ['authorization_code', 'refresh_token'] as const;
 const SUPPORTED_RESPONSE_TYPES = ['code'] as const;
 
@@ -60,17 +59,15 @@ interface RevokeTokenInput {
   clientSecret?: string | null;
 }
 
-function parseScopes(scope?: string | null): string[] {
-  if (!scope?.trim()) return [...DEFAULT_SCOPES];
-  return Array.from(new Set(scope.split(/\s+/).map((s) => s.trim()).filter(Boolean)));
-}
+function resolveScopes(scope: string | null | undefined, allowed: Iterable<string>): McpScope[] {
+  const allowedScopes = new Set(
+    Array.from(allowed).filter((candidate): candidate is McpScope => VALID_MCP_SCOPES.has(candidate as McpScope)),
+  );
+  const requestedScopes = Array.from(new Set(scope?.split(/\s+/).filter(Boolean) ?? []))
+    .filter((candidate): candidate is McpScope => VALID_MCP_SCOPES.has(candidate as McpScope))
+    .filter((candidate) => allowedScopes.has(candidate));
 
-function validateScopes(scopes: string[]): McpScope[] {
-  const invalid = scopes.filter((scope) => !VALID_MCP_SCOPES.has(scope as McpScope));
-  if (invalid.length > 0) {
-    throw new Error(`Invalid scopes: ${invalid.join(', ')}`);
-  }
-  return scopes as McpScope[];
+  return requestedScopes.length > 0 ? requestedScopes : Array.from(allowedScopes);
 }
 
 function isHttpsOrLocalhostUrl(value: string): boolean {
@@ -163,7 +160,7 @@ export class OauthService {
       throw new Error('Only authorization_code, refresh_token, and code clients are supported');
     }
 
-    const scopes = validateScopes(parseScopes(input.scope));
+    const scopes = resolveScopes(input.scope, VALID_MCP_SCOPES);
     const authMethod = input.token_endpoint_auth_method ?? 'none';
     if (!['none', 'client_secret_post', 'client_secret_basic'].includes(authMethod)) {
       throw new Error('Unsupported token_endpoint_auth_method');
@@ -211,12 +208,7 @@ export class OauthService {
       throw new Error('redirect_uri is not registered for this client');
     }
 
-    const requestedScopes = validateScopes(parseScopes(input.scope));
-    const allowedScopes = new Set(client.scopes as string[]);
-    const unauthorized = requestedScopes.filter((scope) => !allowedScopes.has(scope));
-    if (unauthorized.length > 0) {
-      throw new Error(`Client is not allowed to request scopes: ${unauthorized.join(', ')}`);
-    }
+    const requestedScopes = resolveScopes(input.scope, client.scopes as string[]);
 
     return {
       client,

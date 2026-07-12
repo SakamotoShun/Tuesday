@@ -79,6 +79,28 @@ function parseAuthorize(c: any) {
   };
 }
 
+function registrationLogContext(body?: Record<string, unknown>) {
+  return {
+    clientName: body?.client_name ? String(body.client_name) : null,
+    redirectUris: Array.isArray(body?.redirect_uris) ? body.redirect_uris.map(String) : [],
+    grantTypes: Array.isArray(body?.grant_types) ? body.grant_types.map(String) : [],
+    scope: body?.scope ? String(body.scope) : null,
+    authMethod: body?.token_endpoint_auth_method ? String(body.token_endpoint_auth_method) : null,
+  };
+}
+
+function authorizationLogContext(input: ReturnType<typeof parseAuthorize>) {
+  return {
+    clientId: input.clientId || null,
+    redirectUri: input.redirectUri || null,
+    scope: input.scope ?? null,
+    responseType: input.responseType || null,
+    codeChallengeMethod: input.codeChallengeMethod || null,
+    hasState: !!input.state,
+    hasResource: !!input.resource,
+  };
+}
+
 async function parseTokenBody(c: any) {
   const contentType = c.req.header('Content-Type') ?? '';
   if (contentType.includes('application/json')) {
@@ -183,12 +205,18 @@ oauth.post('/oauth/register', oauthRegistrationRateLimit, async (c) => {
   const corsResponse = oauthCors(c);
   if (corsResponse) return corsResponse;
 
+  let registerContext = registrationLogContext();
   try {
-    const body = await c.req.json();
+    const body = await c.req.json() as Record<string, unknown>;
+    registerContext = registrationLogContext(body);
     const result = await oauthService.registerClient(body);
     return c.json(result, 201);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Invalid client metadata';
+    log('warn', 'oauth.register_failed', {
+      error: message,
+      ...registerContext,
+    });
     return oauthError(c, 'invalid_client_metadata', message);
   }
 });
@@ -215,6 +243,10 @@ oauth.get('/oauth/authorize', async (c) => {
     }));
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Invalid authorization request';
+    log('warn', 'oauth.authorize_failed', {
+      error: message,
+      ...authorizationLogContext(input),
+    });
     return oauthError(c, 'invalid_request', message);
   }
 });
@@ -231,12 +263,22 @@ oauth.post('/oauth/authorize/approve', async (c) => {
     const form = await c.req.formData();
     const approvalNonce = String(form.get('approval_nonce') ?? '');
     if (!consumeApprovalNonce(approvalNonce, user.id, input.clientId)) {
+      log('warn', 'oauth.approve_failed', {
+        error: 'Invalid approval nonce',
+        ...authorizationLogContext(input),
+        userId: user.id,
+      });
       return oauthError(c, 'invalid_request', 'Invalid approval nonce');
     }
     const redirectUrl = await oauthService.approveAuthorization(input, user.id);
     return c.redirect(redirectUrl);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Invalid authorization request';
+    log('warn', 'oauth.approve_failed', {
+      error: message,
+      ...authorizationLogContext(input),
+      userId: user.id,
+    });
     return oauthError(c, 'invalid_request', message);
   }
 });
@@ -253,12 +295,22 @@ oauth.post('/oauth/authorize/deny', async (c) => {
     const form = await c.req.formData();
     const approvalNonce = String(form.get('approval_nonce') ?? '');
     if (!consumeApprovalNonce(approvalNonce, user.id, input.clientId)) {
+      log('warn', 'oauth.deny_failed', {
+        error: 'Invalid approval nonce',
+        ...authorizationLogContext(input),
+        userId: user.id,
+      });
       return oauthError(c, 'invalid_request', 'Invalid approval nonce');
     }
     const redirectUrl = await oauthService.denyAuthorization(input);
     return c.redirect(redirectUrl);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Invalid authorization request';
+    log('warn', 'oauth.deny_failed', {
+      error: message,
+      ...authorizationLogContext(input),
+      userId: user.id,
+    });
     return oauthError(c, 'invalid_request', message);
   }
 });

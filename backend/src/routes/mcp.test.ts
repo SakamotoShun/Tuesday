@@ -47,6 +47,60 @@ describe('MCP Routes', () => {
     expect(response.status).toBe(202);
     expect(await response.text()).toBe('');
   });
+
+  for (const protocolVersion of ['2025-03-26', '2025-06-18']) {
+    it(`echoes supported initialize protocol version ${protocolVersion}`, async () => {
+      const response = await createApp().request('/api/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion } }),
+      });
+
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as { result: { protocolVersion: string } };
+      expect(body.result.protocolVersion).toBe(protocolVersion);
+    });
+  }
+
+  for (const [description, params] of [
+    ['unknown', { protocolVersion: '2099-01-01' }],
+    ['missing', {}],
+    ['non-string', { protocolVersion: 123 }],
+  ] as const) {
+    it(`uses the latest protocol version for ${description} initialize versions`, async () => {
+      const response = await createApp().request('/api/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params }),
+      });
+
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as { result: { protocolVersion: string } };
+      expect(body.result.protocolVersion).toBe('2025-06-18');
+    });
+  }
+
+  it('rejects unsupported protocol versions on non-initialize requests', async () => {
+    const response = await createApp().request('/api/mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'MCP-Protocol-Version': '2099-01-01' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }),
+    });
+
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as { error: { message: string } };
+    expect(body.error.message).toContain('Unsupported MCP protocol version');
+  });
+
+  it('accepts supported protocol versions before applying existing authentication', async () => {
+    const response = await createApp().request('/api/mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'MCP-Protocol-Version': '2025-06-18' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }),
+    });
+
+    expect(response.status).toBe(401);
+  });
 });
 
 describe('MCP Routes with browser-connector CORS', () => {
@@ -109,6 +163,21 @@ describe('MCP Routes with browser-connector CORS', () => {
     });
 
     expect(response.status).toBe(405);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('https://claude.ai');
+  });
+
+  it('carries CORS headers on unsupported protocol version errors', async () => {
+    const response = await createProductionShapedApp().request('/api/mcp', {
+      method: 'POST',
+      headers: {
+        Origin: 'https://claude.ai',
+        'Content-Type': 'application/json',
+        'MCP-Protocol-Version': '2099-01-01',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 3, method: 'tools/list', params: {} }),
+    });
+
+    expect(response.status).toBe(400);
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe('https://claude.ai');
   });
 });

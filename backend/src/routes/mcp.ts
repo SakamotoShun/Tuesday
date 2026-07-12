@@ -7,6 +7,7 @@ import type { McpContext } from '../mcp/types';
 import { log } from '../utils/logger';
 
 const TUESDAY_VERSION = '1.2.0';
+const SUPPORTED_PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26'] as const;
 
 interface JsonRpcRequest {
   jsonrpc: '2.0';
@@ -91,14 +92,24 @@ mcp.post('/', async (c) => {
     return c.json(jsonRpcError(body.id, -32600, 'Invalid Request: jsonrpc must be "2.0"'), 400);
   }
 
+  if (body.method !== 'initialize') {
+    const protocolVersion = c.req.header('MCP-Protocol-Version') ?? '2025-03-26';
+    if (!SUPPORTED_PROTOCOL_VERSIONS.some((version) => version === protocolVersion)) {
+      return c.json(jsonRpcError(body.id, -32600, `Unsupported MCP protocol version: ${protocolVersion}`), 400);
+    }
+  }
+
   // notifications (no id) do not get a response
   const isNotification = body.id === undefined;
 
   try {
     switch (body.method) {
       case 'initialize': {
+        const requestedVersion = body.params?.protocolVersion;
         const result = {
-          protocolVersion: '2025-03-26',
+          protocolVersion: SUPPORTED_PROTOCOL_VERSIONS.some((version) => version === requestedVersion)
+            ? requestedVersion
+            : SUPPORTED_PROTOCOL_VERSIONS[0],
           capabilities: { tools: {} },
           serverInfo: { name: 'Tuesday', version: TUESDAY_VERSION },
         };
