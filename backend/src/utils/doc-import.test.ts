@@ -32,6 +32,18 @@ const value = 1;
     expect(JSON.stringify(blocks)).not.toContain('<h1>');
   });
 
+  it('flattens markdown tables into paragraphs', () => {
+    const blocks = convertDocSourceToBlocks(`| Name | Status |
+| --- | --- |
+| API | Done |`, 'markdown');
+
+    expect(blocks.map((block) => block.type)).toEqual(['paragraph', 'paragraph']);
+    expect(blocks.map((block) => (block.content as Array<{ text: string }>)[0].text)).toEqual([
+      'Name | Status',
+      'API | Done',
+    ]);
+  });
+
   it('ignores script blocks with malformed closing tags', () => {
     const blocks = convertDocSourceToBlocks('<script>alert(1)</script\t\n bar><p>Safe</p>', 'html');
 

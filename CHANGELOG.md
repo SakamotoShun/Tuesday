@@ -25,6 +25,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Personal docs route support (`/docs/personal/:docId`) for direct navigation from search results
 - Doc search indexing (`docs.search_text`) with backfill tooling from collaborative Yjs history
 - Tuesday MCP client setup documentation for OpenCode, Codex, Claude Code, and Claude Desktop
+- Portable Tuesday MCP Agent Skill with safe document creation, BlockNote table examples, concurrency, and retry guidance
+- Clearer MCP document tool descriptions and documented source-table flattening behavior
 
 ## [0.1.0] - 2026-02-06
 

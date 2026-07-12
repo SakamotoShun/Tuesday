@@ -66,14 +66,14 @@ If you use OpenCode, add the MCP server to `~/.config/opencode/opencode.json`:
       "url": "https://tuesday.ultreonai.com/api/mcp",
       "enabled": true,
       "headers": {
-        "Authorization": "Bearer ${TUESDAY_MCP_TOKEN}"
+        "Authorization": "Bearer {env:TUESDAY_MCP_TOKEN}"
       }
     }
   }
 }
 ```
 
-If your OpenCode install does not expand environment variables in JSON values, replace the placeholder with the token directly and keep that file out of version control.
+OpenCode expands `{env:TUESDAY_MCP_TOKEN}` from the environment. Restart OpenCode after changing its configuration.
 
 ## Codex
 
@@ -109,6 +109,37 @@ claude mcp get tuesday
 ```
 
 Inside Claude Code, use `/mcp` to confirm the server is connected.
+
+## Agent skill
+
+Connecting the MCP server makes Tuesday's tools available. Installing the companion Agent Skill separately teaches agents the safe workflows for document structure, rendered tables, optimistic concurrency, idempotency, and retries.
+
+The portable skill is checked into this repository at [`skills/tuesday-mcp`](../skills/tuesday-mcp/SKILL.md). Install it from the public repository with the Skills CLI:
+
+```bash
+npx skills add SakamotoShun/Tuesday --skill tuesday-mcp
+```
+
+The CLI detects supported agents and installs to the current project by default. To install the skill globally instead:
+
+```bash
+npx skills add SakamotoShun/Tuesday --skill tuesday-mcp --global
+```
+
+Use `--agent` to target a specific client, for example:
+
+```bash
+npx skills add SakamotoShun/Tuesday --skill tuesday-mcp --global --agent opencode
+```
+
+For manual installation, copy the whole `skills/tuesday-mcp` directory, including `references/documents.md`, to a location recognized by your client:
+
+- OpenCode: `.opencode/skills/tuesday-mcp` for a project or `~/.config/opencode/skills/tuesday-mcp` globally. You can instead add this repository's `skills` directory to `skills.paths` in `opencode.json`.
+- Claude Code: `.claude/skills/tuesday-mcp` for a project or `~/.claude/skills/tuesday-mcp` globally.
+- Codex: `.agents/skills/tuesday-mcp` for a project or `~/.codex/skills/tuesday-mcp` globally.
+- Other Agent Skills-compatible clients: use the client's project or user skills directory.
+
+Installing the skill does not configure authentication or connect the MCP endpoint. Complete both the client connection setup above and the skill installation. Restart clients that load skills only at startup.
 
 ## Claude Desktop
 

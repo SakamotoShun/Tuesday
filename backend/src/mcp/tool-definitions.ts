@@ -155,7 +155,7 @@ registerTool({
 
 registerTool({
   name: 'get_doc',
-  description: 'Get a single doc by ID.',
+  description: 'Get a single doc by ID, including canonical block content and the current version required for edits.',
   requiredScope: 'docs:read',
   inputSchema: {
     type: 'object',
@@ -175,13 +175,14 @@ registerTool({
 
 registerTool({
   name: 'create_doc',
-  description: 'Create a doc under a project or another doc. Provide either BlockNote blocks or source text with sourceFormat (auto, markdown, html, text); source is converted to Tuesday/BlockNote format. Supports idempotencyKey.',
+  description: 'Create a doc under a project or another doc. Provide either BlockNote blocks or source text, not both; omit both for an empty doc. Source conversion is lossy and flattens Markdown/HTML tables, so use raw blocks for rendered tables. Supports idempotencyKey.',
   requiredScope: 'docs:write',
   inputSchema: {
     type: 'object',
     properties: {
       parent: {
         type: 'object',
+        description: 'Project parent for a root project doc, or doc parent for a child doc',
         properties: {
           type: { type: 'string', enum: ['project', 'doc'] },
           id: { type: 'string' },
@@ -190,10 +191,10 @@ registerTool({
         additionalProperties: false,
       },
       title: { type: 'string', description: 'Doc title' },
-      blocks: { type: 'array', items: { type: 'object' }, description: 'Optional BlockNote blocks' },
-      source: { type: 'string', description: 'Optional source content to convert into Tuesday doc blocks' },
-      sourceFormat: { type: 'string', enum: ['auto', 'markdown', 'html', 'text'], description: 'Format of source content. Defaults to auto.' },
-      idempotencyKey: { type: 'string', description: 'Optional deduplication key' },
+      blocks: { type: 'array', items: { type: 'object' }, description: 'Optional raw BlockNote blocks. Use instead of source for rendered tables or precise structure.' },
+      source: { type: 'string', description: 'Optional source content to convert into blocks. Do not combine with blocks; Markdown/HTML tables become paragraphs.' },
+      sourceFormat: { type: 'string', enum: ['auto', 'markdown', 'html', 'text'], description: 'Source format. Prefer an explicit value; defaults to auto.' },
+      idempotencyKey: { type: 'string', description: 'Optional creation deduplication key (max 200 characters). Reuse returns the first response even if the payload changes.' },
     },
     required: ['parent', 'title'],
     additionalProperties: false,
@@ -237,14 +238,14 @@ registerTool({
 
 registerTool({
   name: 'update_doc_title',
-  description: 'Update a doc title. Requires expectedVersion.',
+  description: 'Update a doc title using optimistic concurrency. Call get_doc first and pass its current version as expectedVersion.',
   requiredScope: 'docs:write',
   inputSchema: {
     type: 'object',
     properties: {
       docId: { type: 'string' },
       title: { type: 'string' },
-      expectedVersion: { type: 'number' },
+      expectedVersion: { type: 'number', description: 'Exact current version from get_doc. Re-read on conflict.' },
     },
     required: ['docId', 'title', 'expectedVersion'],
     additionalProperties: false,
@@ -261,21 +262,22 @@ registerTool({
 
 registerTool({
   name: 'append_doc_blocks',
-  description: 'Append content to a doc. Provide either BlockNote blocks or source text with sourceFormat (auto, markdown, html, text); source is converted to Tuesday/BlockNote format. Requires expectedVersion.',
+  description: 'Append content using optimistic concurrency. Provide exactly one of raw BlockNote blocks or source text. Source conversion flattens tables; use raw blocks for rendered tables. Appends are not idempotent, so verify with get_doc before retrying an uncertain call.',
   requiredScope: 'docs:write',
   inputSchema: {
     type: 'object',
     properties: {
       docId: { type: 'string' },
-      blocks: { type: 'array', items: { type: 'object' } },
-      source: { type: 'string', description: 'Optional source content to convert into Tuesday doc blocks' },
-      sourceFormat: { type: 'string', enum: ['auto', 'markdown', 'html', 'text'], description: 'Format of source content. Defaults to auto.' },
-      expectedVersion: { type: 'number' },
+      blocks: { type: 'array', items: { type: 'object' }, description: 'Raw BlockNote blocks (maximum 100). Do not combine with source.' },
+      source: { type: 'string', description: 'Source content to convert into blocks. Do not combine with blocks; Markdown/HTML tables become paragraphs.' },
+      sourceFormat: { type: 'string', enum: ['auto', 'markdown', 'html', 'text'], description: 'Source format. Prefer an explicit value; defaults to auto.' },
+      expectedVersion: { type: 'number', description: 'Exact current version from get_doc. Re-read on conflict.' },
       position: {
         type: 'object',
+        description: 'Defaults to end. after_block only matches a root-level block ID.',
         properties: {
           type: { type: 'string', enum: ['end', 'start', 'after_block'] },
-          afterBlockId: { type: 'string' },
+          afterBlockId: { type: 'string', description: 'Existing root-level block ID, required when type is after_block' },
         },
         additionalProperties: false,
       },
