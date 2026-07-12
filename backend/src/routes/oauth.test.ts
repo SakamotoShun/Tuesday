@@ -64,4 +64,32 @@ describe('OAuth Routes', () => {
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe('https://chatgpt.com');
     expect(response.headers.get('Vary')).toBe('Origin');
   });
+
+  it('serves protected-resource metadata with a wildcard CORS origin', async () => {
+    const response = await createApp().request('/.well-known/oauth-protected-resource/api/mcp', {
+      headers: {
+        Origin: 'https://claude.ai',
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
+    const body = (await response.json()) as { resource: string };
+    expect(body.resource).toContain('/api/mcp');
+  });
+
+  it('answers discovery metadata preflight with MCP-Protocol-Version allowed', async () => {
+    const response = await createApp().request('/.well-known/oauth-authorization-server', {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'https://claude.ai',
+        'Access-Control-Request-Method': 'GET',
+        'Access-Control-Request-Headers': 'mcp-protocol-version',
+      },
+    });
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
+    expect(response.headers.get('Access-Control-Allow-Headers')).toContain('MCP-Protocol-Version');
+  });
 });

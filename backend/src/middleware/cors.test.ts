@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { Hono } from 'hono';
 import { config } from '../config';
 
-const { cors } = await import('./cors');
+const { cors, apiCors } = await import('./cors');
 
 const originalCorsOrigins = [...config.corsOrigins];
 const originalNodeEnv = config.nodeEnv;
@@ -268,6 +268,110 @@ describe('cors middleware', () => {
     expect(pageHandlerReached).toBe(true);
     expect(apiResponse.status).toBe(403);
     expect(apiHandlerReached).toBe(false);
+  });
+
+  it('exempts /api/mcp from the strict origin allowlist via apiCors', async () => {
+    let handlerReached = false;
+    const app = new Hono();
+    app.use('/api/*', apiCors);
+    app.post('/api/mcp', (c) => {
+      handlerReached = true;
+      return c.json({ ok: true });
+    });
+
+    const response = await app.request('/api/mcp', {
+      method: 'POST',
+      headers: {
+        Origin: 'https://claude.ai',
+        'Content-Type': 'application/json',
+      },
+      body: '{}',
+    });
+
+    expect(response.status).toBe(200);
+    expect(handlerReached).toBe(true);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('https://claude.ai');
+    expect(response.headers.get('Access-Control-Allow-Credentials')).toBeNull();
+  });
+
+  it('answers /api/mcp preflight for browser MCP connectors', async () => {
+    const app = new Hono();
+    app.use('/api/*', apiCors);
+    app.post('/api/mcp', (c) => c.json({ ok: true }));
+
+    const response = await app.request('/api/mcp', {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'https://claude.ai',
+        'Access-Control-Request-Method': 'POST',
+        'Access-Control-Request-Headers': 'authorization, content-type, mcp-protocol-version',
+      },
+    });
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('https://claude.ai');
+    expect(response.headers.get('Access-Control-Allow-Headers')).toContain('MCP-Protocol-Version');
+    expect(response.headers.get('Access-Control-Allow-Credentials')).toBeNull();
+  });
+
+  it('keeps the strict allowlist for other API routes under apiCors', async () => {
+    let handlerReached = false;
+    const app = new Hono();
+    app.use('/api/*', apiCors);
+    app.post('/api/v1/projects', (c) => {
+      handlerReached = true;
+      return c.json({ ok: true });
+    });
+
+    const response = await app.request('/api/v1/projects', {
+      method: 'POST',
+      headers: {
+        Origin: 'https://claude.ai',
+      },
+    });
+
+    expect(response.status).toBe(403);
+    expect(handlerReached).toBe(false);
+  });
+
+  it('rejects non-HTTPS remote origins on /api/mcp', async () => {
+    let handlerReached = false;
+    const app = new Hono();
+    app.use('/api/*', apiCors);
+    app.post('/api/mcp', (c) => {
+      handlerReached = true;
+      return c.json({ ok: true });
+    });
+
+    const response = await app.request('/api/mcp', {
+      method: 'POST',
+      headers: {
+        Origin: 'http://evil.example',
+      },
+    });
+
+    expect(response.status).toBe(403);
+    expect(handlerReached).toBe(false);
+  });
+
+  it('keeps /api/mcp subpaths under the strict policy', async () => {
+    let handlerReached = false;
+    const app = new Hono();
+    app.use('/api/*', apiCors);
+    app.post('/api/mcp/internal', (c) => {
+      handlerReached = true;
+      return c.json({ ok: true });
+    });
+
+    const response = await app.request('/api/mcp/internal', {
+      method: 'POST',
+      headers: {
+        Origin: 'https://claude.ai',
+      },
+    });
+
+    expect(response.status).toBe(403);
+    expect(handlerReached).toBe(false);
   });
 
   it('can be scoped to API routes without blocking static assets', async () => {

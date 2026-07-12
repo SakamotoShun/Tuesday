@@ -1,9 +1,24 @@
-import { describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { Hono } from 'hono';
+import { config } from '../config';
+import { apiCors } from '../middleware/cors';
 import { mcp } from './mcp';
+
+const originalCorsOrigins = [...config.corsOrigins];
+const originalNodeEnv = config.nodeEnv;
+const originalPublicBaseUrl = config.publicBaseUrl;
 
 function createApp() {
   const app = new Hono();
+  app.route('/api/mcp', mcp);
+  return app;
+}
+
+// Mirrors production mounting (backend/src/index.ts): the strict /api/* CORS
+// dispatcher runs in front of the MCP route.
+function createProductionShapedApp() {
+  const app = new Hono();
+  app.use('/api/*', apiCors);
   app.route('/api/mcp', mcp);
   return app;
 }
@@ -31,5 +46,69 @@ describe('MCP Routes', () => {
 
     expect(response.status).toBe(202);
     expect(await response.text()).toBe('');
+  });
+});
+
+describe('MCP Routes with browser-connector CORS', () => {
+  beforeEach(() => {
+    config.corsOrigins = ['https://allowed.example'];
+    config.nodeEnv = 'production';
+    config.publicBaseUrl = 'https://workhub.example.com';
+  });
+
+  afterEach(() => {
+    config.corsOrigins = [...originalCorsOrigins];
+    config.nodeEnv = originalNodeEnv;
+    config.publicBaseUrl = originalPublicBaseUrl;
+  });
+
+  it('serves initialize to browser MCP clients from unlisted HTTPS origins', async () => {
+    const response = await createProductionShapedApp().request('/api/mcp', {
+      method: 'POST',
+      headers: {
+        Origin: 'https://claude.ai',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'test', version: '1.0' } },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('https://claude.ai');
+    const body = (await response.json()) as { result: { serverInfo: { name: string } } };
+    expect(body.result.serverInfo.name).toBe('Tuesday');
+  });
+
+  it('exposes the WWW-Authenticate challenge to cross-origin browser clients', async () => {
+    const response = await createProductionShapedApp().request('/api/mcp', {
+      method: 'POST',
+      headers: {
+        Origin: 'https://claude.ai',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }),
+    });
+
+    expect(response.status).toBe(401);
+    expect(response.headers.get('WWW-Authenticate')).toContain('oauth-protected-resource');
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('https://claude.ai');
+    expect(response.headers.get('Access-Control-Expose-Headers')).toContain('WWW-Authenticate');
+  });
+
+  it('carries CORS headers on method-not-allowed responses', async () => {
+    const response = await createProductionShapedApp().request('/api/mcp', {
+      method: 'GET',
+      headers: {
+        Origin: 'https://claude.ai',
+        Accept: 'text/event-stream',
+      },
+    });
+
+    expect(response.status).toBe(405);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('https://claude.ai');
   });
 });

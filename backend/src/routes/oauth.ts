@@ -1,7 +1,9 @@
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { randomBytes } from 'node:crypto';
 import { config } from '../config';
 import { rateLimit } from '../middleware';
+import { publicEndpointCors, wellKnownCors, OAUTH_CORS_OPTIONS } from '../middleware/public-cors';
 import { authService, oauthService } from '../services';
 import type { User } from '../types';
 import { log } from '../utils/logger';
@@ -40,37 +42,8 @@ function htmlEscape(value: string): string {
     .replace(/'/g, '&#39;');
 }
 
-function isAllowedOauthCorsOrigin(origin: string): boolean {
-  try {
-    const url = new URL(origin);
-    return url.protocol === 'https:' || (url.protocol === 'http:' && ['localhost', '127.0.0.1', '::1'].includes(url.hostname));
-  } catch {
-    return false;
-  }
-}
-
-function setOauthCorsHeaders(c: any): boolean {
-  const origin = c.req.header('Origin');
-  c.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  c.header('Access-Control-Max-Age', '86400');
-
-  if (!origin) return true;
-  if (!isAllowedOauthCorsOrigin(origin)) return false;
-
-  c.header('Access-Control-Allow-Origin', origin);
-  c.header('Vary', 'Origin');
-  return true;
-}
-
-function oauthCors(c: any) {
-  if (!setOauthCorsHeaders(c)) {
-    return c.text('Origin not allowed', 403);
-  }
-  if (c.req.method === 'OPTIONS') {
-    return c.body(null, 204);
-  }
-  return null;
+function oauthCors(c: Context) {
+  return publicEndpointCors(c, OAUTH_CORS_OPTIONS);
 }
 
 function oauthError(c: any, error: string, description: string, status = 400) {
@@ -188,15 +161,21 @@ function renderConsentPage({
 </html>`;
 }
 
-oauth.get('/.well-known/oauth-authorization-server', (c) => {
+oauth.on(['GET', 'OPTIONS'], '/.well-known/oauth-authorization-server', (c) => {
+  const preflight = wellKnownCors(c);
+  if (preflight) return preflight;
   return c.json(oauthService.getAuthorizationServerMetadata(publicBaseUrl(c.req.url)));
 });
 
-oauth.get('/.well-known/oauth-protected-resource', (c) => {
+oauth.on(['GET', 'OPTIONS'], '/.well-known/oauth-protected-resource', (c) => {
+  const preflight = wellKnownCors(c);
+  if (preflight) return preflight;
   return c.json(oauthService.getProtectedResourceMetadata(publicBaseUrl(c.req.url)));
 });
 
-oauth.get('/.well-known/oauth-protected-resource/api/mcp', (c) => {
+oauth.on(['GET', 'OPTIONS'], '/.well-known/oauth-protected-resource/api/mcp', (c) => {
+  const preflight = wellKnownCors(c);
+  if (preflight) return preflight;
   return c.json(oauthService.getProtectedResourceMetadata(publicBaseUrl(c.req.url)));
 });
 

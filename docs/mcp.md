@@ -160,3 +160,8 @@ If your Claude Desktop build does not expose custom connectors, it may not suppo
 - Do not commit MCP bearer tokens to git.
 - Rotate tokens if they were previously pasted into shared files or chat logs.
 - Use per-user tokens where possible so access can be revoked cleanly.
+
+## Troubleshooting
+
+- **CLI clients connect but claude.ai / Claude Desktop cannot.** Browser-based connectors send an `Origin` header (for example `https://claude.ai`). `/api/mcp`, `/oauth/*`, and `/.well-known/*` deliberately accept any HTTPS origin — they authenticate with bearer tokens only and never send credentials — while the rest of `/api/*` stays locked to `CORS_ORIGIN`. A 403 `Origin not allowed` from `/api/mcp` means this exemption has regressed (see `apiCors` in `backend/src/middleware/cors.ts`).
+- **OAuth never starts.** `TUESDAY_BASE_URL` must be set to the public HTTPS URL; without it the `WWW-Authenticate` challenge that bootstraps connector OAuth discovery is not emitted.

@@ -1,5 +1,6 @@
 import type { Context, Next } from 'hono';
 import { config } from '../config';
+import { mcpCors } from './public-cors';
 
 function getForwardedHeaderValue(value: string | undefined) {
   return value?.split(',')[0]?.trim() || null;
@@ -106,4 +107,17 @@ export async function cors(c: Context, next: Next) {
   }
 
   await next();
+}
+
+// The MCP endpoint authenticates with bearer tokens only (no cookies), so it
+// gets the permissive browser-connector policy instead of the strict origin
+// allowlist. Exact-path match: future /api/mcp/<sub> routes stay strict
+// unless deliberately added here.
+const MCP_PATHS = new Set(['/api/mcp', '/api/mcp/']);
+
+export async function apiCors(c: Context, next: Next) {
+  if (MCP_PATHS.has(c.req.path)) {
+    return mcpCors(c, next);
+  }
+  return cors(c, next);
 }
