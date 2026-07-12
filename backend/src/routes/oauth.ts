@@ -198,7 +198,13 @@ oauth.on(['GET', 'OPTIONS'], '/.well-known/oauth-protected-resource', (c) => {
 oauth.on(['GET', 'OPTIONS'], '/.well-known/oauth-protected-resource/api/mcp', (c) => {
   const preflight = wellKnownCors(c);
   if (preflight) return preflight;
-  return c.json(oauthService.getProtectedResourceMetadata(publicBaseUrl(c.req.url)));
+  return c.json(oauthService.getProtectedResourceMetadata(publicBaseUrl(c.req.url), '/api/mcp'));
+});
+
+oauth.on(['GET', 'OPTIONS'], '/.well-known/oauth-protected-resource/mcp', (c) => {
+  const preflight = wellKnownCors(c);
+  if (preflight) return preflight;
+  return c.json(oauthService.getProtectedResourceMetadata(publicBaseUrl(c.req.url), '/mcp'));
 });
 
 oauth.post('/oauth/register', oauthRegistrationRateLimit, async (c) => {

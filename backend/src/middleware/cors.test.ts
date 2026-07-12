@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { config } from '../config';
 
 const { cors, apiCors } = await import('./cors');
+const { mcpCors } = await import('./public-cors');
 
 const originalCorsOrigins = [...config.corsOrigins];
 const originalNodeEnv = config.nodeEnv;
@@ -311,6 +312,25 @@ describe('cors middleware', () => {
     expect(response.status).toBe(204);
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe('https://claude.ai');
     expect(response.headers.get('Access-Control-Allow-Headers')).toContain('MCP-Protocol-Version');
+    expect(response.headers.get('Access-Control-Allow-Credentials')).toBeNull();
+  });
+
+  it('allows browser connector origins on the canonical /mcp endpoint', async () => {
+    const app = new Hono();
+    app.use('/mcp', mcpCors);
+    app.post('/mcp', (c) => c.json({ ok: true }));
+
+    const response = await app.request('/mcp', {
+      method: 'POST',
+      headers: {
+        Origin: 'https://claude.ai',
+        'Content-Type': 'application/json',
+      },
+      body: '{}',
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('https://claude.ai');
     expect(response.headers.get('Access-Control-Allow-Credentials')).toBeNull();
   });
 

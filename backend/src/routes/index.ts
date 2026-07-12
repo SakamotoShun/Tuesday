@@ -67,6 +67,7 @@ routes.route('/api/v1/hiring', hiring);
 routes.route('/api/v1/policies', policies);
 routes.route('/api/v1/shared', shared);
 routes.route('/api/v1/mcp-tokens', mcpTokens);
+routes.route('/mcp', mcp);
 routes.route('/api/mcp', mcp);
 
 // Health check

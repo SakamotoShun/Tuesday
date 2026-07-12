@@ -71,7 +71,7 @@ function CreatedTokenDisplay({
         <pre className="text-xs bg-muted p-3 rounded-md overflow-x-auto">
 {`mcp_servers:
   tuesday:
-    url: "https://your-tuesday.example.com/api/mcp"
+    url: "https://your-tuesday.example.com/mcp"
     headers:
       Authorization: "Bearer ${rawToken}"`}
         </pre>

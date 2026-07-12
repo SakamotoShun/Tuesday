@@ -54,11 +54,12 @@ describeIntegration('OAuth to MCP flow', () => {
     const session = await seedSession(user.id);
     const sessionCookie = createSessionCookie(session.id);
     const redirectUri = 'https://claude.ai/api/mcp/auth_callback';
-    const resource = `${publicBaseUrl}/api/mcp`;
+    const resource = `${publicBaseUrl}/mcp`;
     const verifier = 'claude-ai-pkce-verifier-that-is-long-enough-for-s256-testing';
     const challenge = pkceS256Challenge(verifier);
     const app = new Hono();
     app.route('/', oauth);
+    app.route('/mcp', mcp);
     app.route('/api/mcp', mcp);
 
     const registerResponse = await app.request('/oauth/register', {
@@ -143,7 +144,7 @@ describeIntegration('OAuth to MCP flow', () => {
     expect(token.refresh_token).toBeTruthy();
     expect(token.scope.split(' ')).toEqual(allScopes);
 
-    const toolsResponse = await app.request('/api/mcp', {
+    const toolsResponse = await app.request('/mcp', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token.access_token}`,

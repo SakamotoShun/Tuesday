@@ -136,4 +136,19 @@ describe('OauthService', () => {
       resource: 'https://other.example/api/mcp',
     })).rejects.toThrow('Invalid resource');
   });
+
+  for (const resourcePath of ['/mcp', '/api/mcp']) {
+    it(`accepts the ${resourcePath} protected resource`, async () => {
+      config.publicBaseUrl = 'https://tuesday.example';
+      findClient = async () => oauthClient(['projects:read']);
+      const service = new OauthService();
+
+      const details = await service.getAuthorizeDetails({
+        ...authorizeInput,
+        resource: `https://tuesday.example${resourcePath}`,
+      });
+
+      expect(details.scopes).toEqual(['projects:read']);
+    });
+  }
 });

@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { Hono } from 'hono';
 import { config } from './config';
 import { routes } from './routes';
-import { requestContext, recovery, logging, apiCors, securityHeaders, serveStatic } from './middleware';
+import { requestContext, recovery, logging, apiCors, mcpCors, securityHeaders, serveStatic } from './middleware';
 import { websocket } from './websocket';
 import { log } from './utils/logger';
 import { runTrackedCleanupJob, type CleanupJobName } from './runtime';
@@ -23,8 +23,10 @@ app.use('*', recovery);
 app.use('*', logging);
 // Only API responses need CORS enforcement. Keeping it off the SPA shell and
 // static assets avoids proxy-specific origin quirks from breaking app boot.
-// /api/mcp is exempted from the strict origin allowlist (see apiCors).
+// MCP endpoints use bearer auth and accept browser connector origins.
 app.use('/api/*', apiCors);
+app.use('/mcp', mcpCors);
+app.use('/mcp/', mcpCors);
 app.use('*', securityHeaders);
 
 // Mount routes

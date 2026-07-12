@@ -92,6 +92,17 @@ describe('OAuth Routes', () => {
     expect(body.resource).toContain('/api/mcp');
   });
 
+  it('serves canonical /mcp protected-resource metadata', async () => {
+    const response = await createApp().request('/.well-known/oauth-protected-resource/mcp', {
+      headers: { Origin: 'https://claude.ai' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
+    const body = (await response.json()) as { resource: string };
+    expect(body.resource).toBe('http://localhost/mcp');
+  });
+
   it('answers discovery metadata preflight with MCP-Protocol-Version allowed', async () => {
     const response = await createApp().request('/.well-known/oauth-authorization-server', {
       method: 'OPTIONS',

@@ -53,14 +53,17 @@ function jsonRpcResult(id: string | number | undefined | null, result: unknown):
 
 const mcp = new Hono();
 
-function authChallenge(): string {
+function authChallenge(requestPath: string): string {
   if (!config.publicBaseUrl) return '';
   const origin = config.publicBaseUrl.replace(/\/+$/, '');
-  return `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource"`;
+  const metadataPath = requestPath === '/mcp' || requestPath === '/mcp/'
+    ? '/.well-known/oauth-protected-resource/mcp'
+    : '/.well-known/oauth-protected-resource/api/mcp';
+  return `Bearer resource_metadata="${origin}${metadataPath}"`;
 }
 
 function setAuthChallenge(c: any): void {
-  const challenge = authChallenge();
+  const challenge = authChallenge(c.req.path);
   if (challenge) {
     c.header('WWW-Authenticate', challenge);
   }

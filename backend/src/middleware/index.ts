@@ -2,7 +2,7 @@ export { recovery } from './recovery';
 export { requestContext, getRequestId, REQUEST_ID_HEADER } from './request-context';
 export { logging } from './logging';
 export { cors, apiCors } from './cors';
-export { publicEndpointCors, wellKnownCors, OAUTH_CORS_OPTIONS, MCP_CORS_OPTIONS } from './public-cors';
+export { publicEndpointCors, wellKnownCors, mcpCors, OAUTH_CORS_OPTIONS, MCP_CORS_OPTIONS } from './public-cors';
 export { securityHeaders } from './security';
 export { serveStatic } from './static';
 export { auth, optionalAuth } from './auth';

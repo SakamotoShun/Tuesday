@@ -15,6 +15,7 @@ import { hashPassword, verifyPassword } from '../utils/password';
 const AUTH_CODE_TTL_MS = 5 * 60 * 1000;
 const ACCESS_TOKEN_TTL_SECONDS = 60 * 60;
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const MCP_RESOURCE_PATHS = ['/mcp', '/api/mcp'] as const;
 
 const SUPPORTED_GRANT_TYPES = ['authorization_code', 'refresh_token'] as const;
 const SUPPORTED_RESPONSE_TYPES = ['code'] as const;
@@ -85,15 +86,13 @@ function getIssuer(publicBaseUrl: string): string {
   return publicBaseUrl.replace(/\/+$/, '');
 }
 
-function getExpectedResource(): string | null {
-  if (!config.publicBaseUrl) return null;
-  return `${getIssuer(config.publicBaseUrl)}/api/mcp`;
+function getMcpResource(publicBaseUrl: string, resourcePath: typeof MCP_RESOURCE_PATHS[number] = '/mcp'): string {
+  return `${getIssuer(publicBaseUrl)}${resourcePath}`;
 }
 
 function validateResourceIndicator(resource?: string | null): void {
   if (!resource) return;
-  const expectedResource = getExpectedResource();
-  if (expectedResource && resource !== expectedResource) {
+  if (config.publicBaseUrl && !MCP_RESOURCE_PATHS.some((path) => resource === getMcpResource(config.publicBaseUrl!, path))) {
     throw new Error('Invalid resource');
   }
 }
@@ -130,14 +129,17 @@ export class OauthService {
       code_challenge_methods_supported: ['S256'],
       token_endpoint_auth_methods_supported: ['none', 'client_secret_post', 'client_secret_basic'],
       scopes_supported: Array.from(VALID_MCP_SCOPES),
-      protected_resources: [`${issuer}/api/mcp`],
+      protected_resources: MCP_RESOURCE_PATHS.map((path) => `${issuer}${path}`),
     };
   }
 
-  getProtectedResourceMetadata(publicBaseUrl: string) {
+  getProtectedResourceMetadata(
+    publicBaseUrl: string,
+    resourcePath: typeof MCP_RESOURCE_PATHS[number] = '/mcp',
+  ) {
     const issuer = getIssuer(publicBaseUrl);
     return {
-      resource: `${issuer}/api/mcp`,
+      resource: getMcpResource(issuer, resourcePath),
       authorization_servers: [issuer],
       bearer_methods_supported: ['header'],
       scopes_supported: Array.from(VALID_MCP_SCOPES),
