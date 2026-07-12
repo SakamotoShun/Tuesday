@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { Hono } from 'hono';
 
 // Mutable mock returns — reassigned per test group
@@ -13,6 +13,21 @@ const freelancerUser = {
   updatedAt: new Date(),
 };
 
+const adminUser = {
+  ...freelancerUser,
+  id: 'admin-1',
+  email: 'admin@example.com',
+  name: 'Admin',
+  role: 'admin' as const,
+};
+
+let currentUser: typeof freelancerUser | typeof adminUser = freelancerUser;
+let appendedUpdates: Array<{ docId: string; update: Uint8Array; userId: string }> = [];
+let broadcasts: Array<{ docId: string; message: string; exclude: unknown }> = [];
+let createdSnapshots: Array<{ docId: string; snapshot: Uint8Array; seq: number }> = [];
+let compactedSnapshots: Array<{ docId: string; seq: number }> = [];
+let canonicalUpdates: Array<{ docId: string; data: Record<string, unknown> }> = [];
+
 const { collab, setCollabDependenciesForTests } = await import('./collab');
 const { websocket } = await import('../websocket');
 
@@ -24,7 +39,7 @@ let wsBase: string;
 
 beforeAll(() => {
   setCollabDependenciesForTests({
-    validateSession: async () => freelancerUser,
+    validateSession: async () => currentUser,
     getDoc: async () => ({ id: 'doc-1', projectId: 'proj-1', title: 'Test', createdBy: 'admin-1' } as any),
     getWhiteboard: async () => ({ id: 'wb-1', projectId: 'proj-1', title: 'Test WB', data: null } as any),
     docCollabRepository: {
@@ -33,11 +48,23 @@ beforeAll(() => {
       getUpdatesInRange: async () => [],
       getUpdatesSince: async () => [],
       getLatestSeq: async () => 0,
-      appendUpdate: async () => 1,
-      createSnapshot: async () => {},
-      compactHistory: async () => {},
+      appendUpdate: async (docId: string, update: Uint8Array, userId: string) => {
+        appendedUpdates.push({ docId, update, userId });
+        return 7;
+      },
+      createSnapshot: async (docId: string, snapshot: Uint8Array, seq: number) => {
+        createdSnapshots.push({ docId, snapshot, seq });
+      },
+      compactHistory: async (docId: string, seq: number) => {
+        compactedSnapshots.push({ docId, seq });
+      },
     } as any,
-    docRepository: { update: async () => ({}) } as any,
+    docRepository: {
+      update: async (docId: string, data: Record<string, unknown>) => {
+        canonicalUpdates.push({ docId, data });
+        return {};
+      },
+    } as any,
     whiteboardCollabRepository: {
       getLatestSnapshot: async () => null,
       countUpdatesInRange: async () => 0,
@@ -50,11 +77,14 @@ beforeAll(() => {
     } as any,
     whiteboardRepository: { update: async () => ({}) } as any,
     docCollabHub: {
-      join: () => true,
+      join: () => 'joined',
+      beginCollabWrite: () => () => {},
       leave: () => {},
       touch: () => {},
       markPong: () => {},
-      broadcast: () => {},
+      broadcast: (docId: string, message: string, exclude: unknown) => {
+        broadcasts.push({ docId, message, exclude });
+      },
       shouldRequestSnapshot: () => false,
       getStats: () => ({ activeRooms: 0, clients: 0 }),
     } as any,
@@ -76,6 +106,15 @@ beforeAll(() => {
     websocket,
   });
   wsBase = `ws://localhost:${server.port}`;
+});
+
+beforeEach(() => {
+  currentUser = freelancerUser;
+  appendedUpdates = [];
+  broadcasts = [];
+  createdSnapshots = [];
+  compactedSnapshots = [];
+  canonicalUpdates = [];
 });
 
 afterAll(() => {
@@ -106,6 +145,16 @@ function waitFor(ws: WebSocket, pred: (m: any) => boolean, ms = 3000): Promise<a
     };
     ws.addEventListener('message', handler);
   });
+}
+
+async function waitUntil(predicate: () => boolean, ms = 3000): Promise<void> {
+  const startedAt = Date.now();
+  while (!predicate()) {
+    if (Date.now() - startedAt >= ms) {
+      throw new Error('timeout waiting for collaboration side effect');
+    }
+    await Bun.sleep(10);
+  }
 }
 
 describe('Collab WebSocket — freelancer read-only enforcement', () => {
@@ -165,5 +214,67 @@ describe('Collab WebSocket — freelancer read-only enforcement', () => {
       expect(err).toMatchObject({ type: 'error', code: 'read_only', op: 'whiteboard.snapshot' });
       ws.close();
     });
+  });
+});
+
+describe('Collab WebSocket — normal document collaboration', () => {
+  beforeEach(() => {
+    currentUser = adminUser;
+  });
+
+  it('syncs, persists, broadcasts, and acknowledges document updates', async () => {
+    const ws = await connectWs('/collab/docs/doc-1');
+    const sync = await waitFor(ws, (message) => message.type === 'doc.sync');
+    expect(sync).toMatchObject({ snapshot: null, updates: [], latestSeq: 0 });
+
+    const ackPromise = waitFor(ws, (message) => message.type === 'doc.ack');
+    ws.send(JSON.stringify({ type: 'doc.update', update: 'AQID' }));
+    expect(await ackPromise).toMatchObject({ type: 'doc.ack', seq: 7 });
+
+    expect(appendedUpdates).toHaveLength(1);
+    expect(appendedUpdates[0]).toMatchObject({ docId: 'doc-1', userId: adminUser.id });
+    expect(Array.from(appendedUpdates[0]!.update)).toEqual([1, 2, 3]);
+    expect(broadcasts).toHaveLength(1);
+    expect(JSON.parse(broadcasts[0]!.message)).toMatchObject({
+      type: 'doc.update',
+      update: 'AQID',
+      seq: 7,
+      actorId: adminUser.id,
+    });
+
+    ws.close();
+  });
+
+  it('continues broadcasting collaborator presence', async () => {
+    const ws = await connectWs('/collab/docs/doc-1');
+    await waitFor(ws, (message) => message.type === 'doc.sync');
+
+    ws.send(JSON.stringify({ type: 'presence.update', update: 'presence-state' }));
+    await waitUntil(() => broadcasts.length === 1);
+
+    expect(JSON.parse(broadcasts[0]!.message)).toEqual({
+      type: 'presence.broadcast',
+      update: 'presence-state',
+    });
+
+    ws.close();
+  });
+
+  it('persists current snapshots and canonical document content', async () => {
+    const ws = await connectWs('/collab/docs/doc-1');
+    await waitFor(ws, (message) => message.type === 'doc.sync');
+    const content = [{ id: 'paragraph-1', type: 'paragraph', content: [] }];
+
+    ws.send(JSON.stringify({ type: 'doc.snapshot', snapshot: 'BAUG', seq: 0, content }));
+    await waitUntil(() => canonicalUpdates.length === 1);
+
+    expect(createdSnapshots).toHaveLength(1);
+    expect(createdSnapshots[0]).toMatchObject({ docId: 'doc-1', seq: 0 });
+    expect(Array.from(createdSnapshots[0]!.snapshot)).toEqual([4, 5, 6]);
+    expect(compactedSnapshots).toEqual([{ docId: 'doc-1', seq: 0 }]);
+    expect(canonicalUpdates[0]).toMatchObject({ docId: 'doc-1' });
+    expect(canonicalUpdates[0]!.data.content).toEqual(content);
+
+    ws.close();
   });
 });

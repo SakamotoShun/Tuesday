@@ -8,6 +8,7 @@ import {
   positionDocRepository,
   docRepository,
 } from '../repositories';
+import { docCollabHub } from '../collab/hub';
 import { docService } from './doc';
 import { fileService } from './file';
 import type { User } from '../types';
@@ -476,10 +477,18 @@ export class HiringService {
     const nextContent = input.content as Array<Record<string, unknown>> | undefined;
 
     if (nextTitle !== undefined || nextContent !== undefined) {
-      await docRepository.update(note.docId, {
+      const docUpdate = {
         ...(nextTitle !== undefined ? { title: nextTitle } : {}),
         ...(nextContent !== undefined ? { content: nextContent } : {}),
-      });
+      };
+      if (nextContent !== undefined) {
+        await docCollabHub.runContentMutation(
+          note.docId,
+          () => docRepository.updateContentAndResetCollab(note.docId, docUpdate)
+        );
+      } else {
+        await docRepository.update(note.docId, docUpdate);
+      }
     }
 
     const updateData: Partial<NewInterviewNote> = {};

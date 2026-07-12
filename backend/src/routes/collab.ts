@@ -144,12 +144,29 @@ collab.get(
             return;
           }
 
-          if (!docCollabHub.join(docId, { ws, user, lastSeenAt: Date.now(), awaitingPong: false })) {
-            safeCloseWebSocket(ws, 1013, 'Room capacity reached');
+          const joinResult = docCollabHub.join(docId, { ws, user, lastSeenAt: Date.now(), awaitingPong: false });
+          if (joinResult !== 'joined') {
+            const reason = joinResult === 'content_mutation'
+              ? 'Document is being updated. Retry shortly.'
+              : 'Room capacity reached';
+            safeCloseWebSocket(ws, 1013, reason);
             return;
           }
 
-          const syncState = await buildDocSyncState(docCollabRepository, docId);
+          const releaseCollabWrite = docCollabHub.beginCollabWrite(docId);
+          if (!releaseCollabWrite) {
+            docCollabHub.leave(docId, ws);
+            safeCloseWebSocket(ws, 1013, 'Document is being updated. Retry shortly.');
+            return;
+          }
+
+          const syncState = await (async () => {
+            try {
+              return await buildDocSyncState(docCollabRepository, docId);
+            } finally {
+              releaseCollabWrite();
+            }
+          })();
 
           sendWebSocketMessage(
             ws,
@@ -197,34 +214,44 @@ collab.get(
               return;
             }
 
-            const update = decodeBase64(message.update);
-            const seq = await docCollabRepository.appendUpdate(docId, update, user.id);
-            docCollabHub.broadcast(
-              docId,
-              JSON.stringify({
-                type: 'doc.update',
-                update: message.update,
-                seq,
-                actorId: user.id,
-              }),
-              ws
-            );
+            const releaseCollabWrite = docCollabHub.beginCollabWrite(docId);
+            if (!releaseCollabWrite) {
+              safeCloseWebSocket(ws, 1013, 'Document is being updated. Retry shortly.');
+              return;
+            }
 
-            if (docCollabHub.shouldRequestSnapshot(docId, seq)) {
-              sendWebSocketMessage(ws, JSON.stringify({ type: 'doc.snapshot.request', seq }), {
+            try {
+              const update = decodeBase64(message.update);
+              const seq = await docCollabRepository.appendUpdate(docId, update, user.id);
+              docCollabHub.broadcast(
+                docId,
+                JSON.stringify({
+                  type: 'doc.update',
+                  update: message.update,
+                  seq,
+                  actorId: user.id,
+                }),
+                ws
+              );
+
+              if (docCollabHub.shouldRequestSnapshot(docId, seq)) {
+                sendWebSocketMessage(ws, JSON.stringify({ type: 'doc.snapshot.request', seq }), {
+                  hub: 'doc_collab',
+                  event: 'snapshot_request',
+                  doc_id: docId,
+                  user_id: user.id,
+                });
+              }
+
+              sendWebSocketMessage(ws, JSON.stringify({ type: 'doc.ack', seq }), {
                 hub: 'doc_collab',
-                event: 'snapshot_request',
+                event: 'ack',
                 doc_id: docId,
                 user_id: user.id,
               });
+            } finally {
+              releaseCollabWrite();
             }
-
-            sendWebSocketMessage(ws, JSON.stringify({ type: 'doc.ack', seq }), {
-              hub: 'doc_collab',
-              event: 'ack',
-              doc_id: docId,
-              user_id: user.id,
-            });
             return;
           }
 
@@ -248,22 +275,32 @@ collab.get(
               return;
             }
 
-            const snapshot = decodeBase64(message.snapshot);
-            const latestSeq = await docCollabRepository.getLatestSeq(docId);
-            const snapshotSeq = resolveDocSnapshotSeq(message.seq, latestSeq);
-
-            if (snapshotSeq === null) {
+            const releaseCollabWrite = docCollabHub.beginCollabWrite(docId);
+            if (!releaseCollabWrite) {
+              safeCloseWebSocket(ws, 1013, 'Document is being updated. Retry shortly.');
               return;
             }
 
-            await docCollabRepository.createSnapshot(docId, snapshot, snapshotSeq);
-            await docCollabRepository.compactHistory(docId, snapshotSeq);
+            try {
+              const snapshot = decodeBase64(message.snapshot);
+              const latestSeq = await docCollabRepository.getLatestSeq(docId);
+              const snapshotSeq = resolveDocSnapshotSeq(message.seq, latestSeq);
 
-            if (shouldPersistCanonicalDocContent(snapshotSeq, latestSeq, message.content)) {
-              await docRepository.update(docId, {
-                content: message.content,
-                searchText: extractSearchTextFromDocContent(message.content),
-              });
+              if (snapshotSeq === null) {
+                return;
+              }
+
+              await docCollabRepository.createSnapshot(docId, snapshot, snapshotSeq);
+              await docCollabRepository.compactHistory(docId, snapshotSeq);
+
+              if (shouldPersistCanonicalDocContent(snapshotSeq, latestSeq, message.content)) {
+                await docRepository.update(docId, {
+                  content: message.content,
+                  searchText: extractSearchTextFromDocContent(message.content),
+                });
+              }
+            } finally {
+              releaseCollabWrite();
             }
           }
         } catch (error) {

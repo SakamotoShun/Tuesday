@@ -8,7 +8,7 @@ export class DocCollabRepository {
   async getLatestSnapshot(docId: string) {
     return db.query.docCollabSnapshots.findFirst({
       where: eq(docCollabSnapshots.docId, docId),
-      orderBy: [desc(docCollabSnapshots.seq)],
+      orderBy: [desc(docCollabSnapshots.seq), desc(docCollabSnapshots.createdAt)],
     });
   }
 

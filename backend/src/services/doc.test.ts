@@ -12,6 +12,8 @@ let findUserById: (...args: any[]) => Promise<any> = async () => null;
 let createDoc: (...args: any[]) => Promise<any> = async (data) => ({ id: 'doc-1', ...data });
 let updateDoc: (...args: any[]) => Promise<any> = async (_id, data) => ({ id: 'doc-1', ...data });
 let updateDocIfVersion: (...args: any[]) => Promise<any> = async (_id, _version, data) => ({ id: 'doc-1', version: 2, ...data });
+let updateDocContent: (...args: any[]) => Promise<any> = async (_id, data) => ({ id: 'doc-1', ...data });
+let updateDocContentIfVersion: (...args: any[]) => Promise<any> = async (_id, _version, data) => ({ id: 'doc-1', version: 2, ...data });
 let deleteDoc: (...args: any[]) => Promise<any> = async () => true;
 let findDocShareLink: (...args: any[]) => Promise<any> = async () => null;
 let findShareLinkByToken: (...args: any[]) => Promise<any> = async () => null;
@@ -29,6 +31,8 @@ mock.module('../repositories/doc', () => ({
     create: (data: any) => createDoc(data),
     update: (docId: string, data: any) => updateDoc(docId, data),
     updateIfVersion: (docId: string, expectedVersion: number, data: any) => updateDocIfVersion(docId, expectedVersion, data),
+    updateContentAndResetCollab: (docId: string, data: any) => updateDocContent(docId, data),
+    updateContentIfVersionAndResetCollab: (docId: string, expectedVersion: number, data: any) => updateDocContentIfVersion(docId, expectedVersion, data),
     delete: (docId: string) => deleteDoc(docId),
   },
 }));
@@ -124,6 +128,8 @@ describe('DocService', () => {
     createDoc = async (data) => ({ id: 'doc-1', ...data });
     updateDoc = async (_id, data) => ({ id: 'doc-1', ...data });
     updateDocIfVersion = async (_id, _version, data) => ({ id: 'doc-1', projectId: 'project-1', title: 'Doc', version: 2, ...data });
+    updateDocContent = async (_id, data) => ({ id: 'doc-1', ...data });
+    updateDocContentIfVersion = async (_id, _version, data) => ({ id: 'doc-1', projectId: 'project-1', title: 'Doc', version: 2, ...data });
     deleteDoc = async () => true;
     findDocShareLink = async () => null;
     findShareLinkByToken = async () => null;
@@ -275,7 +281,7 @@ describe('DocService', () => {
         { id: 'c', type: 'paragraph', content: [] },
       ],
     });
-    updateDocIfVersion = async (_id, _expectedVersion, data) => {
+    updateDocContentIfVersion = async (_id, _expectedVersion, data) => {
       updateData = data;
       return { id: 'doc-1', title: 'Doc', projectId: 'project-1', version: 2, ...data };
     };
@@ -300,7 +306,7 @@ describe('DocService', () => {
       createdBy: adminUser.id,
       content: [{ id: 'a', type: 'paragraph', content: [] }],
     });
-    updateDocIfVersion = async (_id, _expectedVersion, data) => {
+    updateDocContentIfVersion = async (_id, _expectedVersion, data) => {
       updateData = data;
       return { id: 'doc-1', title: 'Doc', projectId: 'project-1', version: 2, ...data };
     };
@@ -309,6 +315,45 @@ describe('DocService', () => {
 
     expect(updateData.content.map((block: any) => block.type)).toEqual(['paragraph', 'heading']);
     expect(updateData.searchText).toContain('Section');
+  });
+
+  it('releases the content mutation reservation after an append conflict', async () => {
+    findById = async () => ({
+      id: 'doc-conflict',
+      projectId: 'project-1',
+      createdBy: adminUser.id,
+      content: [],
+    });
+    updateDocContentIfVersion = async () => null;
+
+    await expect(
+      docService.appendDocBlocks('doc-conflict', [{ id: 'a', type: 'paragraph', content: [] }], 1, adminUser)
+    ).rejects.toThrow('Conflict: doc version changed');
+
+    const { docCollabHub } = await import('../collab/hub');
+    const release = docCollabHub.reserveContentMutation('doc-conflict');
+    expect(release).toBeFunction();
+    release?.();
+  });
+
+  it('uses the collaboration-reset path only for content updates', async () => {
+    findById = async () => ({ id: 'doc-1', projectId: 'project-1', createdBy: adminUser.id });
+    let ordinaryUpdates = 0;
+    let contentUpdates = 0;
+    updateDoc = async (_id, data) => {
+      ordinaryUpdates += 1;
+      return { id: 'doc-1', ...data };
+    };
+    updateDocContent = async (_id, data) => {
+      contentUpdates += 1;
+      return { id: 'doc-1', ...data };
+    };
+
+    await docService.updateDoc('doc-1', { title: 'Renamed' }, adminUser);
+    await docService.updateDoc('doc-1', { content: [{ id: 'a', type: 'paragraph', content: [] }] }, adminUser);
+
+    expect(ordinaryUpdates).toBe(1);
+    expect(contentUpdates).toBe(1);
   });
 
   it('allows admin to delete personal docs', async () => {

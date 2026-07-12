@@ -1,4 +1,5 @@
-import { policyRepository } from '../repositories';
+import { docRepository, policyRepository } from '../repositories';
+import { docCollabHub } from '../collab/hub';
 import { activityService } from './activity';
 import { UserRole, type Doc, type NewDoc } from '../db/schema';
 import type { User } from '../types';
@@ -234,7 +235,12 @@ export class PolicyService {
       updateData.properties = input.properties;
     }
 
-    const updated = await policyRepository.update(rowId, updateData);
+    const updated = input.content !== undefined
+      ? await docCollabHub.runContentMutation(
+          rowId,
+          () => docRepository.updateContentAndResetCollab(rowId, updateData)
+        )
+      : await policyRepository.update(rowId, updateData);
     if (updated) {
       await activityService.record({
         actorId: user.id,

@@ -1,6 +1,6 @@
 import { eq, and, isNull, desc, exists, or, sql } from 'drizzle-orm';
 import { db } from '../db/client';
-import { docs, docShares, type Doc, type NewDoc } from '../db/schema';
+import { docs, docCollabSnapshots, docCollabUpdates, docShares, type Doc, type NewDoc } from '../db/schema';
 
 export class DocRepository {
   async findById(id: string): Promise<Doc | null> {
@@ -125,6 +125,46 @@ export class DocRepository {
       .where(and(eq(docs.id, id), eq(docs.version, expectedVersion)))
       .returning();
     return doc || null;
+  }
+
+  async updateContentAndResetCollab(id: string, data: Partial<NewDoc>): Promise<Doc | null> {
+    return db.transaction(async (tx) => {
+      const [doc] = await tx
+        .update(docs)
+        .set({ ...data, updatedAt: new Date(), version: sql`${docs.version} + 1` })
+        .where(eq(docs.id, id))
+        .returning();
+
+      if (!doc) {
+        return null;
+      }
+
+      await tx.delete(docCollabUpdates).where(eq(docCollabUpdates.docId, id));
+      await tx.delete(docCollabSnapshots).where(eq(docCollabSnapshots.docId, id));
+      return doc;
+    });
+  }
+
+  async updateContentIfVersionAndResetCollab(
+    id: string,
+    expectedVersion: number,
+    data: Partial<NewDoc>
+  ): Promise<Doc | null> {
+    return db.transaction(async (tx) => {
+      const [doc] = await tx
+        .update(docs)
+        .set({ ...data, updatedAt: new Date(), version: sql`${docs.version} + 1` })
+        .where(and(eq(docs.id, id), eq(docs.version, expectedVersion)))
+        .returning();
+
+      if (!doc) {
+        return null;
+      }
+
+      await tx.delete(docCollabUpdates).where(eq(docCollabUpdates.docId, id));
+      await tx.delete(docCollabSnapshots).where(eq(docCollabSnapshots.docId, id));
+      return doc;
+    });
   }
 
   async delete(id: string): Promise<boolean> {

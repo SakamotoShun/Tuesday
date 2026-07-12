@@ -52,7 +52,7 @@ An inline BlockNote table is not a Tuesday database document. MCP can create inl
 
 ### Canonical two-column table
 
-Use unique IDs, concrete column widths, rectangular rows, complete cell props, and inline text runs inside cells. Keep `colspan` and `rowspan` at `1`; Tuesday does not enable advanced table headers or merge/split behavior.
+Use unique IDs, rectangular rows, complete cell props, and inline text runs inside cells. Omit `columnWidths` to let Tuesday size columns automatically, or provide concrete numeric widths when fixed sizing is useful. A widthless table may contain `null` entries when read back through JSON; those are normalized output values, not values to copy into a new input payload. Keep `colspan` and `rowspan` at `1`; Tuesday does not enable advanced table headers or merge/split behavior.
 
 ```json
 [

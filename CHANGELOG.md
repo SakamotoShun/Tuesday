@@ -28,6 +28,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Portable Tuesday MCP Agent Skill with safe document creation, BlockNote table examples, concurrency, and retry guidance
 - Clearer MCP document tool descriptions and documented source-table flattening behavior
 
+### Fixed
+- MCP and REST document content updates now reset stale collaboration history atomically, preventing Yjs snapshots from overwriting externally added blocks when a document is reopened
+
 ## [0.1.0] - 2026-02-06
 
 ### Added

@@ -393,15 +393,13 @@ export class DocService {
       throw new Error('Cannot append more than 100 blocks at once');
     }
 
-    if (docCollabHub.getActiveClientCount(docId) > 0) {
-      throw new Error('Doc has active collaborators. Retry after collaborators disconnect.');
-    }
-
-    const currentContent = Array.isArray(doc.content) ? doc.content as Array<Record<string, unknown>> : [];
-    const content = this.insertBlocks(currentContent, blocks, position);
-    const updated = await docRepository.updateIfVersion(docId, expectedVersion, {
-      content,
-      searchText: extractSearchTextFromDocContent(content),
+    const updated = await docCollabHub.runContentMutation(docId, async () => {
+      const currentContent = Array.isArray(doc.content) ? doc.content as Array<Record<string, unknown>> : [];
+      const content = this.insertBlocks(currentContent, blocks, position);
+      return docRepository.updateContentIfVersionAndResetCollab(docId, expectedVersion, {
+        content,
+        searchText: extractSearchTextFromDocContent(content),
+      });
     });
 
     if (!updated) {
@@ -493,7 +491,15 @@ export class DocService {
       updateData.properties = input.properties;
     }
 
-    const updated = await docRepository.update(docId, updateData);
+    let updated: Doc | null;
+    if (content !== undefined) {
+      updated = await docCollabHub.runContentMutation(
+        docId,
+        () => docRepository.updateContentAndResetCollab(docId, updateData)
+      );
+    } else {
+      updated = await docRepository.update(docId, updateData);
+    }
     if (updated) {
       await activityService.record({
         actorId: user.id,

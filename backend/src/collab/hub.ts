@@ -2,7 +2,7 @@ import type { User } from '../types';
 import type { WSContext } from 'hono/ws';
 import { safeCloseWebSocket, sendWebSocketMessage } from '../utils/websocket';
 
-interface CollabClient {
+export interface CollabClient {
   ws: WSContext;
   user: User;
   lastSeenAt: number;
@@ -18,8 +18,12 @@ const MAX_DOC_ROOM_CLIENTS = 20;
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const STALE_CLIENT_TIMEOUT_MS = 90_000;
 
-class DocCollabHub {
+export type DocCollabJoinResult = 'joined' | 'room_full' | 'content_mutation';
+
+export class DocCollabHub {
   private rooms = new Map<string, CollabRoom>();
+  private contentMutations = new Set<string>();
+  private collabWrites = new Map<string, number>();
 
   private getRoom(docId: string): CollabRoom {
     const existing = this.rooms.get(docId);
@@ -33,14 +37,70 @@ class DocCollabHub {
     return room;
   }
 
-  join(docId: string, client: CollabClient) {
+  join(docId: string, client: CollabClient): DocCollabJoinResult {
+    if (this.contentMutations.has(docId)) {
+      return 'content_mutation';
+    }
+
     const room = this.getRoom(docId);
     if (room.clients.size >= MAX_DOC_ROOM_CLIENTS) {
-      return false;
+      return 'room_full';
     }
 
     room.clients.add(client);
-    return true;
+    return 'joined';
+  }
+
+  reserveContentMutation(docId: string): (() => void) | null {
+    if (
+      this.contentMutations.has(docId)
+      || this.getActiveClientCount(docId) > 0
+      || (this.collabWrites.get(docId) ?? 0) > 0
+    ) {
+      return null;
+    }
+
+    this.contentMutations.add(docId);
+    let released = false;
+
+    return () => {
+      if (released) return;
+      released = true;
+      this.contentMutations.delete(docId);
+    };
+  }
+
+  async runContentMutation<T>(docId: string, mutation: () => Promise<T>): Promise<T> {
+    const release = this.reserveContentMutation(docId);
+    if (!release) {
+      throw new Error('Doc has active collaborators. Retry after collaborators disconnect.');
+    }
+
+    try {
+      return await mutation();
+    } finally {
+      release();
+    }
+  }
+
+  beginCollabWrite(docId: string): (() => void) | null {
+    if (this.contentMutations.has(docId)) {
+      return null;
+    }
+
+    this.collabWrites.set(docId, (this.collabWrites.get(docId) ?? 0) + 1);
+    let released = false;
+
+    return () => {
+      if (released) return;
+      released = true;
+      const remaining = (this.collabWrites.get(docId) ?? 1) - 1;
+      if (remaining > 0) {
+        this.collabWrites.set(docId, remaining);
+      } else {
+        this.collabWrites.delete(docId);
+      }
+    };
   }
 
   touch(docId: string, ws: WSContext) {
@@ -177,6 +237,8 @@ class DocCollabHub {
     }
 
     this.rooms.clear();
+    this.contentMutations.clear();
+    this.collabWrites.clear();
   }
 
   getStats() {
