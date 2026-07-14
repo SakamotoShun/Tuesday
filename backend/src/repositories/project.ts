@@ -11,10 +11,26 @@ import {
   type ProjectMember,
 } from '../db/schema';
 
+type PublicUser = Omit<typeof users.$inferSelect, 'passwordHash'>;
+
+const publicUserColumns = {
+  id: true,
+  email: true,
+  name: true,
+  avatarUrl: true,
+  role: true,
+  employmentType: true,
+  hourlyRate: true,
+  isDisabled: true,
+  onboardingCompletedAt: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
 // Type for project with relations
 export type ProjectWithRelations = Project & {
   status: typeof projectStatuses.$inferSelect | null;
-  owner: typeof users.$inferSelect | null;
+  owner: PublicUser | null;
   members?: ProjectMember[];
   totalLoggedHours?: number;
 };
@@ -71,7 +87,7 @@ export class ProjectRepository {
       where: eq(projects.id, id),
       with: {
         status: true,
-        owner: true,
+        owner: { columns: publicUserColumns },
       },
     });
 
@@ -97,7 +113,7 @@ export class ProjectRepository {
       ),
       with: {
         status: true,
-        owner: true,
+        owner: { columns: publicUserColumns },
         members: true,
       },
       orderBy: [desc(projects.updatedAt)],
@@ -111,7 +127,7 @@ export class ProjectRepository {
       where: eq(projects.isTemplate, false),
       with: {
         status: true,
-        owner: true,
+        owner: { columns: publicUserColumns },
         members: true,
       },
       orderBy: [desc(projects.updatedAt)],
@@ -124,7 +140,7 @@ export class ProjectRepository {
     return db.query.projects.findMany({
       with: {
         status: true,
-        owner: true,
+        owner: { columns: publicUserColumns },
       },
       orderBy: [desc(projects.updatedAt)],
     });
@@ -135,7 +151,7 @@ export class ProjectRepository {
       where: eq(projects.isTemplate, true),
       with: {
         status: true,
-        owner: true,
+        owner: { columns: publicUserColumns },
       },
       orderBy: [desc(projects.updatedAt)],
     });
@@ -175,7 +191,7 @@ export class ProjectRepository {
       where: inArray(projects.id, ids),
       with: {
         status: true,
-        owner: true,
+        owner: { columns: publicUserColumns },
       },
     });
   }
