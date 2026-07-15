@@ -13,62 +13,17 @@ import { ResizableSplit } from "@/components/layout/resizable-split"
 import { ChatView } from "@/components/chat/chat-view"
 import { useWhiteboard } from "@/hooks/use-whiteboards"
 import { useAuth } from "@/hooks/use-auth"
-import { useWhiteboardCollab, type WhiteboardSceneUpdate } from "@/hooks/use-whiteboard-collab"
+import { useWhiteboardCollab } from "@/hooks/use-whiteboard-collab"
+import {
+  blankWhiteboardScene,
+  filterReferencedWhiteboardFiles,
+  getWhiteboardSceneKey,
+  mergeWhiteboardScene,
+  type WhiteboardScene,
+} from "@/lib/whiteboard-scene"
 import { useUIStore } from "@/store/ui-store"
 import { whiteboardsApi } from "@/api/whiteboards"
 import type { Whiteboard } from "@/api/types"
-
-type WhiteboardScene = WhiteboardSceneUpdate
-
-const blankScene: WhiteboardScene = {
-  elements: [],
-  files: {},
-}
-
-const mergeElements = (base: WhiteboardScene["elements"], incoming: WhiteboardScene["elements"]) => {
-  const merged = new Map(base.map((element) => [element.id, element]))
-  for (const element of incoming) {
-    const current = merged.get(element.id)
-    const currentVersion = current?.version ?? 0
-    const nextVersion = element.version ?? 0
-    if (!current || nextVersion >= currentVersion) {
-      merged.set(element.id, element)
-    }
-  }
-  return Array.from(merged.values())
-}
-
-const mergeScene = (base: WhiteboardScene, update: WhiteboardScene) => ({
-  elements: mergeElements(base.elements, update.elements),
-  files: update.files ?? base.files ?? {},
-})
-
-const getReferencedFileIds = (elements: WhiteboardScene["elements"]) => {
-  const ids = new Set<string>()
-  for (const element of elements) {
-    if (element.isDeleted) continue
-    const fileId = (element as { fileId?: unknown }).fileId
-    if (typeof fileId === "string") {
-      ids.add(fileId)
-    }
-  }
-  return ids
-}
-
-const filterReferencedFiles = (
-  elements: WhiteboardScene["elements"],
-  files: Record<string, unknown> = {}
-) => {
-  const referencedIds = getReferencedFileIds(elements)
-  if (referencedIds.size === 0) return {}
-  const filtered: Record<string, unknown> = {}
-  for (const fileId of referencedIds) {
-    if (files[fileId] !== undefined) {
-      filtered[fileId] = files[fileId]
-    }
-  }
-  return filtered
-}
 
 const LoadingState = () => (
   <div className="min-h-[60vh] bg-background flex items-center justify-center">
@@ -110,12 +65,9 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
   const { user } = useAuth()
   const isFreelancer = user?.role === "freelancer"
   const excalidrawAPI = useRef<any>(null)
-  const sceneRef = useRef<WhiteboardScene>(blankScene)
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const committedSceneKeyRef = useRef("")
-  const pendingSceneKeyRef = useRef("")
-  const isApplyingRemoteSceneRef = useRef(false)
-  const ignoreAppStateChangeRef = useRef(false)
+  const sceneRef = useRef<WhiteboardScene>(blankWhiteboardScene)
+  const observedSceneKeyRef = useRef("")
+  const hasCompletedSyncRef = useRef(false)
   const pendingSyncRef = useRef<WhiteboardScene | null>(null)
   const [isApiReady, setIsApiReady] = useState(false)
   const [name, setName] = useState(whiteboard.name)
@@ -130,7 +82,7 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
     return { elements, files, scrollToContent: true } as unknown as NonNullable<
       Parameters<typeof Excalidraw>[0]["initialData"]
     >
-  }, [whiteboard.id])
+  }, [whiteboard.data, whiteboard.id])
 
   const updateWhiteboard = useMutation({
     mutationFn: ({ data, name: nextName }: { data?: WhiteboardScene; name?: string }) =>
@@ -143,18 +95,9 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
     },
   })
 
-  const getSceneKey = useCallback((scene: WhiteboardScene) => {
-    const fileIds = Object.keys(scene.files ?? {})
-      .sort()
-      .join("|")
-    const elementSignature = scene.elements
-      .map((element) => `${element.id}:${element.version ?? 0}:${element.isDeleted ? 1 : 0}`)
-      .join("|")
-
-    return `${elementSignature}::${fileIds}`
-  }, [])
-
   const applyScene = useCallback((scene: WhiteboardScene) => {
+    sceneRef.current = scene
+    observedSceneKeyRef.current = getWhiteboardSceneKey(scene)
     if (!excalidrawAPI.current) {
       pendingSyncRef.current = scene
       return
@@ -163,22 +106,27 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
     if (Object.keys(files).length > 0 && typeof excalidrawAPI.current.addFiles === "function") {
       excalidrawAPI.current.addFiles(files)
     }
-    isApplyingRemoteSceneRef.current = true
     excalidrawAPI.current.updateScene({
       elements: scene.elements,
     })
-    sceneRef.current = scene
-    committedSceneKeyRef.current = getSceneKey(scene)
-    pendingSceneKeyRef.current = ""
-  }, [getSceneKey])
+  }, [])
 
   const handleSync = useCallback(
-    (message: { snapshot: WhiteboardScene | null; updates: WhiteboardScene[] }) => {
-      const base = message.snapshot ?? blankScene
-      let merged = { elements: base.elements ?? [], files: base.files ?? {} }
+    (
+      message: { snapshot: WhiteboardScene | null; updates: WhiteboardScene[] },
+      pendingLocalUpdate: WhiteboardScene | null
+    ) => {
+      const base = message.snapshot ?? blankWhiteboardScene
+      let merged: WhiteboardScene = { elements: base.elements ?? [], files: base.files ?? {} }
       for (const update of message.updates ?? []) {
-        merged = mergeScene(merged, update)
+        merged = mergeWhiteboardScene(merged, update)
       }
+      if (pendingLocalUpdate) {
+        merged = mergeWhiteboardScene(merged, pendingLocalUpdate)
+      } else if (hasCompletedSyncRef.current) {
+        merged = mergeWhiteboardScene(merged, sceneRef.current)
+      }
+      hasCompletedSyncRef.current = true
       applyScene(merged)
     },
     [applyScene]
@@ -187,9 +135,10 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
   const handleRemoteUpdate = useCallback(
     (message: { update: WhiteboardScene; actorId: string }) => {
       if (!excalidrawAPI.current) return
-      const currentElements = excalidrawAPI.current.getSceneElements() ?? sceneRef.current.elements
+      const currentElements = excalidrawAPI.current.getSceneElementsIncludingDeleted?.()
+        ?? sceneRef.current.elements
       const currentFiles = excalidrawAPI.current.getFiles() ?? sceneRef.current.files
-      const merged = mergeScene({ elements: currentElements, files: currentFiles }, message.update)
+      const merged = mergeWhiteboardScene({ elements: currentElements, files: currentFiles }, message.update)
       applyScene(merged)
     },
     [applyScene]
@@ -197,15 +146,24 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
 
   const getSnapshot = useCallback(() => {
     if (!excalidrawAPI.current) return null
-    const elements = excalidrawAPI.current.getSceneElements()
+    const elements = excalidrawAPI.current.getSceneElementsIncludingDeleted?.()
+      ?? excalidrawAPI.current.getSceneElements()
     const files = excalidrawAPI.current.getFiles()
     return {
       elements,
-      files: filterReferencedFiles(elements, files),
+      files: filterReferencedWhiteboardFiles(elements, files),
     }
   }, [])
 
-  const { collaborators, sendUpdate, sendPresence } = useWhiteboardCollab({
+  const {
+    status,
+    isReady,
+    isSaving,
+    error: collabError,
+    collaborators,
+    sendUpdate,
+    sendPresence,
+  } = useWhiteboardCollab({
     whiteboardId: whiteboard.id,
     currentUser: user
       ? {
@@ -227,21 +185,12 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
 
   useEffect(() => {
     if (!isApiReady || !excalidrawAPI.current) return
-    ignoreAppStateChangeRef.current = true
     excalidrawAPI.current.updateScene({
       appState: {
         collaborators,
       },
     })
   }, [collaborators, isApiReady])
-
-  useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current)
-      }
-    }
-  }, [])
 
   const saveName = async () => {
     if (isFreelancer) return
@@ -288,6 +237,16 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
     [collaborators]
   )
 
+  const saveStatus = collabError
+    ? collabError
+    : status === "reconnecting"
+      ? "Reconnecting..."
+      : status === "connecting" || !isReady
+        ? "Connecting..."
+        : isSaving
+          ? "Saving..."
+          : "Saved"
+
   const chatPanel = (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
@@ -326,6 +285,12 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
           )}
         </div>
         <div className="flex items-center gap-3">
+          <span
+            className={`max-w-80 truncate text-xs ${collabError ? "text-destructive" : "text-muted-foreground"}`}
+            title={saveStatus}
+          >
+            {saveStatus}
+          </span>
           <Button variant="outline" onClick={() => setIsChatOpen(!isChatOpen)}>
             <MessageSquare className="mr-2 h-4 w-4" />
             Chat
@@ -351,24 +316,14 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
           <Excalidraw
             initialData={initialData}
             isCollaborating
-            viewModeEnabled={isFreelancer}
+            viewModeEnabled={isFreelancer || !isReady}
             excalidrawAPI={(api: unknown) => {
               excalidrawAPI.current = api
               setIsApiReady(true)
             }}
             onChange={(elements, _appState, files) => {
-              if (isFreelancer) {
-                return
-              }
-              if (isApplyingRemoteSceneRef.current) {
-                isApplyingRemoteSceneRef.current = false
-                return
-              }
-              if (ignoreAppStateChangeRef.current) {
-                ignoreAppStateChangeRef.current = false
-                return
-              }
-              const filteredFiles = filterReferencedFiles(
+              if (isFreelancer || !isReady) return
+              const filteredFiles = filterReferencedWhiteboardFiles(
                 elements as WhiteboardScene["elements"],
                 files as Record<string, unknown>
               )
@@ -376,23 +331,12 @@ function WhiteboardEditorCanvas({ whiteboard }: WhiteboardEditorCanvasProps) {
                 elements: elements as WhiteboardScene["elements"],
                 files: filteredFiles,
               }
+              const sceneKey = getWhiteboardSceneKey(scene)
+              if (sceneKey === observedSceneKeyRef.current) return
+
               sceneRef.current = scene
-              const sceneKey = getSceneKey(scene)
-              if (sceneKey === committedSceneKeyRef.current || sceneKey === pendingSceneKeyRef.current) {
-                return
-              }
-
-              if (saveTimeoutRef.current) {
-                clearTimeout(saveTimeoutRef.current)
-              }
-
-              pendingSceneKeyRef.current = sceneKey
-
-              saveTimeoutRef.current = setTimeout(() => {
-                sendUpdate(scene)
-                committedSceneKeyRef.current = sceneKey
-                pendingSceneKeyRef.current = ""
-              }, 600)
+              observedSceneKeyRef.current = sceneKey
+              sendUpdate(scene)
             }}
             onPointerUpdate={({ pointer, button }) => {
               sendPresence({

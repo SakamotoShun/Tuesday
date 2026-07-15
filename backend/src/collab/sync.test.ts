@@ -88,4 +88,43 @@ describe('collab sync helpers', () => {
     expect(compactHistory).toHaveBeenCalledWith('whiteboard-1', updates.length);
     expect(persistState).toHaveBeenCalledWith('whiteboard-1', { data: result.snapshot });
   });
+
+  it('preserves referenced files and resolves equal versions by version nonce', async () => {
+    const updateCount = MAX_COLLAB_SYNC_UPDATES + 1;
+    const updates = Array.from({ length: updateCount }, (_, index) => ({
+      seq: index + 1,
+      update: {
+        elements: [{
+          id: 'image-1',
+          version: 1,
+          versionNonce: index === updateCount - 1 ? 50 : 10,
+          fileId: 'file-1',
+        }],
+        files: {},
+      },
+    }));
+    const repository = {
+      getLatestSnapshot: async () => null,
+      getLatestSeq: async () => updates.length,
+      countUpdatesInRange: async () => updates.length,
+      getUpdatesInRange: async (
+        _whiteboardId: string,
+        minSeqExclusive: number,
+        maxSeqInclusive: number,
+        limit?: number
+      ) => updates.filter((update) => update.seq > minSeqExclusive && update.seq <= maxSeqInclusive).slice(0, limit),
+      createSnapshot: mock(async () => undefined),
+      compactHistory: mock(async () => undefined),
+    };
+
+    const result = await buildWhiteboardSyncState(repository, { update: mock(async () => undefined) }, 'whiteboard-1', {
+      elements: [{ id: 'image-1', version: 1, versionNonce: 100, fileId: 'file-1' }],
+      files: { 'file-1': { id: 'file-1', dataURL: 'data:image/png;base64,AQID' } },
+    });
+
+    expect(result.snapshot).toEqual({
+      elements: [{ id: 'image-1', version: 1, versionNonce: 100, fileId: 'file-1' }],
+      files: { 'file-1': { id: 'file-1', dataURL: 'data:image/png;base64,AQID' } },
+    });
+  });
 });

@@ -124,8 +124,14 @@ function mergeElements(base: WhiteboardScene['elements'], incoming: WhiteboardSc
     const current = merged.get(elementId);
     const currentVersion = typeof current?.version === 'number' ? current.version : 0;
     const nextVersion = typeof element.version === 'number' ? element.version : 0;
+    const currentVersionNonce = typeof current?.versionNonce === 'number' ? current.versionNonce : 0;
+    const nextVersionNonce = typeof element.versionNonce === 'number' ? element.versionNonce : 0;
 
-    if (!current || nextVersion >= currentVersion) {
+    if (
+      !current
+      || nextVersion > currentVersion
+      || (nextVersion === currentVersion && nextVersionNonce >= currentVersionNonce)
+    ) {
       merged.set(elementId, element);
     }
   }
@@ -136,8 +142,28 @@ function mergeElements(base: WhiteboardScene['elements'], incoming: WhiteboardSc
 function mergeWhiteboardScene(base: WhiteboardScene, incoming: WhiteboardScene): WhiteboardScene {
   return {
     elements: mergeElements(base.elements, incoming.elements),
-    files: incoming.files,
+    files: { ...base.files, ...incoming.files },
   };
+}
+
+function filterReferencedFiles(scene: WhiteboardScene): WhiteboardScene {
+  const referencedFileIds = new Set<string>();
+
+  for (const element of scene.elements) {
+    if (element.isDeleted === true || typeof element.fileId !== 'string') {
+      continue;
+    }
+    referencedFileIds.add(element.fileId);
+  }
+
+  const files: Record<string, unknown> = {};
+  for (const fileId of referencedFileIds) {
+    if (scene.files[fileId] !== undefined) {
+      files[fileId] = scene.files[fileId];
+    }
+  }
+
+  return { elements: scene.elements, files };
 }
 
 async function loadDocUpdatesInRange(
@@ -222,6 +248,7 @@ async function compactWhiteboardHistory(
     merged = mergeWhiteboardScene(merged, normalizeWhiteboardScene(update.update));
   }
 
+  merged = filterReferencedFiles(merged);
   await repository.createSnapshot(whiteboardId, merged, latestSeq);
   await repository.compactHistory(whiteboardId, latestSeq);
   await stateRepository.update(whiteboardId, { data: merged });

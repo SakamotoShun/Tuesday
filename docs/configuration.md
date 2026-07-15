@@ -35,6 +35,12 @@ Tuesday is configured via environment variables. All settings have sensible defa
 | `UPLOAD_PENDING_TTL_MINUTES` | `30` | Minutes before unattached uploads are automatically deleted (1-1440). |
 | `DELETED_MESSAGE_FILE_RETENTION_DAYS` | `30` | Days to keep files from deleted messages before cleanup (1-365). |
 
+## Whiteboards
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `WHITEBOARD_MAX_MESSAGE_MB` | `10` | Maximum whiteboard WebSocket message size in megabytes (1-50). Increase cautiously because pasted images are embedded in scene messages. |
+
 ## CORS
 
 | Variable | Default | Description |

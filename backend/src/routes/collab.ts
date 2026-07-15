@@ -15,6 +15,7 @@ import { extractSearchTextFromDocContent } from '../utils/doc-search';
 import { requireRouteParam } from '../utils/route-params';
 import { sendWebSocketMessage, safeCloseWebSocket } from '../utils/websocket';
 import { isFreelancer } from '../utils/permissions';
+import { config } from '../config';
 
 type CollabMessage =
   | { type: 'pong'; ts?: number }
@@ -41,12 +42,12 @@ type WhiteboardPresencePayload = {
 type WhiteboardCollabMessage =
   | { type: 'pong'; ts?: number }
   | { type: 'whiteboard.update'; update: WhiteboardUpdatePayload }
-  | { type: 'whiteboard.snapshot'; snapshot: WhiteboardUpdatePayload }
+  | { type: 'whiteboard.snapshot'; snapshot: WhiteboardUpdatePayload; seq: number }
   | { type: 'whiteboard.presence'; update: WhiteboardPresencePayload };
 
 const collab = new Hono();
 const MAX_DOC_MESSAGE_BYTES = 512 * 1024;
-const MAX_WHITEBOARD_MESSAGE_BYTES = 1024 * 1024;
+export const MAX_WHITEBOARD_MESSAGE_BYTES = config.whiteboardMaxMessageMb * 1024 * 1024;
 
 const encodeBase64 = (data: Uint8Array) => Buffer.from(data).toString('base64');
 const decodeBase64 = (data: string) => Uint8Array.from(Buffer.from(data, 'base64'));
@@ -113,6 +114,36 @@ function sendReadOnlyError(
     ws,
     JSON.stringify({ type: 'error', code: 'read_only', op }),
     { ...context, event: 'read_only_blocked', op },
+    { closeOnFailure: false }
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isWhiteboardScene(value: unknown): value is WhiteboardUpdatePayload {
+  if (!isRecord(value) || !Array.isArray(value.elements)) {
+    return false;
+  }
+
+  if (!value.elements.every((element) => isRecord(element) && typeof element.id === 'string')) {
+    return false;
+  }
+
+  return value.files === undefined || isRecord(value.files);
+}
+
+function sendInvalidWhiteboardMessage(
+  ws: Parameters<typeof sendWebSocketMessage>[0],
+  op: string,
+  whiteboardId: string,
+  userId: string
+) {
+  sendWebSocketMessage(
+    ws,
+    JSON.stringify({ type: 'error', code: 'invalid_message', op }),
+    { hub: 'whiteboard_collab', event: 'invalid_message', whiteboard_id: whiteboardId, user_id: userId, op },
     { closeOnFailure: false }
   );
 }
@@ -405,82 +436,113 @@ collab.get(
           return;
         }
 
-        if (message.type === 'pong') {
-          whiteboardCollabHub.markPong(whiteboardId, ws);
-          return;
-        }
-
-        whiteboardCollabHub.touch(whiteboardId, ws);
-
-        if (message.type === 'whiteboard.update') {
-          if (isFreelancer(user)) {
-            sendReadOnlyError(ws, 'whiteboard.update', { hub: 'whiteboard_collab', whiteboard_id: whiteboardId, user_id: user.id });
+        try {
+          if (!message || typeof message.type !== 'string') {
+            sendInvalidWhiteboardMessage(ws, 'unknown', whiteboardId, user.id);
             return;
           }
 
-          if (!message.update?.elements) return;
-          const seq = await whiteboardCollabRepository.appendUpdate(whiteboardId, message.update as Record<string, unknown>, user.id);
-          whiteboardCollabHub.broadcast(
-            whiteboardId,
-            JSON.stringify({
-              type: 'whiteboard.update',
-              update: message.update,
-              seq,
-              actorId: user.id,
-            }),
-            ws
-          );
+          if (message.type === 'pong') {
+            whiteboardCollabHub.markPong(whiteboardId, ws);
+            return;
+          }
 
-          if (whiteboardCollabHub.shouldRequestSnapshot(whiteboardId, seq)) {
-            sendWebSocketMessage(ws, JSON.stringify({ type: 'whiteboard.snapshot.request' }), {
+          whiteboardCollabHub.touch(whiteboardId, ws);
+
+          if (message.type === 'whiteboard.update') {
+            if (isFreelancer(user)) {
+              sendReadOnlyError(ws, 'whiteboard.update', { hub: 'whiteboard_collab', whiteboard_id: whiteboardId, user_id: user.id });
+              return;
+            }
+
+            if (!isWhiteboardScene(message.update)) {
+              sendInvalidWhiteboardMessage(ws, 'whiteboard.update', whiteboardId, user.id);
+              return;
+            }
+
+            const seq = await whiteboardCollabRepository.appendUpdate(whiteboardId, message.update as Record<string, unknown>, user.id);
+            whiteboardCollabHub.broadcast(
+              whiteboardId,
+              JSON.stringify({
+                type: 'whiteboard.update',
+                update: message.update,
+                seq,
+                actorId: user.id,
+              }),
+              ws
+            );
+
+            if (whiteboardCollabHub.shouldRequestSnapshot(whiteboardId, seq)) {
+              sendWebSocketMessage(ws, JSON.stringify({ type: 'whiteboard.snapshot.request', seq }), {
+                hub: 'whiteboard_collab',
+                event: 'snapshot_request',
+                whiteboard_id: whiteboardId,
+                user_id: user.id,
+              });
+            }
+
+            sendWebSocketMessage(ws, JSON.stringify({ type: 'whiteboard.ack', seq }), {
               hub: 'whiteboard_collab',
-              event: 'snapshot_request',
+              event: 'ack',
               whiteboard_id: whiteboardId,
               user_id: user.id,
             });
-          }
-
-          sendWebSocketMessage(ws, JSON.stringify({ type: 'whiteboard.ack', seq }), {
-            hub: 'whiteboard_collab',
-            event: 'ack',
-            whiteboard_id: whiteboardId,
-            user_id: user.id,
-          });
-          return;
-        }
-
-        if (message.type === 'whiteboard.presence') {
-          if (isFreelancer(user)) {
-            sendReadOnlyError(ws, 'whiteboard.presence', { hub: 'whiteboard_collab', whiteboard_id: whiteboardId, user_id: user.id });
             return;
           }
 
-          whiteboardCollabHub.broadcast(
-            whiteboardId,
-            JSON.stringify({
-              type: 'whiteboard.presence',
-              user: {
-                id: user.id,
-                name: user.name,
-                avatarUrl: user.avatarUrl ?? undefined,
-              },
-              update: message.update,
-            }),
-            ws
-          );
-          return;
-        }
+          if (message.type === 'whiteboard.presence') {
+            if (isFreelancer(user)) {
+              sendReadOnlyError(ws, 'whiteboard.presence', { hub: 'whiteboard_collab', whiteboard_id: whiteboardId, user_id: user.id });
+              return;
+            }
 
-        if (message.type === 'whiteboard.snapshot') {
-          if (isFreelancer(user)) {
-            sendReadOnlyError(ws, 'whiteboard.snapshot', { hub: 'whiteboard_collab', whiteboard_id: whiteboardId, user_id: user.id });
+            whiteboardCollabHub.broadcast(
+              whiteboardId,
+              JSON.stringify({
+                type: 'whiteboard.presence',
+                user: {
+                  id: user.id,
+                  name: user.name,
+                  avatarUrl: user.avatarUrl ?? undefined,
+                },
+                update: message.update,
+              }),
+              ws
+            );
             return;
           }
 
-          const latestSeq = await whiteboardCollabRepository.getLatestSeq(whiteboardId);
-          await whiteboardCollabRepository.createSnapshot(whiteboardId, message.snapshot as Record<string, unknown>, latestSeq);
-          await whiteboardCollabRepository.compactHistory(whiteboardId, latestSeq);
-          await whiteboardRepository.update(whiteboardId, { data: message.snapshot as Record<string, unknown> });
+          if (message.type === 'whiteboard.snapshot') {
+            if (isFreelancer(user)) {
+              sendReadOnlyError(ws, 'whiteboard.snapshot', { hub: 'whiteboard_collab', whiteboard_id: whiteboardId, user_id: user.id });
+              return;
+            }
+
+            if (!isWhiteboardScene(message.snapshot)) {
+              sendInvalidWhiteboardMessage(ws, 'whiteboard.snapshot', whiteboardId, user.id);
+              return;
+            }
+
+            const latestSeq = await whiteboardCollabRepository.getLatestSeq(whiteboardId);
+            const snapshotSeq = resolveDocSnapshotSeq(message.seq, latestSeq);
+            if (snapshotSeq === null) {
+              sendInvalidWhiteboardMessage(ws, 'whiteboard.snapshot', whiteboardId, user.id);
+              return;
+            }
+
+            await whiteboardCollabRepository.createSnapshot(whiteboardId, message.snapshot as Record<string, unknown>, snapshotSeq);
+            await whiteboardCollabRepository.compactHistory(whiteboardId, snapshotSeq);
+            if (snapshotSeq === latestSeq) {
+              await whiteboardRepository.update(whiteboardId, { data: message.snapshot as Record<string, unknown> });
+            }
+            return;
+          }
+
+          sendInvalidWhiteboardMessage(ws, 'unknown', whiteboardId, user.id);
+        } catch (error) {
+          console.error('Whiteboard collab message failed:', error);
+          whiteboardCollabHub.leave(whiteboardId, ws);
+          safeCloseWebSocket(ws, 1011, 'Whiteboard collaboration failed');
         }
       },
       onClose: (_event, ws) => {

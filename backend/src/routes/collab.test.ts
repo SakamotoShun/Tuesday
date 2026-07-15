@@ -27,6 +27,13 @@ let broadcasts: Array<{ docId: string; message: string; exclude: unknown }> = []
 let createdSnapshots: Array<{ docId: string; snapshot: Uint8Array; seq: number }> = [];
 let compactedSnapshots: Array<{ docId: string; seq: number }> = [];
 let canonicalUpdates: Array<{ docId: string; data: Record<string, unknown> }> = [];
+let whiteboardLatestSeq = 0;
+let shouldRequestWhiteboardSnapshot = false;
+let appendedWhiteboardUpdates: Array<{ whiteboardId: string; update: Record<string, unknown>; userId: string }> = [];
+let whiteboardBroadcasts: Array<{ whiteboardId: string; message: string; exclude: unknown }> = [];
+let createdWhiteboardSnapshots: Array<{ whiteboardId: string; snapshot: Record<string, unknown>; seq: number }> = [];
+let compactedWhiteboardSnapshots: Array<{ whiteboardId: string; seq: number }> = [];
+let canonicalWhiteboardUpdates: Array<{ whiteboardId: string; data: Record<string, unknown> }> = [];
 
 const { collab, setCollabDependenciesForTests } = await import('./collab');
 const { websocket } = await import('../websocket');
@@ -70,12 +77,25 @@ beforeAll(() => {
       countUpdatesInRange: async () => 0,
       getUpdatesInRange: async () => [],
       getUpdatesSince: async () => [],
-      getLatestSeq: async () => 0,
-      appendUpdate: async () => 1,
-      createSnapshot: async () => {},
-      compactHistory: async () => {},
+      getLatestSeq: async () => whiteboardLatestSeq,
+      appendUpdate: async (whiteboardId: string, update: Record<string, unknown>, userId: string) => {
+        appendedWhiteboardUpdates.push({ whiteboardId, update, userId });
+        whiteboardLatestSeq += 1;
+        return whiteboardLatestSeq;
+      },
+      createSnapshot: async (whiteboardId: string, snapshot: Record<string, unknown>, seq: number) => {
+        createdWhiteboardSnapshots.push({ whiteboardId, snapshot, seq });
+      },
+      compactHistory: async (whiteboardId: string, seq: number) => {
+        compactedWhiteboardSnapshots.push({ whiteboardId, seq });
+      },
     } as any,
-    whiteboardRepository: { update: async () => ({}) } as any,
+    whiteboardRepository: {
+      update: async (whiteboardId: string, data: Record<string, unknown>) => {
+        canonicalWhiteboardUpdates.push({ whiteboardId, data });
+        return {};
+      },
+    } as any,
     docCollabHub: {
       join: () => 'joined',
       beginCollabWrite: () => () => {},
@@ -93,8 +113,10 @@ beforeAll(() => {
       leave: () => {},
       touch: () => {},
       markPong: () => {},
-      broadcast: () => {},
-      shouldRequestSnapshot: () => false,
+      broadcast: (whiteboardId: string, message: string, exclude: unknown) => {
+        whiteboardBroadcasts.push({ whiteboardId, message, exclude });
+      },
+      shouldRequestSnapshot: () => shouldRequestWhiteboardSnapshot,
       listCollaborators: () => [],
       getStats: () => ({ activeRooms: 0, clients: 0 }),
     } as any,
@@ -115,6 +137,13 @@ beforeEach(() => {
   createdSnapshots = [];
   compactedSnapshots = [];
   canonicalUpdates = [];
+  whiteboardLatestSeq = 0;
+  shouldRequestWhiteboardSnapshot = false;
+  appendedWhiteboardUpdates = [];
+  whiteboardBroadcasts = [];
+  createdWhiteboardSnapshots = [];
+  compactedWhiteboardSnapshots = [];
+  canonicalWhiteboardUpdates = [];
 });
 
 afterAll(() => {
@@ -275,6 +304,103 @@ describe('Collab WebSocket — normal document collaboration', () => {
     expect(canonicalUpdates[0]).toMatchObject({ docId: 'doc-1' });
     expect(canonicalUpdates[0]!.data.content).toEqual(content);
 
+    ws.close();
+  });
+});
+
+describe('Collab WebSocket — normal whiteboard collaboration', () => {
+  beforeEach(() => {
+    currentUser = adminUser;
+  });
+
+  it('persists, broadcasts, and acknowledges complete scenes', async () => {
+    const ws = await connectWs('/collab/whiteboards/wb-1');
+    await waitFor(ws, (message) => message.type === 'whiteboard.sync');
+    const scene = {
+      elements: [{ id: 'image-1', version: 1, fileId: 'file-1' }],
+      files: { 'file-1': { id: 'file-1', dataURL: 'data:image/png;base64,AQID' } },
+    };
+
+    const ackPromise = waitFor(ws, (message) => message.type === 'whiteboard.ack');
+    ws.send(JSON.stringify({ type: 'whiteboard.update', update: scene }));
+
+    expect(await ackPromise).toEqual({ type: 'whiteboard.ack', seq: 1 });
+    expect(appendedWhiteboardUpdates).toEqual([{
+      whiteboardId: 'wb-1',
+      update: scene,
+      userId: adminUser.id,
+    }]);
+    const updateBroadcast = whiteboardBroadcasts
+      .map((broadcast) => JSON.parse(broadcast.message))
+      .find((message) => message.type === 'whiteboard.update');
+    expect(updateBroadcast).toMatchObject({
+      type: 'whiteboard.update',
+      update: scene,
+      seq: 1,
+      actorId: adminUser.id,
+    });
+    ws.close();
+  });
+
+  it('accepts pasted scenes larger than the former 1 MiB limit', async () => {
+    const ws = await connectWs('/collab/whiteboards/wb-1');
+    await waitFor(ws, (message) => message.type === 'whiteboard.sync');
+    const scene = {
+      elements: [{ id: 'image-1', version: 1, fileId: 'file-1' }],
+      files: { 'file-1': { id: 'file-1', dataURL: `data:image/png;base64,${'A'.repeat(1_100_000)}` } },
+    };
+
+    const ackPromise = waitFor(ws, (message) => message.type === 'whiteboard.ack');
+    ws.send(JSON.stringify({ type: 'whiteboard.update', update: scene }));
+
+    expect(await ackPromise).toEqual({ type: 'whiteboard.ack', seq: 1 });
+    expect(appendedWhiteboardUpdates).toHaveLength(1);
+    ws.close();
+  });
+
+  it('includes the represented sequence in snapshot requests', async () => {
+    shouldRequestWhiteboardSnapshot = true;
+    const ws = await connectWs('/collab/whiteboards/wb-1');
+    await waitFor(ws, (message) => message.type === 'whiteboard.sync');
+    const requestPromise = waitFor(ws, (message) => message.type === 'whiteboard.snapshot.request');
+
+    ws.send(JSON.stringify({
+      type: 'whiteboard.update',
+      update: { elements: [{ id: 'shape-1', version: 1 }], files: {} },
+    }));
+
+    expect(await requestPromise).toEqual({ type: 'whiteboard.snapshot.request', seq: 1 });
+    ws.close();
+  });
+
+  it('compacts only through the sequence represented by a snapshot', async () => {
+    whiteboardLatestSeq = 51;
+    const ws = await connectWs('/collab/whiteboards/wb-1');
+    await waitFor(ws, (message) => message.type === 'whiteboard.sync');
+    const snapshot = { elements: [{ id: 'shape-1', version: 50 }], files: {} };
+
+    ws.send(JSON.stringify({ type: 'whiteboard.snapshot', snapshot, seq: 50 }));
+    await waitUntil(() => createdWhiteboardSnapshots.length === 1);
+
+    expect(createdWhiteboardSnapshots[0]).toEqual({ whiteboardId: 'wb-1', snapshot, seq: 50 });
+    expect(compactedWhiteboardSnapshots).toEqual([{ whiteboardId: 'wb-1', seq: 50 }]);
+    expect(canonicalWhiteboardUpdates).toHaveLength(0);
+    ws.close();
+  });
+
+  it('rejects malformed scenes without persisting them', async () => {
+    const ws = await connectWs('/collab/whiteboards/wb-1');
+    await waitFor(ws, (message) => message.type === 'whiteboard.sync');
+    const errorPromise = waitFor(ws, (message) => message.type === 'error');
+
+    ws.send(JSON.stringify({ type: 'whiteboard.update', update: { elements: 'invalid' } }));
+
+    expect(await errorPromise).toMatchObject({
+      type: 'error',
+      code: 'invalid_message',
+      op: 'whiteboard.update',
+    });
+    expect(appendedWhiteboardUpdates).toHaveLength(0);
     ws.close();
   });
 });

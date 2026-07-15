@@ -108,7 +108,10 @@ async function startServer() {
     const server = Bun.serve({
       port: config.port,
       fetch: (request, server) => app.fetch(request, { server }),
-      websocket,
+      websocket: {
+        ...websocket,
+        maxPayloadLength: config.whiteboardMaxMessageMb * 1024 * 1024,
+      },
     });
 
     let shutdownPromise: Promise<void> | null = null;
