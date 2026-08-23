@@ -1,5 +1,5 @@
-import { pgTable, uuid, varchar, text, boolean, timestamp, jsonb, integer, date, primaryKey, bigserial, bigint, customType, numeric, index, uniqueIndex, foreignKey } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import { pgTable, uuid, varchar, text, boolean, timestamp, jsonb, integer, date, primaryKey, bigserial, bigint, customType, numeric, index, uniqueIndex, foreignKey, check } from 'drizzle-orm/pg-core';
+import { relations, sql } from 'drizzle-orm';
 
 // User roles
 export const UserRole = {
@@ -359,6 +359,7 @@ export const docs = pgTable('docs', {
   isPolicy: boolean('is_policy').notNull().default(false),
   schema: jsonb('schema'),
   version: integer('version').notNull().default(1),
+  canonicalCollabSeq: bigint('canonical_collab_seq', { mode: 'number' }).default(0),
   createdBy: uuid('created_by').notNull().references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -412,6 +413,7 @@ export const docCollabUpdates = pgTable('doc_collab_updates', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   docSeqIdx: index('doc_collab_updates_doc_seq_idx').on(table.docId, table.seq),
+  updateSizeCheck: check('doc_collab_updates_update_size_check', sql`octet_length(${table.update}) <= 1048576`),
 }));
 
 // Activity logs table

@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import { auth, requireAdmin } from '../middleware';
 import { hiringService } from '../services';
 import { success, errors } from '../utils/response';
+import { DocCollabPendingError } from '../repositories/doc';
+import { DocBlockValidationError } from '../utils/doc-blocks';
 import {
   validateBody,
   formatValidationErrors,
@@ -383,14 +385,21 @@ hiring.get('/applications/:applicationId/notes', async (c) => {
 });
 
 hiring.post('/notes', async (c) => {
-  const user = c.get('user');
-  const body = await c.req.json();
-  const result = validateBody(createInterviewNoteSchema, body);
-  if (!result.success) {
-    return errors.validation(c, formatValidationErrors(result.errors));
+  try {
+    const user = c.get('user');
+    const body = await c.req.json();
+    const result = validateBody(createInterviewNoteSchema, body);
+    if (!result.success) {
+      return errors.validation(c, formatValidationErrors(result.errors));
+    }
+    const note = await hiringService.createNote(result.data, user);
+    return success(c, note, undefined, 201);
+  } catch (error) {
+    if (error instanceof DocBlockValidationError) {
+      return errors.badRequest(c, error.message);
+    }
+    throw error;
   }
-  const note = await hiringService.createNote(result.data, user);
-  return success(c, note, undefined, 201);
 });
 
 hiring.get('/notes/:id', async (c) => {
@@ -401,15 +410,25 @@ hiring.get('/notes/:id', async (c) => {
 });
 
 hiring.patch('/notes/:id', async (c) => {
-  const id = c.req.param('id');
-  const body = await c.req.json();
-  const result = validateBody(updateInterviewNoteSchema, body);
-  if (!result.success) {
-    return errors.validation(c, formatValidationErrors(result.errors));
+  try {
+    const id = c.req.param('id');
+    const body = await c.req.json();
+    const result = validateBody(updateInterviewNoteSchema, body);
+    if (!result.success) {
+      return errors.validation(c, formatValidationErrors(result.errors));
+    }
+    const note = await hiringService.updateNote(id, result.data);
+    if (!note) return errors.notFound(c, 'Interview note');
+    return success(c, note);
+  } catch (error) {
+    if (error instanceof DocCollabPendingError) {
+      return errors.conflict(c, error.message);
+    }
+    if (error instanceof DocBlockValidationError) {
+      return errors.badRequest(c, error.message);
+    }
+    throw error;
   }
-  const note = await hiringService.updateNote(id, result.data);
-  if (!note) return errors.notFound(c, 'Interview note');
-  return success(c, note);
 });
 
 hiring.delete('/notes/:id', async (c) => {

@@ -57,6 +57,7 @@ export class PolicyRepository {
             isPolicy: true,
             schema: true,
             version: true,
+            canonicalCollabSeq: true,
             createdBy: true,
             createdAt: true,
             updatedAt: true,

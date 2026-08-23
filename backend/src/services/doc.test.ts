@@ -21,6 +21,7 @@ let upsertDocShareLink: (...args: any[]) => Promise<any> = async () => null;
 let deleteDocShareLink: (...args: any[]) => Promise<any> = async () => 0;
 
 mock.module('../repositories/doc', () => ({
+  DocCollabPendingError: class DocCollabPendingError extends Error {},
   DocRepository: class {},
   docRepository: {
     findByProjectId: (projectId: string) => findByProjectId(projectId),
@@ -114,6 +115,20 @@ const freelancerUser = {
   role: 'freelancer' as const,
 };
 
+function paragraphBlock(id: string, text = id) {
+  return {
+    id,
+    type: 'paragraph',
+    props: {
+      textColor: 'default',
+      backgroundColor: 'default',
+      textAlignment: 'left',
+    },
+    content: [{ type: 'text', text, styles: {} }],
+    children: [],
+  };
+}
+
 describe('DocService', () => {
   beforeEach(() => {
     findByProjectId = async () => [];
@@ -183,6 +198,36 @@ describe('DocService', () => {
 
     expect(created.content[0].type).toBe('heading');
     expect(created.searchText).toContain('Imported');
+  });
+
+  it('persists and search-indexes canonical content while preserving opaque metadata', async () => {
+    let created: any;
+    createDoc = async (data) => {
+      created = data;
+      return { id: 'doc-1', ...data };
+    };
+
+    await docService.createDoc({
+      title: 'Doc',
+      content: [{
+        id: 'paragraph-1',
+        type: 'paragraph',
+        props: { customProp: 'keep' },
+        content: [{ type: 'text', text: 'Indexed canonical text', styles: {} }],
+        children: [],
+        customTop: 'keep',
+      }],
+    }, adminUser);
+
+    expect(created.content[0]).toMatchObject({
+      id: 'paragraph-1',
+      customTop: 'keep',
+      props: {
+        customProp: 'keep',
+        textAlignment: 'left',
+      },
+    });
+    expect(created.searchText).toContain('Indexed canonical text');
   });
 
   it('rejects ambiguous raw blocks and source input', async () => {
@@ -276,6 +321,7 @@ describe('DocService', () => {
       id: 'doc-1',
       projectId: 'project-1',
       createdBy: adminUser.id,
+      version: 1,
       content: [
         { id: 'a', type: 'paragraph', content: [] },
         { id: 'c', type: 'paragraph', content: [] },
@@ -304,6 +350,7 @@ describe('DocService', () => {
       id: 'doc-1',
       projectId: 'project-1',
       createdBy: adminUser.id,
+      version: 1,
       content: [{ id: 'a', type: 'paragraph', content: [] }],
     });
     updateDocContentIfVersion = async (_id, _expectedVersion, data) => {
@@ -322,6 +369,7 @@ describe('DocService', () => {
       id: 'doc-conflict',
       projectId: 'project-1',
       createdBy: adminUser.id,
+      version: 1,
       content: [],
     });
     updateDocContentIfVersion = async () => null;
@@ -334,6 +382,117 @@ describe('DocService', () => {
     const release = docCollabHub.reserveContentMutation('doc-conflict');
     expect(release).toBeFunction();
     release?.();
+  });
+
+  it('writes the complete doc body through the versioned collaboration-reset path', async () => {
+    const blocks = [paragraphBlock('replacement', 'Replacement body')];
+    let updateData: any;
+    findById = async () => ({
+      id: 'doc-1',
+      title: 'Doc',
+      projectId: 'project-1',
+      createdBy: adminUser.id,
+      version: 4,
+      content: [paragraphBlock('old')],
+    });
+    updateDocContentIfVersion = async (_id, expectedVersion, data) => {
+      expect(expectedVersion).toBe(4);
+      updateData = data;
+      return { id: 'doc-1', title: 'Doc', projectId: 'project-1', version: 5, ...data };
+    };
+
+    const doc = await docService.writeDocBlocks('doc-1', blocks, 4, adminUser);
+
+    expect(doc?.version).toBe(5);
+    expect(updateData.content).toEqual(blocks);
+    expect(updateData.searchText).toContain('Replacement body');
+  });
+
+  it('applies multiple block edits atomically against content read inside the reservation', async () => {
+    let reads = 0;
+    let updateData: any;
+    findById = async () => {
+      reads += 1;
+      return {
+        id: 'doc-1',
+        title: 'Doc',
+        projectId: 'project-1',
+        createdBy: adminUser.id,
+        version: 7,
+        content: [paragraphBlock('delete-me'), paragraphBlock('modify-me', 'Before')],
+      };
+    };
+    updateDocContentIfVersion = async (_id, expectedVersion, data) => {
+      expect(expectedVersion).toBe(7);
+      updateData = data;
+      return { id: 'doc-1', title: 'Doc', projectId: 'project-1', version: 8, ...data };
+    };
+
+    const result = await docService.editDocBlocks('doc-1', [
+      { type: 'delete', path: ['delete-me'] },
+      { type: 'replace', path: ['modify-me'], blocks: [paragraphBlock('modify-me', 'After')] },
+    ], 7, adminUser);
+
+    expect(reads).toBe(2);
+    expect(result?.doc.version).toBe(8);
+    expect(result?.deletedBlockIds).toEqual(['delete-me']);
+    expect(result?.replacementRootIds).toEqual(['modify-me']);
+    expect(updateData.content).toEqual([paragraphBlock('modify-me', 'After')]);
+    expect(updateData.searchText).toContain('After');
+    expect(updateData.searchText).not.toContain('Before');
+  });
+
+  it('normalizes unrelated legacy blocks as part of a successful targeted edit', async () => {
+    let updateData: any;
+    findById = async () => ({
+      id: 'doc-legacy',
+      title: 'Legacy Doc',
+      projectId: 'project-1',
+      createdBy: adminUser.id,
+      version: 3,
+      content: [
+        { id: 'target', type: 'paragraph', content: [] },
+        { type: 'paragraph', content: [{ type: 'text', text: 'Keep', styles: {} }] },
+      ],
+    });
+    updateDocContentIfVersion = async (_id, _expectedVersion, data) => {
+      updateData = data;
+      return { id: 'doc-legacy', version: 4, ...data };
+    };
+
+    await docService.editDocBlocks('doc-legacy', [{ type: 'delete', path: ['target'] }], 3, adminUser);
+
+    expect(updateData.content).toHaveLength(1);
+    expect(updateData.content[0]).toMatchObject({ type: 'paragraph', props: {}, children: [] });
+    expect(updateData.content[0].id).toBeString();
+  });
+
+  it('rejects malformed full writes and stale block edits without a partial update', async () => {
+    let reads = 0;
+    findById = async () => {
+      reads += 1;
+      return {
+        id: 'doc-1',
+        title: 'Doc',
+        projectId: 'project-1',
+        createdBy: adminUser.id,
+        version: reads === 1 ? 1 : 2,
+        content: reads === 1 ? [paragraphBlock('target')] : [],
+      };
+    };
+    let updateCalls = 0;
+    updateDocContentIfVersion = async () => {
+      updateCalls += 1;
+      return null;
+    };
+
+    await expect(docService.writeDocBlocks('doc-1', [{ id: 'bad' }], 1, adminUser)).rejects.toThrow(
+      'must have a non-empty string type'
+    );
+    await expect(docService.editDocBlocks('doc-1', [
+      { type: 'delete', path: ['target'] },
+    ], 1, adminUser)).rejects.toThrow('Conflict: doc version changed');
+    expect(updateCalls).toBe(0);
   });
 
   it('uses the collaboration-reset path only for content updates', async () => {

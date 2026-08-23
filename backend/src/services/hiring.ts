@@ -9,6 +9,8 @@ import {
   docRepository,
 } from '../repositories';
 import { docCollabHub } from '../collab/hub';
+import { canonicalizeDocBlocksForPersistence } from '../collab/docContent';
+import { extractSearchTextFromDocContent } from '../utils/doc-search';
 import { docService } from './doc';
 import { fileService } from './file';
 import type { User } from '../types';
@@ -439,11 +441,12 @@ export class HiringService {
     content?: unknown[];
   }, user: User): Promise<InterviewNote> {
     const title = input.title.trim();
-    const content = (input.content as Array<Record<string, unknown>> | undefined) ?? [];
+    const content = canonicalizeDocBlocksForPersistence(input.content ?? []);
 
     const doc = await docRepository.create({
       title,
       content,
+      searchText: extractSearchTextFromDocContent(content),
       projectId: null,
       properties: {
         source: 'hiring',
@@ -474,12 +477,16 @@ export class HiringService {
     if (!note) return null;
 
     const nextTitle = input.title?.trim();
-    const nextContent = input.content as Array<Record<string, unknown>> | undefined;
+    const nextContent = input.content === undefined
+      ? undefined
+      : canonicalizeDocBlocksForPersistence(input.content);
 
     if (nextTitle !== undefined || nextContent !== undefined) {
       const docUpdate = {
         ...(nextTitle !== undefined ? { title: nextTitle } : {}),
-        ...(nextContent !== undefined ? { content: nextContent } : {}),
+        ...(nextContent !== undefined
+          ? { content: nextContent, searchText: extractSearchTextFromDocContent(nextContent) }
+          : {}),
       };
       if (nextContent !== undefined) {
         await docCollabHub.runContentMutation(

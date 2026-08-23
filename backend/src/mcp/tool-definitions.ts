@@ -13,6 +13,40 @@ import { tasks, taskAssignees } from '../db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { timeEntryService } from '../services/timeEntry';
 import { assertNotFreelancer, isFreelancer } from '../utils/permissions';
+import {
+  MAX_DOC_BLOCK_DEPTH,
+  MAX_DOC_BLOCKS,
+  MAX_DOC_CONTENT_BYTES,
+  MAX_DOC_REPLACEMENT_ROOTS,
+} from '../utils/doc-blocks';
+
+const RAW_DOC_BLOCK_SCHEMA = {
+  type: 'object',
+  properties: {
+    id: { type: 'string', minLength: 1 },
+    type: { type: 'string', minLength: 1 },
+    props: { type: 'object' },
+    content: {},
+    children: { type: 'array', items: { $ref: '#/$defs/rawDocBlock' } },
+  },
+  required: ['id', 'type', 'props', 'children'],
+  additionalProperties: true,
+} as const;
+
+const RAW_DOC_BLOCK_LIMITS = `Maximum ${MAX_DOC_BLOCKS} total blocks, depth ${MAX_DOC_BLOCK_DEPTH}, and ${MAX_DOC_CONTENT_BYTES} UTF-8 JSON bytes.`;
+
+function parseToolInput(input: unknown, toolName: string, allowedKeys: string[]): Record<string, unknown> {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw new Error(`${toolName} input must be an object`);
+  }
+
+  const value = input as Record<string, unknown>;
+  const unexpectedKey = Object.keys(value).find((key) => !allowedKeys.includes(key));
+  if (unexpectedKey) {
+    throw new Error(`${toolName} input contains unexpected property "${unexpectedKey}"`);
+  }
+  return value;
+}
 
 // ============ ping ============
 
@@ -311,6 +345,106 @@ registerTool({
       id: doc.id,
       version: (doc as any).version ?? expectedVersion + 1,
       appendedCount: source !== undefined ? undefined : blocks?.length ?? 0,
+      updatedAt: doc.updatedAt,
+    };
+  },
+});
+
+// ============ edit_doc_blocks ============
+
+registerTool({
+  name: 'edit_doc_blocks',
+  description: `Atomically delete or replace existing BlockNote blocks using ID paths. Call get_doc first and pass its exact version. A one-block replacement that keeps the target ID modifies that block; replacements may also contain multiple ordered blocks. ${RAW_DOC_BLOCK_LIMITS}`,
+  requiredScope: 'docs:write',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      docId: { type: 'string', description: 'Doc UUID' },
+      expectedVersion: { type: 'integer', minimum: 1, description: 'Exact current version from get_doc. Re-read on conflict.' },
+      operations: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 100,
+        description: 'Atomic block edits. Paths list IDs from a root block through direct children to the target.',
+        items: {
+          oneOf: [
+            {
+              type: 'object',
+              properties: {
+                type: { type: 'string', enum: ['delete'] },
+                path: { type: 'array', minItems: 1, maxItems: MAX_DOC_BLOCK_DEPTH, items: { type: 'string', minLength: 1 } },
+              },
+              required: ['type', 'path'],
+              additionalProperties: false,
+            },
+            {
+              type: 'object',
+              properties: {
+                type: { type: 'string', enum: ['replace'] },
+                path: { type: 'array', minItems: 1, maxItems: MAX_DOC_BLOCK_DEPTH, items: { type: 'string', minLength: 1 } },
+                blocks: { type: 'array', minItems: 1, maxItems: MAX_DOC_REPLACEMENT_ROOTS, items: { $ref: '#/$defs/rawDocBlock' }, description: 'Complete replacement blocks in their desired order.' },
+              },
+              required: ['type', 'path', 'blocks'],
+              additionalProperties: false,
+            },
+          ],
+        },
+      },
+    },
+    required: ['docId', 'expectedVersion', 'operations'],
+    additionalProperties: false,
+    $defs: { rawDocBlock: RAW_DOC_BLOCK_SCHEMA },
+  },
+  handler: async (input: unknown, ctx: McpContext) => {
+    const value = parseToolInput(input, 'edit_doc_blocks', ['docId', 'expectedVersion', 'operations']);
+    const result = await docService.editDocBlocks(
+      value.docId as string,
+      value.operations,
+      value.expectedVersion as number,
+      ctx.user,
+    );
+    if (!result) throw new Error('Doc not found or access denied');
+    return {
+      id: result.doc.id,
+      version: result.doc.version,
+      appliedOperations: (value.operations as unknown[]).length,
+      deletedBlockIds: result.deletedBlockIds,
+      replacementRootIds: result.replacementRootIds,
+      updatedAt: result.doc.updatedAt,
+    };
+  },
+});
+
+// ============ write_doc_blocks ============
+
+registerTool({
+  name: 'write_doc_blocks',
+  description: `Replace the entire document body with complete raw BlockNote blocks. This is a deliberate full overwrite; use edit_doc_blocks for targeted changes. Call get_doc first and pass its exact version. ${RAW_DOC_BLOCK_LIMITS}`,
+  requiredScope: 'docs:write',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      docId: { type: 'string', description: 'Doc UUID' },
+      expectedVersion: { type: 'integer', minimum: 1, description: 'Exact current version from get_doc. Re-read on conflict.' },
+      blocks: { type: 'array', maxItems: MAX_DOC_BLOCKS, items: { $ref: '#/$defs/rawDocBlock' }, description: 'Complete raw BlockNote document body. An empty array clears the body.' },
+    },
+    required: ['docId', 'expectedVersion', 'blocks'],
+    additionalProperties: false,
+    $defs: { rawDocBlock: RAW_DOC_BLOCK_SCHEMA },
+  },
+  handler: async (input: unknown, ctx: McpContext) => {
+    const value = parseToolInput(input, 'write_doc_blocks', ['docId', 'expectedVersion', 'blocks']);
+    const doc = await docService.writeDocBlocks(
+      value.docId as string,
+      value.blocks,
+      value.expectedVersion as number,
+      ctx.user,
+    );
+    if (!doc) throw new Error('Doc not found or access denied');
+    return {
+      id: doc.id,
+      version: doc.version,
+      writtenBlockCount: (value.blocks as unknown[]).length,
       updatedAt: doc.updatedAt,
     };
   },

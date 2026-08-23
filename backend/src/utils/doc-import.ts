@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { parseFragment, type DefaultTreeAdapterTypes } from 'parse5';
 
 export type DocSourceFormat = 'auto' | 'markdown' | 'html' | 'text';
@@ -23,6 +24,7 @@ function inlineText(text: string): Array<Record<string, unknown>> {
 
 function block(type: string, text: string, props: Record<string, unknown> = {}): DocBlock {
   return {
+    id: randomUUID(),
     type,
     props: { ...EMPTY_BLOCK_PROPS, ...props },
     content: inlineText(text),

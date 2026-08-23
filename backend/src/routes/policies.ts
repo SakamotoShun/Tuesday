@@ -3,6 +3,7 @@ import { auth, requireAdmin } from '../middleware';
 import { policyService } from '../services';
 import { requireRouteParam } from '../utils/route-params';
 import { success, errors } from '../utils/response';
+import { DocCollabPendingError } from '../repositories/doc';
 import {
   createDocSchema,
   formatValidationErrors,
@@ -127,6 +128,9 @@ policies.patch('/:id/rows/:rowId', requireAdmin, async (c) => {
 
     return success(c, row);
   } catch (error) {
+    if (error instanceof DocCollabPendingError) {
+      return errors.conflict(c, error.message);
+    }
     if (error instanceof Error) {
       return errors.badRequest(c, error.message);
     }

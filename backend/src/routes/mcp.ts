@@ -1,10 +1,12 @@
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { authenticateMcpRequest } from '../mcp/auth';
 import { config } from '../config';
 import { getAllTools, getTool } from '../mcp/tools';
 import '../mcp/tool-definitions'; // registers tools at import time
 import type { McpContext } from '../mcp/types';
 import { log } from '../utils/logger';
+import { MAX_MCP_REQUEST_BYTES } from '../utils/doc-blocks';
 
 const TUESDAY_VERSION = '1.2.0';
 const SUPPORTED_PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26'] as const;
@@ -52,6 +54,11 @@ function jsonRpcResult(id: string | number | undefined | null, result: unknown):
 }
 
 const mcp = new Hono();
+
+mcp.use('/', bodyLimit({
+  maxSize: MAX_MCP_REQUEST_BYTES,
+  onError: (c) => c.json(jsonRpcError(null, -32600, `Request body exceeds ${MAX_MCP_REQUEST_BYTES} bytes`), 413),
+}));
 
 function authChallenge(requestPath: string): string {
   if (!config.publicBaseUrl) return '';

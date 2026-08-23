@@ -23,6 +23,8 @@ const value = 1;
     ]);
     expect((blocks[0].props as any).level).toBe(1);
     expect((blocks[4].props as any).language).toBe('ts');
+    expect(blocks.every((block) => typeof block.id === 'string' && block.id.length > 0)).toBe(true);
+    expect(new Set(blocks.map((block) => block.id)).size).toBe(blocks.length);
   });
 
   it('converts html into formatted blocks instead of raw tags', () => {

@@ -46,6 +46,8 @@ async function startServer() {
     // Run migrations
     const { runMigrations } = await import('./db/migrate');
     await runMigrations();
+    const { reconcileCanonicalDocCollabHistory } = await import('./db/reconcileDocCollab');
+    await reconcileCanonicalDocCollabHistory();
 
     const scheduleCleanupJob = (name: CleanupJobName, intervalMs: number, task: () => Promise<number>) => {
       const handle = setInterval(async () => {

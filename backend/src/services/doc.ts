@@ -11,6 +11,14 @@ import { extractSearchTextFromDocContent } from '../utils/doc-search';
 import { convertDocSourceToBlocks, type DocSourceFormat } from '../utils/doc-import';
 import { assertNotFreelancer, isFreelancer } from '../utils/permissions';
 import { docCollabHub } from '../collab/hub';
+import { canonicalizeDocBlocksForPersistence } from '../collab/docContent';
+import {
+  applyDocBlockEdits,
+  normalizeLegacyDocBlocks,
+  validateDocBlockEditOperations,
+  validateRawDocBlocks,
+  type ApplyDocBlockEditsResult,
+} from '../utils/doc-blocks';
 
 export interface CreateDocInput {
   title: string;
@@ -42,6 +50,12 @@ export type AppendDocBlocksPosition =
   | { type: 'end' }
   | { type: 'start' }
   | { type: 'after_block'; afterBlockId: string };
+
+export interface EditDocBlocksResult {
+  doc: Doc;
+  deletedBlockIds: string[];
+  replacementRootIds: string[];
+}
 
 export interface DocWithChildren extends Doc {
   children?: Doc[];
@@ -138,11 +152,11 @@ export class DocService {
 
     if (input.content !== undefined) {
       this.assertValidBlocks(input.content);
-      return input.content;
+      return canonicalizeDocBlocksForPersistence(input.content);
     }
 
     if (input.source !== undefined) {
-      return convertDocSourceToBlocks(input.source, input.sourceFormat);
+      return canonicalizeDocBlocksForPersistence(convertDocSourceToBlocks(input.source, input.sourceFormat));
     }
 
     return undefined;
@@ -295,10 +309,14 @@ export class DocService {
       throw new Error('Doc title is required');
     }
 
-    const content = this.resolveContent({ content: input.blocks, source: input.source, sourceFormat: input.sourceFormat });
-
     if (parent.type === 'project') {
-      return this.createDoc({ title: input.title, content, projectId: parent.id }, user);
+      return this.createDoc({
+        title: input.title,
+        content: input.blocks,
+        source: input.source,
+        sourceFormat: input.sourceFormat,
+        projectId: parent.id,
+      }, user);
     }
 
     const parentDoc = await docRepository.findById(parent.id);
@@ -309,7 +327,9 @@ export class DocService {
     await this.assertCanEditDoc(parentDoc, user);
     return this.createDoc({
       title: input.title,
-      content,
+      content: input.blocks,
+      source: input.source,
+      sourceFormat: input.sourceFormat,
       projectId: parentDoc.projectId,
       parentId: parentDoc.id,
     }, user);
@@ -394,8 +414,15 @@ export class DocService {
     }
 
     const updated = await docCollabHub.runContentMutation(docId, async () => {
-      const currentContent = Array.isArray(doc.content) ? doc.content as Array<Record<string, unknown>> : [];
-      const content = this.insertBlocks(currentContent, blocks, position);
+      const currentDoc = await docRepository.findById(docId);
+      if (!currentDoc) {
+        return null;
+      }
+      if (currentDoc.version !== expectedVersion) {
+        return null;
+      }
+      const currentContent = Array.isArray(currentDoc.content) ? currentDoc.content as Array<Record<string, unknown>> : [];
+      const content = canonicalizeDocBlocksForPersistence(this.insertBlocks(currentContent, blocks, position));
       return docRepository.updateContentIfVersionAndResetCollab(docId, expectedVersion, {
         content,
         searchText: extractSearchTextFromDocContent(content),
@@ -417,6 +444,123 @@ export class DocService {
     });
 
     return updated;
+  }
+
+  async writeDocBlocks(
+    docId: string,
+    blocks: unknown,
+    expectedVersion: number,
+    user: User,
+  ): Promise<Doc | null> {
+    if (!docId) {
+      throw new Error('Doc ID is required');
+    }
+    if (!Number.isInteger(expectedVersion) || expectedVersion < 1) {
+      throw new Error('expectedVersion must be a positive integer');
+    }
+
+    validateRawDocBlocks(blocks);
+
+    const doc = await docRepository.findById(docId);
+    if (!doc) {
+      return null;
+    }
+    await this.assertCanEditDoc(doc, user);
+
+    const updated = await docCollabHub.runContentMutation(docId, async () => {
+      const currentDoc = await docRepository.findById(docId);
+      if (!currentDoc) {
+        return null;
+      }
+      if (currentDoc.version !== expectedVersion) {
+        return null;
+      }
+
+      const content = canonicalizeDocBlocksForPersistence(blocks);
+      return docRepository.updateContentIfVersionAndResetCollab(docId, expectedVersion, {
+        content,
+        searchText: extractSearchTextFromDocContent(content),
+      });
+    });
+
+    if (!updated) {
+      throw new Error('Conflict: doc version changed. Re-read and retry with new expectedVersion.');
+    }
+
+    await activityService.record({
+      actorId: user.id,
+      action: 'doc.updated',
+      entityType: 'doc',
+      entityId: updated.id,
+      entityName: updated.title,
+      projectId: updated.projectId,
+      metadata: { changedFields: ['content'] },
+    });
+
+    return updated;
+  }
+
+  async editDocBlocks(
+    docId: string,
+    operations: unknown,
+    expectedVersion: number,
+    user: User,
+  ): Promise<EditDocBlocksResult | null> {
+    if (!docId) {
+      throw new Error('Doc ID is required');
+    }
+    if (!Number.isInteger(expectedVersion) || expectedVersion < 1) {
+      throw new Error('expectedVersion must be a positive integer');
+    }
+
+    validateDocBlockEditOperations(operations);
+
+    const doc = await docRepository.findById(docId);
+    if (!doc) {
+      return null;
+    }
+    await this.assertCanEditDoc(doc, user);
+
+    let edits: ApplyDocBlockEditsResult | undefined;
+    const updated = await docCollabHub.runContentMutation(docId, async () => {
+      const currentDoc = await docRepository.findById(docId);
+      if (!currentDoc) {
+        return null;
+      }
+      if (currentDoc.version !== expectedVersion) {
+        return null;
+      }
+
+      edits = applyDocBlockEdits(normalizeLegacyDocBlocks(currentDoc.content), operations);
+      const content = canonicalizeDocBlocksForPersistence(edits.blocks);
+      return docRepository.updateContentIfVersionAndResetCollab(docId, expectedVersion, {
+        content,
+        searchText: extractSearchTextFromDocContent(content),
+      });
+    });
+
+    if (!updated || !edits) {
+      throw new Error('Conflict: doc version changed. Re-read and retry with new expectedVersion.');
+    }
+
+    await activityService.record({
+      actorId: user.id,
+      action: 'doc.updated',
+      entityType: 'doc',
+      entityId: updated.id,
+      entityName: updated.title,
+      projectId: updated.projectId,
+      metadata: {
+        changedFields: ['content'],
+        editedBlockCount: operations.length,
+      },
+    });
+
+    return {
+      doc: updated,
+      deletedBlockIds: edits.deletedBlockIds,
+      replacementRootIds: edits.replacementRootIds,
+    };
   }
 
   async appendDocSource(

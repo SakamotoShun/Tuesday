@@ -2,20 +2,28 @@ import { Hono } from 'hono';
 import { upgradeWebSocket } from '../websocket';
 import {
   docCollabRepository as defaultDocCollabRepository,
-  docRepository as defaultDocRepository,
   whiteboardCollabRepository as defaultWhiteboardCollabRepository,
   whiteboardRepository as defaultWhiteboardRepository,
 } from '../repositories';
 import { docCollabHub as defaultDocCollabHub } from '../collab/hub';
-import { resolveDocSnapshotSeq, shouldPersistCanonicalDocContent } from '../collab/docSnapshot';
+import { resolveDocSnapshotSeq } from '../collab/docSnapshot';
 import { buildDocSyncState, buildWhiteboardSyncState } from '../collab/sync';
 import { whiteboardCollabHub as defaultWhiteboardCollabHub } from '../collab/whiteboardHub';
 import type { User } from '../types';
-import { extractSearchTextFromDocContent } from '../utils/doc-search';
 import { requireRouteParam } from '../utils/route-params';
 import { sendWebSocketMessage, safeCloseWebSocket } from '../utils/websocket';
 import { isFreelancer } from '../utils/permissions';
 import { config } from '../config';
+import {
+  decodeStrictBase64,
+  DocInvalidUpdateError,
+  DocNotFoundError,
+  DocSyncBusyError,
+  DocSyncTooLargeError,
+  DocUpdateTooLargeError,
+  MAX_DOC_SYNC_PAYLOAD_BYTES,
+  MAX_DOC_UPDATE_BYTES,
+} from '../collab/docHistory';
 
 type CollabMessage =
   | { type: 'pong'; ts?: number }
@@ -46,11 +54,10 @@ type WhiteboardCollabMessage =
   | { type: 'whiteboard.presence'; update: WhiteboardPresencePayload };
 
 const collab = new Hono();
-const MAX_DOC_MESSAGE_BYTES = 512 * 1024;
+const MAX_DOC_MESSAGE_BYTES = Math.ceil(MAX_DOC_SYNC_PAYLOAD_BYTES / 3) * 4 + 1024;
 export const MAX_WHITEBOARD_MESSAGE_BYTES = config.whiteboardMaxMessageMb * 1024 * 1024;
 
 const encodeBase64 = (data: Uint8Array) => Buffer.from(data).toString('base64');
-const decodeBase64 = (data: string) => Uint8Array.from(Buffer.from(data, 'base64'));
 
 type ReadOnlyContext = Record<string, unknown>;
 
@@ -77,7 +84,6 @@ let validateSession: ValidateSession = defaultValidateSession;
 let getDoc: GetDoc = defaultGetDoc;
 let getWhiteboard: GetWhiteboard = defaultGetWhiteboard;
 let docCollabRepository = defaultDocCollabRepository;
-let docRepository = defaultDocRepository;
 let whiteboardCollabRepository = defaultWhiteboardCollabRepository;
 let whiteboardRepository = defaultWhiteboardRepository;
 let docCollabHub = defaultDocCollabHub;
@@ -88,7 +94,6 @@ export function setCollabDependenciesForTests(deps: {
   getDoc?: GetDoc;
   getWhiteboard?: GetWhiteboard;
   docCollabRepository?: typeof defaultDocCollabRepository;
-  docRepository?: typeof defaultDocRepository;
   whiteboardCollabRepository?: typeof defaultWhiteboardCollabRepository;
   whiteboardRepository?: typeof defaultWhiteboardRepository;
   docCollabHub?: typeof defaultDocCollabHub;
@@ -98,7 +103,6 @@ export function setCollabDependenciesForTests(deps: {
   getDoc = deps?.getDoc ?? defaultGetDoc;
   getWhiteboard = deps?.getWhiteboard ?? defaultGetWhiteboard;
   docCollabRepository = deps?.docCollabRepository ?? defaultDocCollabRepository;
-  docRepository = deps?.docRepository ?? defaultDocRepository;
   whiteboardCollabRepository = deps?.whiteboardCollabRepository ?? defaultWhiteboardCollabRepository;
   whiteboardRepository = deps?.whiteboardRepository ?? defaultWhiteboardRepository;
   docCollabHub = deps?.docCollabHub ?? defaultDocCollabHub;
@@ -120,6 +124,40 @@ function sendReadOnlyError(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function parseDocMessage(value: unknown): CollabMessage | null {
+  if (!isRecord(value) || typeof value.type !== 'string') {
+    return null;
+  }
+  if (value.type === 'pong') {
+    return value.ts === undefined || typeof value.ts === 'number' ? value as CollabMessage : null;
+  }
+  if (value.type === 'doc.update' || value.type === 'presence.update') {
+    return typeof value.update === 'string' ? value as CollabMessage : null;
+  }
+  if (value.type === 'doc.snapshot') {
+    return typeof value.snapshot === 'string'
+      && (value.seq === undefined || (Number.isSafeInteger(value.seq) && Number(value.seq) >= 0))
+      ? value as CollabMessage
+      : null;
+  }
+  return null;
+}
+
+function sendDocError(
+  ws: Parameters<typeof sendWebSocketMessage>[0],
+  docId: string,
+  userId: string,
+  code: 'invalid_update' | 'update_too_large' | 'resync_required',
+  op: string,
+): void {
+  sendWebSocketMessage(
+    ws,
+    JSON.stringify({ type: 'error', code, op }),
+    { hub: 'doc_collab', event: code, doc_id: docId, user_id: userId, op },
+    { closeOnFailure: false },
+  );
 }
 
 function isWhiteboardScene(value: unknown): value is WhiteboardUpdatePayload {
@@ -154,6 +192,7 @@ collab.get(
     const docId = requireRouteParam(c, 'id');
     const sessionId = c.req.header('Cookie')?.match(/session_id=([^;]+)/)?.[1];
     let user: User | null = null;
+    let snapshotRetryCount = 0;
 
     return {
       onOpen: async (_event, ws) => {
@@ -169,7 +208,16 @@ collab.get(
             return;
           }
 
-          const doc = await getDoc(docId, user);
+          let doc: Awaited<ReturnType<GetDoc>>;
+          try {
+            doc = await getDoc(docId, user);
+          } catch (error) {
+            if (error instanceof Error && error.message.includes('Access denied')) {
+              safeCloseWebSocket(ws, 1008, 'Access denied');
+              return;
+            }
+            throw error;
+          }
           if (!doc) {
             safeCloseWebSocket(ws, 1008, 'Doc not found');
             return;
@@ -191,13 +239,25 @@ collab.get(
             return;
           }
 
-          const syncState = await (async () => {
-            try {
-              return await buildDocSyncState(docCollabRepository, docId);
-            } finally {
-              releaseCollabWrite();
+          let syncState: Awaited<ReturnType<typeof buildDocSyncState>>;
+          try {
+            syncState = await buildDocSyncState(docCollabRepository, docId);
+          } catch (error) {
+            docCollabHub.leave(docId, ws);
+            if (error instanceof DocSyncBusyError) {
+              safeCloseWebSocket(ws, 1013, 'Document sync busy. Retry shortly.');
+            } else if (error instanceof DocSyncTooLargeError) {
+              safeCloseWebSocket(ws, 1009, 'Document sync state too large');
+            } else if (error instanceof DocNotFoundError) {
+              safeCloseWebSocket(ws, 1008, 'Doc not found');
+            } else {
+              console.error('Initial doc collaboration sync failed:', error);
+              safeCloseWebSocket(ws, 1011, 'Doc collaboration failed');
             }
-          })();
+            return;
+          } finally {
+            releaseCollabWrite();
+          }
 
           sendWebSocketMessage(
             ws,
@@ -209,8 +269,19 @@ collab.get(
             }),
             { hub: 'doc_collab', event: 'sync', doc_id: docId, user_id: user.id }
           );
-        } catch {
-          safeCloseWebSocket(ws, 1008, 'Access denied');
+          const canonicalCollabSeq = syncState.canonicalSeq ?? 0;
+          if (!isFreelancer(user) && (syncState.canonicalSeq === null || syncState.latestSeq > canonicalCollabSeq)) {
+            sendWebSocketMessage(ws, JSON.stringify({ type: 'doc.snapshot.request', seq: syncState.latestSeq }), {
+              hub: 'doc_collab',
+              event: 'snapshot_request',
+              doc_id: docId,
+              user_id: user.id,
+            });
+          }
+        } catch (error) {
+          console.error('Doc collaboration open failed:', error);
+          docCollabHub.leave(docId, ws);
+          safeCloseWebSocket(ws, 1011, 'Doc collaboration failed');
         }
       },
       onMessage: async (event, ws) => {
@@ -224,10 +295,20 @@ collab.get(
           return;
         }
 
-        let message: CollabMessage | null = null;
+        let parsed: unknown;
         try {
-          message = JSON.parse(raw) as CollabMessage;
+          parsed = JSON.parse(raw);
         } catch {
+          sendDocError(ws, docId, user.id, 'invalid_update', 'unknown');
+          docCollabHub.leave(docId, ws);
+          safeCloseWebSocket(ws, 1007, 'Invalid collaboration message');
+          return;
+        }
+        const message = parseDocMessage(parsed);
+        if (!message) {
+          sendDocError(ws, docId, user.id, 'invalid_update', 'unknown');
+          docCollabHub.leave(docId, ws);
+          safeCloseWebSocket(ws, 1007, 'Invalid collaboration message');
           return;
         }
 
@@ -252,7 +333,7 @@ collab.get(
             }
 
             try {
-              const update = decodeBase64(message.update);
+              const update = decodeStrictBase64(message.update, MAX_DOC_UPDATE_BYTES);
               const seq = await docCollabRepository.appendUpdate(docId, update, user.id);
               docCollabHub.broadcast(
                 docId,
@@ -266,6 +347,7 @@ collab.get(
               );
 
               if (docCollabHub.shouldRequestSnapshot(docId, seq)) {
+                snapshotRetryCount = 0;
                 sendWebSocketMessage(ws, JSON.stringify({ type: 'doc.snapshot.request', seq }), {
                   hub: 'doc_collab',
                   event: 'snapshot_request',
@@ -313,28 +395,74 @@ collab.get(
             }
 
             try {
-              const snapshot = decodeBase64(message.snapshot);
+              const snapshot = decodeStrictBase64(message.snapshot, MAX_DOC_SYNC_PAYLOAD_BYTES);
               const latestSeq = await docCollabRepository.getLatestSeq(docId);
               const snapshotSeq = resolveDocSnapshotSeq(message.seq, latestSeq);
 
               if (snapshotSeq === null) {
+                sendDocError(ws, docId, user.id, 'invalid_update', 'doc.snapshot');
+                docCollabHub.leave(docId, ws);
+                safeCloseWebSocket(ws, 1007, 'Invalid document snapshot');
                 return;
               }
 
-              await docCollabRepository.createSnapshot(docId, snapshot, snapshotSeq);
-              await docCollabRepository.compactHistory(docId, snapshotSeq);
-
-              if (shouldPersistCanonicalDocContent(snapshotSeq, latestSeq, message.content)) {
-                await docRepository.update(docId, {
-                  content: message.content,
-                  searchText: extractSearchTextFromDocContent(message.content),
+              if (snapshotSeq === latestSeq) {
+                const persisted = await docCollabRepository.persistCanonicalSnapshot(
+                  docId,
+                  snapshot,
+                  snapshotSeq,
+                );
+                if (persisted.status === 'persisted') {
+                  snapshotRetryCount = 0;
+                } else if (persisted.status === 'stale_seq' && snapshotRetryCount < 1) {
+                  snapshotRetryCount += 1;
+                  sendWebSocketMessage(ws, JSON.stringify({ type: 'doc.snapshot.request', seq: persisted.currentSeq }), {
+                    hub: 'doc_collab',
+                    event: 'snapshot_request',
+                    doc_id: docId,
+                    user_id: user.id,
+                  });
+                } else {
+                  sendDocError(ws, docId, user.id, 'resync_required', 'doc.snapshot');
+                  docCollabHub.leave(docId, ws);
+                  safeCloseWebSocket(ws, 1013, 'Document resynchronization required');
+                }
+              } else if (snapshotSeq < latestSeq && snapshotRetryCount < 1) {
+                snapshotRetryCount += 1;
+                sendWebSocketMessage(ws, JSON.stringify({ type: 'doc.snapshot.request', seq: latestSeq }), {
+                  hub: 'doc_collab',
+                  event: 'snapshot_request',
+                  doc_id: docId,
+                  user_id: user.id,
                 });
+              } else if (snapshotSeq < latestSeq) {
+                sendDocError(ws, docId, user.id, 'resync_required', 'doc.snapshot');
+                docCollabHub.leave(docId, ws);
+                safeCloseWebSocket(ws, 1013, 'Document resynchronization required');
               }
             } finally {
               releaseCollabWrite();
             }
           }
         } catch (error) {
+          if (error instanceof DocInvalidUpdateError) {
+            sendDocError(ws, docId, user.id, 'invalid_update', message.type);
+            docCollabHub.leave(docId, ws);
+            safeCloseWebSocket(ws, 1007, 'Invalid document update');
+            return;
+          }
+          if (error instanceof DocUpdateTooLargeError || error instanceof DocSyncTooLargeError) {
+            sendDocError(ws, docId, user.id, 'update_too_large', message.type);
+            docCollabHub.leave(docId, ws);
+            safeCloseWebSocket(ws, 1009, 'Document update too large');
+            return;
+          }
+          if (error instanceof DocSyncBusyError || error instanceof DocNotFoundError) {
+            sendDocError(ws, docId, user.id, 'resync_required', message.type);
+            docCollabHub.leave(docId, ws);
+            safeCloseWebSocket(ws, 1013, 'Document resynchronization required');
+            return;
+          }
           console.error('Doc collab message failed:', error);
           docCollabHub.leave(docId, ws);
           safeCloseWebSocket(ws, 1011, 'Doc collaboration failed');

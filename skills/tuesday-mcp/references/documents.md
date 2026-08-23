@@ -1,14 +1,14 @@
 # Tuesday Document Workflows
 
-Tuesday documents store BlockNote blocks. The MCP supports creation, title updates, and append-only content changes. It does not expose whole-document replacement, existing block edits/deletes, document deletion, or database-document schema operations.
+Tuesday documents store BlockNote blocks. The MCP supports creation, title updates, appends, targeted block edits, and deliberate whole-body replacement. It does not expose document deletion or database-document schema operations.
 
-Prefer creating a complete document in one `create_doc` call. Later structural correction is limited because MCP can only append blocks or rename the document.
+Prefer `edit_doc_blocks` for localized corrections. Use `write_doc_blocks` only when replacing the complete body is intentional.
 
 ## Discover and Read
 
 1. Find a project with `list_projects` or `search_workspace`.
 2. Find document metadata with `list_project_docs`.
-3. Call `get_doc` before any edit. Record the `id`, `version`, content, and root-level block IDs.
+3. Call `get_doc` before any edit. Record the `id`, `version`, content, and relevant block ID paths.
 
 `list_project_docs` omits block content. Only `get_doc` provides the canonical content and current version needed for safe edits.
 
@@ -34,7 +34,11 @@ Use raw `blocks` for:
 - Precise BlockNote structure
 - Stable block IDs needed for later placement or retry verification
 
-The server checks only that blocks are objects. Tool acceptance does not prove that a payload is valid BlockNote content. Verify created or appended content with `get_doc`.
+`create_doc` and `append_doc_blocks` accept partial BlockNote blocks and fill missing IDs, types, props, and children before persistence. `edit_doc_blocks` replacements and `write_doc_blocks` require every root and nested block to have a unique non-empty `id`, a non-empty `type`, object `props`, and array `children`. Type-specific content remains the caller's responsibility, so tool acceptance does not prove that a payload will render correctly. Verify mutations with `get_doc`.
+
+Document block payloads are limited to 512 KiB of UTF-8 JSON, 10,000 total blocks, block depth 32, and JSON nesting depth 128. Edit calls allow at most 100 operations, 100 replacement roots per operation, and ID paths up to 32 levels. The MCP HTTP request limit is 1 MiB.
+
+Historical documents remain readable. A targeted edit normalizes partial legacy blocks as part of a successful commit. If an old block has no ID, it cannot be named by the prior `get_doc` response; use one deliberate `write_doc_blocks` call with complete, unique IDs, then call `get_doc` again before targeted editing.
 
 ## Tables
 
@@ -185,6 +189,76 @@ Cells contain inline text runs, not paragraph blocks. Do not omit rows, cells, p
 
 Use unique root block IDs within a document. Stable IDs also let an agent detect whether an uncertain append already succeeded.
 
+## Edit Existing Blocks
+
+Use `edit_doc_blocks` for atomic targeted changes. Each operation addresses a block with an ID path. The first ID identifies a root block; each later ID must identify a direct child of the previous block.
+
+```json
+{
+  "docId": "DOC_UUID",
+  "expectedVersion": 8,
+  "operations": [
+    {
+      "type": "delete",
+      "path": ["obsolete-root-block"]
+    },
+    {
+      "type": "replace",
+      "path": ["section-root", "old-paragraph"],
+      "blocks": [
+        {
+          "id": "old-paragraph",
+          "type": "paragraph",
+          "props": {
+            "textColor": "default",
+            "backgroundColor": "default",
+            "textAlignment": "left"
+          },
+          "content": [
+            { "type": "text", "text": "Corrected content", "styles": {} }
+          ],
+          "children": []
+        }
+      ]
+    }
+  ]
+}
+```
+
+A one-block replacement that retains the target ID is the standard way to modify a block. A replacement may contain multiple blocks; they occupy the target's sibling position in the supplied order. Use `delete` rather than an empty replacement.
+
+All paths resolve against the original document snapshot. Tuesday rejects duplicate targets, a parent and descendant edited in the same call, missing paths, malformed blocks, and duplicate IDs in the final document. The entire batch either commits once or does not change the document.
+
+## Write the Complete Body
+
+`write_doc_blocks` is analogous to overwriting a file. It replaces every existing body block with the supplied raw blocks. An empty array clears the body.
+
+```json
+{
+  "docId": "DOC_UUID",
+  "expectedVersion": 8,
+  "blocks": [
+    {
+      "id": "replacement-heading",
+      "type": "heading",
+      "props": {
+        "level": 1,
+        "isToggleable": false,
+        "textColor": "default",
+        "backgroundColor": "default",
+        "textAlignment": "left"
+      },
+      "content": [
+        { "type": "text", "text": "Replacement document", "styles": {} }
+      ],
+      "children": []
+    }
+  ]
+}
+```
+
+Do not use a full write merely to correct one table row or remove a few paragraphs. It is easy to omit content unintentionally; use `edit_doc_blocks` instead.
+
 ## Creation Recipes
 
 ### Complete Markdown document
@@ -265,14 +339,16 @@ Tuesday rejects appends while browser collaborators are active. Wait for collabo
 
 ## Conflict Recovery
 
-If a title update or append reports a version conflict:
+If a title update, append, edit, or full write reports a version conflict:
 
 1. Call `get_doc` again.
 2. Inspect the new title and content, not only the version.
 3. Decide whether the requested change is still needed and whether its placement remains correct.
 4. Retry once with the newly read version if appropriate.
 
-Do not replay an append merely by replacing `expectedVersion`; another edit may have made it redundant or changed the intended insertion point.
+Do not replay a mutation merely by replacing `expectedVersion`; another edit may have made it redundant or changed the intended target.
+
+If a content mutation reports durable collaborative edits that are not yet canonical, Tuesday has preserved browser-authored collaboration history and refused to overwrite it. Open the document in a writable browser session to trigger collaboration snapshotting, call `get_doc` again, and reassess the mutation. Re-reading may temporarily return the same version; do not retry until a current snapshot advances the canonical document.
 
 ## Ambiguous Append Recovery
 
@@ -285,3 +361,12 @@ Do not replay an append merely by replacing `expectedVersion`; another edit may 
 5. Retry only when the intended content is absent, using the newly read version.
 
 For reliable retries, prefer raw blocks with deterministic unique IDs over source when appending important structured content.
+
+## Ambiguous Edit or Write Recovery
+
+`edit_doc_blocks` and `write_doc_blocks` use optimistic concurrency. If a response is lost after commit, replaying the old `expectedVersion` cannot apply the mutation twice, but it will return a conflict.
+
+1. Call `get_doc` after an uncertain result.
+2. Inspect the current version and canonical content.
+3. If the intended result is present, treat the mutation as successful.
+4. If it is absent, reassess paths or the complete replacement body before retrying with the new version.

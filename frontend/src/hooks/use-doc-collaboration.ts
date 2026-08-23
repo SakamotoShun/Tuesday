@@ -9,8 +9,29 @@ import { useAuthStore } from "@/store/auth-store"
 
 type SyncState = "connecting" | "synced" | "error"
 
+export type DocCollaborationSyncErrorCode =
+  | "invalid_update"
+  | "update_too_large"
+  | "resync_required"
+  | "sync_apply_failed"
+
+export interface DocCollaborationSyncError {
+  code: DocCollaborationSyncErrorCode
+  message: string
+  requiresReload: true
+}
+
+type ServerMessage =
+  | { type: "ping"; ts?: unknown }
+  | { type: "doc.sync"; snapshot?: unknown; updates?: unknown; latestSeq?: unknown }
+  | { type: "doc.update"; update?: unknown; seq?: unknown }
+  | { type: "doc.ack"; seq?: unknown }
+  | { type: "presence.broadcast"; update?: unknown }
+  | { type: "doc.snapshot.request"; seq?: unknown }
+  | { type: "error"; code?: unknown; message?: unknown }
+  | { type: string; [key: string]: unknown }
+
 interface UseDocCollaborationOptions {
-  getSnapshotContent?: () => Array<Record<string, unknown>> | null
   onLocalChange?: () => void
 }
 
@@ -24,6 +45,16 @@ const USER_COLORS = [
   "#EA580C",
   "#0E7490",
 ]
+
+const FATAL_SYNC_ERROR_MESSAGES: Record<DocCollaborationSyncErrorCode, string> = {
+  invalid_update: "A document update was rejected as invalid. Reload the page to resync before editing.",
+  update_too_large: "A document update is too large to sync. Reload the page before editing again.",
+  resync_required: "This document must be resynchronized. Reload the page before editing.",
+  sync_apply_failed: "The document sync data could not be applied safely. Reload the page before editing.",
+}
+
+const isFatalSyncErrorCode = (code: unknown): code is Exclude<DocCollaborationSyncErrorCode, "sync_apply_failed"> =>
+  code === "invalid_update" || code === "update_too_large" || code === "resync_required"
 
 const pickColor = (seed: string) => {
   let hash = 0
@@ -61,42 +92,43 @@ export function useDocCollaboration(docId: string, options: UseDocCollaborationO
   const ydoc = useMemo(() => new Y.Doc(), [docId])
   const awareness = useMemo(() => new Awareness(ydoc), [ydoc])
   const [syncState, setSyncState] = useState<SyncState>("connecting")
+  const [syncError, setSyncError] = useState<DocCollaborationSyncError | null>(null)
   const [hasRemoteContent, setHasRemoteContent] = useState(false)
   const [initialSyncComplete, setInitialSyncComplete] = useState(false)
   const socketRef = useRef<WebSocket | null>(null)
   const reconnectRef = useRef<number | null>(null)
   const pendingMessages = useRef<string[]>([])
   const isCleanedUp = useRef(false)
-  const hasOpened = useRef(false)
+  const hasFatalErrorRef = useRef(false)
   const initialSyncCompleteRef = useRef(false)
   const latestServerSeqRef = useRef(0)
   const pendingAwarenessUpdatesRef = useRef<Uint8Array[]>([])
-  const getSnapshotContentRef = useRef(options.getSnapshotContent)
   const onLocalChangeRef = useRef(options.onLocalChange)
 
   useEffect(() => {
-    getSnapshotContentRef.current = options.getSnapshotContent
     onLocalChangeRef.current = options.onLocalChange
-  }, [options.getSnapshotContent, options.onLocalChange])
+  }, [options.onLocalChange])
 
   const sendMessage = (message: Record<string, unknown>) => {
+    if (hasFatalErrorRef.current) return
+
     const payload = JSON.stringify(message)
     const socket = socketRef.current
-    if (socket && socket.readyState === WebSocket.OPEN) {
+    if (socket && socket.readyState === WebSocket.OPEN && initialSyncCompleteRef.current) {
       socket.send(payload)
     } else {
       pendingMessages.current.push(payload)
     }
   }
 
-  const sendSnapshot = (contentOverride?: Array<Record<string, unknown>>) => {
+  const sendSnapshot = () => {
+    if (hasFatalErrorRef.current) return
+
     const snapshot = encodeBase64(Y.encodeStateAsUpdate(ydoc))
-    const content = contentOverride ?? getSnapshotContentRef.current?.() ?? null
     sendMessage({
       type: "doc.snapshot",
       snapshot,
       seq: latestServerSeqRef.current,
-      content,
     })
   }
 
@@ -109,51 +141,78 @@ export function useDocCollaboration(docId: string, options: UseDocCollaborationO
   useEffect(() => {
     if (!docId) return undefined
     isCleanedUp.current = false
+    hasFatalErrorRef.current = false
     initialSyncCompleteRef.current = false
     latestServerSeqRef.current = 0
     pendingAwarenessUpdatesRef.current = []
+    pendingMessages.current = []
+    setSyncError(null)
     setInitialSyncComplete(false)
     setHasRemoteContent(false)
 
     const connect = () => {
-      // Don't reconnect if we've been cleaned up
-      if (isCleanedUp.current) return
+      if (isCleanedUp.current || hasFatalErrorRef.current) return
 
-      hasOpened.current = false
+      reconnectRef.current = null
+      initialSyncCompleteRef.current = false
+      setInitialSyncComplete(false)
       const socket = new WebSocket(getWsUrl(docId))
       socketRef.current = socket
       setSyncState("connecting")
 
       socket.onopen = () => {
         // Don't proceed if cleaned up during connection
-        if (isCleanedUp.current) {
+        if (isCleanedUp.current || hasFatalErrorRef.current) {
           socket.close()
           return
         }
-        hasOpened.current = true
-        const queued = pendingMessages.current
-        pendingMessages.current = []
-        queued.forEach((message) => socket.send(message))
       }
 
-      socket.onclose = () => {
-        // Don't reconnect or set error state if this was intentional cleanup
-        if (isCleanedUp.current) return
-        // Don't set error or reconnect if socket never successfully opened
-        // (this happens when the component unmounts during initial connection)
-        if (!hasOpened.current) return
+      const failSync = (code: DocCollaborationSyncErrorCode) => {
+        if (hasFatalErrorRef.current) return
+
+        hasFatalErrorRef.current = true
+        initialSyncCompleteRef.current = false
+        pendingMessages.current = []
+        pendingAwarenessUpdatesRef.current = []
+        if (reconnectRef.current) window.clearTimeout(reconnectRef.current)
+        reconnectRef.current = null
+        setInitialSyncComplete(false)
+        setSyncState("error")
+        setSyncError({ code, message: FATAL_SYNC_ERROR_MESSAGES[code], requiresReload: true })
+        socket.close()
+      }
+
+      socket.onclose = (event) => {
+        if (isCleanedUp.current || hasFatalErrorRef.current) return
+        if (event.code === 1009) {
+          failSync("update_too_large")
+          return
+        }
+        initialSyncCompleteRef.current = false
+        setInitialSyncComplete(false)
         setSyncState("error")
         if (reconnectRef.current) window.clearTimeout(reconnectRef.current)
         reconnectRef.current = window.setTimeout(() => connect(), 1000)
       }
 
       socket.onmessage = (event) => {
-        if (typeof event.data !== "string") return
-        let message: Record<string, unknown>
+        if (socketRef.current !== socket || hasFatalErrorRef.current || typeof event.data !== "string") return
+        let message: ServerMessage
         try {
-          message = JSON.parse(event.data) as Record<string, unknown>
+          message = JSON.parse(event.data) as ServerMessage
         } catch {
           return
+        }
+
+        const applyDocumentUpdate = (update: string) => {
+          try {
+            Y.applyUpdate(ydoc, decodeBase64(update), "remote")
+            return true
+          } catch {
+            failSync("sync_apply_failed")
+            return false
+          }
         }
 
         if (message.type === "ping") {
@@ -165,23 +224,39 @@ export function useDocCollaboration(docId: string, options: UseDocCollaborationO
           const snapshot = typeof message.snapshot === "string" ? message.snapshot : null
           const updates = Array.isArray(message.updates) ? message.updates : []
           const latestSeq = typeof message.latestSeq === "number" ? message.latestSeq : 0
-          if (snapshot) {
-            Y.applyUpdate(ydoc, decodeBase64(snapshot), "remote")
+          if (snapshot && !applyDocumentUpdate(snapshot)) {
+            return
           }
-          updates.forEach((update) => {
+          for (const update of updates) {
             if (typeof update === "string") {
-              Y.applyUpdate(ydoc, decodeBase64(update), "remote")
+              if (!applyDocumentUpdate(update)) return
             }
-          })
+          }
           latestServerSeqRef.current = latestSeq
           setHasRemoteContent(Boolean(snapshot) || updates.length > 0)
           initialSyncCompleteRef.current = true
-          pendingAwarenessUpdatesRef.current.forEach((update) => {
-            applyAwarenessUpdate(awareness, update, "remote")
-          })
+          for (const update of pendingAwarenessUpdatesRef.current) {
+            try {
+              applyAwarenessUpdate(awareness, update, "remote")
+            } catch {
+              // Invalid presence data does not affect the document state.
+            }
+          }
           pendingAwarenessUpdatesRef.current = []
           setInitialSyncComplete(true)
           setSyncState("synced")
+          setSyncError(null)
+          const queued = pendingMessages.current
+          pendingMessages.current = []
+          for (let index = 0; index < queued.length; index += 1) {
+            try {
+              socket.send(queued[index]!)
+            } catch {
+              pendingMessages.current = queued.slice(index)
+              socket.close()
+              return
+            }
+          }
           const localAwarenessUpdate = encodeAwarenessUpdate(awareness, [ydoc.clientID])
           sendMessage({ type: "presence.update", update: encodeBase64(localAwarenessUpdate) })
           return
@@ -191,7 +266,7 @@ export function useDocCollaboration(docId: string, options: UseDocCollaborationO
           if (typeof message.seq === "number") {
             latestServerSeqRef.current = Math.max(latestServerSeqRef.current, message.seq)
           }
-          Y.applyUpdate(ydoc, decodeBase64(message.update), "remote")
+          applyDocumentUpdate(message.update)
           return
         }
 
@@ -201,13 +276,27 @@ export function useDocCollaboration(docId: string, options: UseDocCollaborationO
         }
 
         if (message.type === "presence.broadcast" && typeof message.update === "string") {
-          const update = decodeBase64(message.update)
+          let update: Uint8Array
+          try {
+            update = decodeBase64(message.update)
+          } catch {
+            return
+          }
           if (!initialSyncCompleteRef.current) {
             pendingAwarenessUpdatesRef.current.push(update)
             return
           }
 
-          applyAwarenessUpdate(awareness, update, "remote")
+          try {
+            applyAwarenessUpdate(awareness, update, "remote")
+          } catch {
+            // Invalid presence data does not affect the document state.
+          }
+          return
+        }
+
+        if (message.type === "error" && isFatalSyncErrorCode(message.code)) {
+          failSync(message.code)
           return
         }
 
@@ -264,5 +353,5 @@ export function useDocCollaboration(docId: string, options: UseDocCollaborationO
     }
   }, [awareness, ydoc])
 
-  return { ydoc, awareness, syncState, hasRemoteContent, initialSyncComplete, sendSnapshot }
+  return { ydoc, awareness, syncState, syncError, hasRemoteContent, initialSyncComplete, sendSnapshot }
 }

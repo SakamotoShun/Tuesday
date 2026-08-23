@@ -1,7 +1,17 @@
 import * as Y from 'yjs';
+import {
+  deriveValidatedDocBlocks,
+  DocNotFoundError,
+  DocSyncBusyError,
+  DocSyncTooLargeError,
+  materializeDocHistory,
+  MAX_COLLAB_SYNC_UPDATES,
+  MAX_DOC_SYNC_PAYLOAD_BYTES,
+} from './docHistory';
 
-export const MAX_COLLAB_SYNC_UPDATES = 200;
+export { MAX_COLLAB_SYNC_UPDATES } from './docHistory';
 const COLLAB_SYNC_BATCH_SIZE = 100;
+const MAX_DOC_COMPACTION_ATTEMPTS = 3;
 
 type DocSnapshotRecord = {
   seq: number;
@@ -29,17 +39,24 @@ type WhiteboardScene = {
 };
 
 interface DocCollabSyncRepository {
-  getLatestSnapshot(docId: string): Promise<DocSnapshotRecord | null | undefined>;
-  getLatestSeq(docId: string): Promise<number>;
-  countUpdatesInRange(docId: string, minSeqExclusive: number, maxSeqInclusive: number): Promise<number>;
-  getUpdatesInRange(
+  loadSyncState(docId: string): Promise<{
+    snapshot: DocSnapshotRecord | null;
+    updates: DocUpdateRecord[];
+    latestSeq: number;
+    hasMore: boolean;
+    docVersion: number;
+    canonicalSeq: number | null;
+    baseSnapshotId: string | null;
+    baseSeq: number;
+  }>;
+  createSnapshotAndCompactIfCurrent(
     docId: string,
-    minSeqExclusive: number,
-    maxSeqInclusive: number,
-    limit?: number
-  ): Promise<DocUpdateRecord[]>;
-  createSnapshot(docId: string, snapshot: Uint8Array, seq: number): Promise<unknown>;
-  compactHistory(docId: string, snapshotSeq: number): Promise<void>;
+    snapshot: Uint8Array,
+    expectedDocVersion: number,
+    expectedBaseSnapshotId: string | null,
+    expectedBaseSeq: number,
+    seq: number,
+  ): Promise<'compacted' | 'stale' | 'not_found'>;
 }
 
 interface WhiteboardCollabSyncRepository {
@@ -64,6 +81,7 @@ export interface DocSyncState {
   snapshot: Uint8Array | null;
   updates: Uint8Array[];
   latestSeq: number;
+  canonicalSeq: number | null;
 }
 
 export interface WhiteboardSyncState {
@@ -166,28 +184,6 @@ function filterReferencedFiles(scene: WhiteboardScene): WhiteboardScene {
   return { elements: scene.elements, files };
 }
 
-async function loadDocUpdatesInRange(
-  repository: DocCollabSyncRepository,
-  docId: string,
-  minSeqExclusive: number,
-  maxSeqInclusive: number
-) {
-  const updates: DocUpdateRecord[] = [];
-  let cursor = minSeqExclusive;
-
-  while (cursor < maxSeqInclusive) {
-    const batch = await repository.getUpdatesInRange(docId, cursor, maxSeqInclusive, COLLAB_SYNC_BATCH_SIZE);
-    if (batch.length === 0) {
-      break;
-    }
-
-    updates.push(...batch);
-    cursor = getUpdatesBatchRange(batch, maxSeqInclusive);
-  }
-
-  return updates;
-}
-
 async function loadWhiteboardUpdatesInRange(
   repository: WhiteboardCollabSyncRepository,
   whiteboardId: string,
@@ -214,23 +210,33 @@ async function compactDocHistory(
   repository: DocCollabSyncRepository,
   docId: string,
   snapshotRecord: DocSnapshotRecord | null,
-  latestSeq: number
+  updates: DocUpdateRecord[],
+  latestSeq: number,
+  docVersion: number,
+  baseSnapshotId: string | null,
 ) {
-  const doc = new Y.Doc();
-
-  if (snapshotRecord) {
-    Y.applyUpdate(doc, toUint8Array(snapshotRecord.snapshot), 'remote');
-  }
-
-  const updates = await loadDocUpdatesInRange(repository, docId, snapshotRecord?.seq ?? 0, latestSeq);
-  for (const update of updates) {
-    Y.applyUpdate(doc, toUint8Array(update.update), 'remote');
-  }
+  const doc = materializeDocHistory(
+    snapshotRecord ? toUint8Array(snapshotRecord.snapshot) : null,
+    updates.map((update) => toUint8Array(update.update)),
+  );
+  deriveValidatedDocBlocks(doc);
 
   const snapshot = Y.encodeStateAsUpdate(doc);
-  await repository.createSnapshot(docId, snapshot, latestSeq);
-  await repository.compactHistory(docId, latestSeq);
-  return snapshot;
+  if (snapshot.byteLength > MAX_DOC_SYNC_PAYLOAD_BYTES) {
+    throw new DocSyncTooLargeError(snapshot.byteLength);
+  }
+  const persisted = await repository.createSnapshotAndCompactIfCurrent(
+    docId,
+    snapshot,
+    docVersion,
+    baseSnapshotId,
+    snapshotRecord?.seq ?? 0,
+    latestSeq,
+  );
+  if (persisted === 'not_found') {
+    throw new DocNotFoundError();
+  }
+  return persisted === 'compacted' ? snapshot : null;
 }
 
 async function compactWhiteboardHistory(
@@ -256,36 +262,41 @@ async function compactWhiteboardHistory(
 }
 
 export async function buildDocSyncState(repository: DocCollabSyncRepository, docId: string): Promise<DocSyncState> {
-  const snapshotRecord = (await repository.getLatestSnapshot(docId)) ?? null;
-  const snapshot = snapshotRecord ? toUint8Array(snapshotRecord.snapshot) : null;
-  const baseSeq = snapshotRecord?.seq ?? 0;
-  const latestSeq = await repository.getLatestSeq(docId);
+  for (let attempt = 0; attempt < MAX_DOC_COMPACTION_ATTEMPTS; attempt += 1) {
+    const state = await repository.loadSyncState(docId);
+    const snapshotRecord = state.snapshot;
+    const snapshot = snapshotRecord ? toUint8Array(snapshotRecord.snapshot) : null;
+    const baseSeq = snapshotRecord?.seq ?? 0;
+    const latestSeq = Math.max(baseSeq, state.latestSeq);
 
-  if (latestSeq <= baseSeq) {
-    return { snapshot, updates: [], latestSeq };
-  }
+    if (latestSeq <= baseSeq) {
+      return { snapshot, updates: [], latestSeq, canonicalSeq: state.canonicalSeq };
+    }
 
-  const updateCount = await repository.countUpdatesInRange(docId, baseSeq, latestSeq);
-  if (updateCount <= MAX_COLLAB_SYNC_UPDATES) {
-    const updates = await loadDocUpdatesInRange(repository, docId, baseSeq, latestSeq);
-    return {
-      snapshot,
-      updates: updates.map((update) => toUint8Array(update.update)),
+    if (!state.hasMore) {
+      return {
+        snapshot,
+        updates: state.updates.map((update) => toUint8Array(update.update)),
+        latestSeq,
+        canonicalSeq: state.canonicalSeq,
+      };
+    }
+
+    const compactedSnapshot = await compactDocHistory(
+      repository,
+      docId,
+      snapshotRecord,
+      state.updates,
       latestSeq,
-    };
+      state.docVersion,
+      state.baseSnapshotId,
+    );
+    if (!compactedSnapshot) {
+      continue;
+    }
   }
 
-  const compactedSnapshot = await compactDocHistory(repository, docId, snapshotRecord, latestSeq);
-  const trailingLatestSeq = await repository.getLatestSeq(docId);
-  const trailingUpdates = trailingLatestSeq > latestSeq
-    ? await loadDocUpdatesInRange(repository, docId, latestSeq, trailingLatestSeq)
-    : [];
-
-  return {
-    snapshot: compactedSnapshot,
-    updates: trailingUpdates.map((update) => toUint8Array(update.update)),
-    latestSeq: trailingLatestSeq,
-  };
+  throw new DocSyncBusyError();
 }
 
 export async function buildWhiteboardSyncState(

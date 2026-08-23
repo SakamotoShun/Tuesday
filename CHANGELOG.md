@@ -27,9 +27,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Tuesday MCP client setup documentation for OpenCode, Codex, Claude Code, and Claude Desktop
 - Portable Tuesday MCP Agent Skill with safe document creation, BlockNote table examples, concurrency, and retry guidance
 - Clearer MCP document tool descriptions and documented source-table flattening behavior
+- MCP document block editing and full-body writing with atomic optimistic concurrency
 
 ### Fixed
 - MCP and REST document content updates now reset stale collaboration history atomically, preventing Yjs snapshots from overwriting externally added blocks when a document is reopened
+- Document content writes now preserve durable, unsnapshotted collaboration updates and return a conflict instead of deleting disconnected browser edits
+- Canonical document content is now derived from verified Yjs snapshots, including a durable sequence-zero baseline for existing content
+- MCP block write schemas now match recursive runtime validation and enforce bounded document and request sizes
 
 ## [0.1.0] - 2026-02-06
 

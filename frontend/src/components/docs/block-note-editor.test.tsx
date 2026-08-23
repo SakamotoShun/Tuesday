@@ -27,6 +27,7 @@ const collabState = {
   ydoc: { getXmlFragment: () => ({ length: 0 }) },
   awareness: { getLocalState: () => ({ user: { name: "Test", color: "#0F766E" } }) },
   syncState: "synced" as const,
+  syncError: null as null | { code: string; message: string; requiresReload: true },
   hasRemoteContent: true,
   initialSyncComplete: true,
   sendSnapshot,
@@ -86,6 +87,7 @@ describe("BlockNoteEditor", () => {
     applyUpdate.mockClear()
     latestCollabOptions = undefined
     collabState.syncState = "synced"
+    collabState.syncError = null
     collabState.hasRemoteContent = true
     collabState.initialSyncComplete = true
   })
@@ -161,7 +163,7 @@ describe("BlockNoteEditor", () => {
     expect(blocksToYDoc).toHaveBeenCalledWith(editorState, initialContent, "prosemirror")
     expect(encodeStateAsUpdate).toHaveBeenCalledTimes(1)
     expect(applyUpdate).toHaveBeenCalledTimes(1)
-    expect(sendSnapshot).toHaveBeenCalledWith(initialContent)
+    expect(sendSnapshot).toHaveBeenCalledWith()
   })
 
   it("does not seed initial content when remote collab content already exists", async () => {
@@ -191,6 +193,22 @@ describe("BlockNoteEditor", () => {
     fireEvent.blur(getByTestId("blocknote-view").parentElement as HTMLElement)
 
     expect(sendSnapshot).toHaveBeenCalledTimes(1)
-    expect(sendSnapshot).toHaveBeenCalledWith(editorState.document)
+    expect(sendSnapshot).toHaveBeenCalledWith()
+  })
+
+  it("disables the editor and asks for a reload after a fatal sync error", async () => {
+    const { BlockNoteEditor } = await import("./block-note-editor")
+    collabState.syncError = {
+      code: "resync_required",
+      message: "This document must be resynchronized. Reload the page before editing.",
+      requiresReload: true,
+    }
+    collabState.initialSyncComplete = false
+
+    const view = render(<BlockNoteEditor docId="doc-1" initialContent={[]} />)
+
+    expect(view.queryByTestId("blocknote-view")).toBeNull()
+    expect(view.getByRole("alert").textContent).toContain("must be resynchronized")
+    expect(view.getByRole("button", { name: "Reload page" })).toBeDefined()
   })
 })

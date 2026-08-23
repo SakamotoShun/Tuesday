@@ -113,7 +113,7 @@ Inside Claude Code, use `/mcp` to confirm the server is connected.
 
 ## Agent skill
 
-Connecting the MCP server makes Tuesday's tools available. Installing the companion Agent Skill separately teaches agents the safe workflows for document structure, rendered tables, optimistic concurrency, idempotency, and retries.
+Connecting the MCP server makes Tuesday's tools available. Installing the companion Agent Skill separately teaches agents the safe workflows for document structure, rendered tables, targeted block edits, complete document writes, optimistic concurrency, idempotency, and retries.
 
 The portable skill is checked into this repository at [`skills/tuesday-mcp`](../skills/tuesday-mcp/SKILL.md). Install it from the public repository with the Skills CLI:
 
@@ -141,6 +141,14 @@ For manual installation, copy the whole `skills/tuesday-mcp` directory, includin
 - Other Agent Skills-compatible clients: use the client's project or user skills directory.
 
 Installing the skill does not configure authentication or connect the MCP endpoint. Complete both the client connection setup above and the skill installation. Restart clients that load skills only at startup.
+
+## Document write safety
+
+Call `get_doc` immediately before `append_doc_blocks`, `edit_doc_blocks`, or `write_doc_blocks`, and pass its exact version. Targeted replacements and complete writes require recursive BlockNote envelopes with `id`, `type`, `props`, and `children`; partial blocks supplied to creation and append tools are normalized before storage.
+
+Document payloads are limited to 512 KiB, 10,000 blocks, block depth 32, and JSON depth 128. MCP HTTP requests are limited to 1 MiB.
+
+Tuesday rejects a content mutation when durable browser collaboration updates are newer than canonical document content. This preserves disconnected edits instead of deleting them. Open the document in a writable browser session to trigger canonical snapshotting, call `get_doc` again, and retry only after reassessing the current content and version.
 
 ## Claude Desktop
 

@@ -8,7 +8,7 @@ export { projectStatusRepository, ProjectStatusRepository } from './projectStatu
 export { teamRepository, TeamRepository } from './team';
 export { teamMemberRepository, TeamMemberRepository } from './teamMember';
 export { teamProjectRepository, TeamProjectRepository } from './teamProject';
-export { docRepository, DocRepository } from './doc';
+export { docRepository, DocRepository, DocCollabPendingError } from './doc';
 export { docCollabRepository, DocCollabRepository } from './docCollab';
 export { taskRepository, TaskRepository } from './task';
 export { taskAssigneeRepository, TaskAssigneeRepository } from './taskAssignee';

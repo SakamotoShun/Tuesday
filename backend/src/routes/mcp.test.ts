@@ -4,6 +4,7 @@ import { config } from '../config';
 import { apiCors } from '../middleware/cors';
 import { mcpCors } from '../middleware/public-cors';
 import { mcp } from './mcp';
+import { MAX_MCP_REQUEST_BYTES } from '../utils/doc-blocks';
 
 const originalCorsOrigins = [...config.corsOrigins];
 const originalNodeEnv = config.nodeEnv;
@@ -105,6 +106,19 @@ describe('MCP Routes', () => {
     });
 
     expect(response.status).toBe(401);
+  });
+
+  it('rejects oversized request bodies before JSON parsing or authentication', async () => {
+    const response = await createApp().request('/api/mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: 'x'.repeat(MAX_MCP_REQUEST_BYTES + 1),
+    });
+
+    expect(response.status).toBe(413);
+    const body = await response.json() as { error: { code: number; message: string } };
+    expect(body.error.code).toBe(-32600);
+    expect(body.error.message).toContain(`${MAX_MCP_REQUEST_BYTES} bytes`);
   });
 });
 

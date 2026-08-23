@@ -98,8 +98,7 @@ export function BlockNoteEditor({
   const hasPendingSnapshotRef = useRef(false)
   const scheduleSnapshotRef = useRef<(() => void) | null>(null)
   const [isInitialDocumentReady, setIsInitialDocumentReady] = useState(false)
-  const { ydoc, awareness, syncState, hasRemoteContent, initialSyncComplete, sendSnapshot } = useDocCollaboration(docId, {
-    getSnapshotContent: () => editorRef.current?.document as Array<Record<string, unknown>>,
+  const { ydoc, awareness, syncState, syncError, hasRemoteContent, initialSyncComplete, sendSnapshot } = useDocCollaboration(docId, {
     onLocalChange: () => {
       if (!isEditorReadyRef.current) {
         return
@@ -138,8 +137,8 @@ export function BlockNoteEditor({
     return undefined
   }, [themePreference])
 
-  const isEditorEditable = editable && initialSyncComplete
-  const isEditorReady = initialSyncComplete && isInitialDocumentReady
+  const isEditorEditable = editable && initialSyncComplete && !syncError
+  const isEditorReady = initialSyncComplete && isInitialDocumentReady && !syncError
 
   useEffect(() => {
     hasSeeded.current = false
@@ -151,7 +150,7 @@ export function BlockNoteEditor({
     isEditorReadyRef.current = isEditorReady
   }, [isEditorReady])
 
-  const flushSnapshot = useCallback((contentOverride?: Block[]) => {
+  const flushSnapshot = useCallback(() => {
     if (!initialSyncComplete || syncState === "error") {
       return
     }
@@ -162,7 +161,7 @@ export function BlockNoteEditor({
     }
 
     hasPendingSnapshotRef.current = false
-    sendSnapshot((contentOverride ?? editorRef.current?.document ?? []) as Array<Record<string, unknown>>)
+    sendSnapshot()
   }, [initialSyncComplete, sendSnapshot, syncState])
 
   const scheduleSnapshot = useCallback(() => {
@@ -205,7 +204,7 @@ export function BlockNoteEditor({
 
     const seededDoc = blocksToYDoc(editor, initialContent, "prosemirror")
     Y.applyUpdate(ydoc, Y.encodeStateAsUpdate(seededDoc), "remote")
-    flushSnapshot(initialContent)
+    flushSnapshot()
     hasSeeded.current = true
     setIsInitialDocumentReady(true)
   }, [editor, flushSnapshot, hasRemoteContent, initialContent, initialSyncComplete, ydoc])
@@ -249,7 +248,18 @@ export function BlockNoteEditor({
         onBlur?.()
       }}
     >
-      {isEditorReady ? (
+      {syncError ? (
+        <div className="min-h-[160px] py-8 text-sm text-destructive" role="alert">
+          <p>{syncError.message}</p>
+          <button
+            className="mt-3 font-medium underline underline-offset-4"
+            type="button"
+            onClick={() => window.location.reload()}
+          >
+            Reload page
+          </button>
+        </div>
+      ) : isEditorReady ? (
         <BlockNoteView editor={editor} theme={resolvedTheme} sideMenu={false} editable={isEditorEditable}>
           {isEditorEditable && (
             <SideMenuController
@@ -259,7 +269,7 @@ export function BlockNoteEditor({
         </BlockNoteView>
       ) : (
         <div className="min-h-[160px] py-8 text-sm text-muted-foreground">
-          {syncState === "error" ? "Failed to connect to collaborative editing." : "Loading document..."}
+          {syncState === "error" ? "Connection lost. Reconnecting..." : "Loading document..."}
         </div>
       )}
     </div>

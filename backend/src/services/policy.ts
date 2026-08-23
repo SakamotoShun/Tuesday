@@ -4,6 +4,7 @@ import { activityService } from './activity';
 import { UserRole, type Doc, type NewDoc } from '../db/schema';
 import type { User } from '../types';
 import { extractSearchTextFromDocContent } from '../utils/doc-search';
+import { normalizeLegacyDocBlocks } from '../utils/doc-blocks';
 
 export interface CreatePolicyDatabaseInput {
   title: string;
@@ -161,7 +162,7 @@ export class PolicyService {
       throw new Error('Policy title is required');
     }
 
-    const content = input.content ?? [];
+    const content = normalizeLegacyDocBlocks(input.content ?? []);
 
     const row = await policyRepository.create({
       title: input.title.trim(),
@@ -227,8 +228,9 @@ export class PolicyService {
     }
 
     if (input.content !== undefined) {
-      updateData.content = input.content;
-      updateData.searchText = extractSearchTextFromDocContent(input.content);
+      const content = normalizeLegacyDocBlocks(input.content);
+      updateData.content = content;
+      updateData.searchText = extractSearchTextFromDocContent(content);
     }
 
     if (input.properties !== undefined) {

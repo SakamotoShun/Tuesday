@@ -16,7 +16,7 @@ Use Tuesday's MCP tools to inspect and update workspace data without guessing ID
 1. Call `ping` when connection, identity, role, or scopes are uncertain.
 2. Discover records with `search_workspace`, `list_projects`, `list_project_tasks`, or `list_project_docs` instead of guessing IDs.
 3. Read the target with `get_project`, `get_task`, or `get_doc` immediately before a mutation.
-4. Confirm that the requested operation is available. Tuesday MCP does not currently expose meeting tools, document deletion, block replacement/deletion, personal root-document creation, or database-document schema tools.
+4. Confirm that the requested operation is available. Tuesday MCP does not currently expose meeting tools, document deletion, personal root-document creation, or database-document schema tools.
 5. Inspect tool errors before claiming success. MCP results may be JSON serialized inside a text content block; treat `isError: true` as failure.
 
 Only tools allowed by the token's scopes appear in tool discovery. Project membership and resource ownership still apply. Admins may access all projects. Freelancers are read-only on documents, may only change the status of assigned tasks, and may only log time to projects they belong to.
@@ -36,8 +36,10 @@ Only tools allowed by the token's scopes appear in tool discovery. Project membe
 - `create_doc`: create a project doc or a child doc. Use a unique, stable `idempotencyKey` and verify with `get_doc`.
 - `update_doc_title`: rename using the latest `expectedVersion` from `get_doc`.
 - `append_doc_blocks`: add source text or raw BlockNote blocks using the latest `expectedVersion`.
+- `edit_doc_blocks`: atomically delete or replace targeted root or nested blocks. Prefer this for corrections and localized changes.
+- `write_doc_blocks`: deliberately replace the complete document body. Use only when you have constructed and intend to own all resulting content.
 
-Read [references/documents.md](references/documents.md) before creating rich documents, adding tables, or recovering from an uncertain append.
+Read [references/documents.md](references/documents.md) before creating rich documents, adding tables, editing blocks, replacing a document body, or recovering from an uncertain mutation.
 
 ### Tasks
 
@@ -83,4 +85,6 @@ Never retry a stale write blindly. A user or collaborator may have changed the r
 - If a tool call times out, do not assume it failed.
 - Verify idempotent creations by reusing the same key or reading the returned record.
 - Verify non-idempotent document appends with `get_doc` before deciding whether to retry.
-- Surface access, scope, conflict, validation, and active-collaborator errors clearly rather than attempting unrelated workarounds.
+- After an uncertain edit or full write, call `get_doc` before retrying. The old expected version will conflict if the first call committed.
+- If Tuesday reports durable collaborative edits that are not yet canonical, open the document in a writable browser session to trigger snapshotting, then re-read it. Do not overwrite or blindly retry while the canonical version is unchanged.
+- Surface access, scope, conflict, validation, active-collaborator, and pending-collaboration errors clearly rather than attempting unrelated workarounds.

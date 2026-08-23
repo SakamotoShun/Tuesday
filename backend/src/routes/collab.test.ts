@@ -1,5 +1,11 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { Hono } from 'hono';
+import * as Y from 'yjs';
+import {
+  DocSyncBusyError,
+  DocSyncTooLargeError,
+  MAX_DOC_UPDATE_BYTES,
+} from '../collab/docHistory';
 
 // Mutable mock returns — reassigned per test group
 const freelancerUser = {
@@ -27,6 +33,10 @@ let broadcasts: Array<{ docId: string; message: string; exclude: unknown }> = []
 let createdSnapshots: Array<{ docId: string; snapshot: Uint8Array; seq: number }> = [];
 let compactedSnapshots: Array<{ docId: string; seq: number }> = [];
 let canonicalUpdates: Array<{ docId: string; data: Record<string, unknown> }> = [];
+let docLatestSeq = 0;
+let docCanonicalSeq: number | null = 0;
+let docSyncError: Error | null = null;
+let canonicalSnapshotResult: any = { status: 'persisted', doc: {} };
 let whiteboardLatestSeq = 0;
 let shouldRequestWhiteboardSnapshot = false;
 let appendedWhiteboardUpdates: Array<{ whiteboardId: string; update: Record<string, unknown>; userId: string }> = [];
@@ -50,26 +60,47 @@ beforeAll(() => {
     getDoc: async () => ({ id: 'doc-1', projectId: 'proj-1', title: 'Test', createdBy: 'admin-1' } as any),
     getWhiteboard: async () => ({ id: 'wb-1', projectId: 'proj-1', title: 'Test WB', data: null } as any),
     docCollabRepository: {
+      loadSyncState: async () => {
+        if (docSyncError) throw docSyncError;
+        return {
+          snapshot: null,
+          updates: [],
+          latestSeq: docLatestSeq,
+          hasMore: false,
+          docVersion: 1,
+          canonicalSeq: docCanonicalSeq,
+          baseSnapshotId: null,
+          baseSeq: 0,
+        };
+      },
       getLatestSnapshot: async () => null,
       countUpdatesInRange: async () => 0,
       getUpdatesInRange: async () => [],
       getUpdatesSince: async () => [],
-      getLatestSeq: async () => 0,
+      getLatestSeq: async () => docLatestSeq,
       appendUpdate: async (docId: string, update: Uint8Array, userId: string) => {
         appendedUpdates.push({ docId, update, userId });
         return 7;
       },
-      createSnapshot: async (docId: string, snapshot: Uint8Array, seq: number) => {
+      createSnapshotAndCompactIfCurrent: async (
+        docId: string,
+        snapshot: Uint8Array,
+        _expectedDocVersion: number,
+        _expectedBaseSnapshotId: string | null,
+        _expectedBaseSeq: number,
+        seq: number,
+      ) => {
         createdSnapshots.push({ docId, snapshot, seq });
-      },
-      compactHistory: async (docId: string, seq: number) => {
         compactedSnapshots.push({ docId, seq });
+        return 'compacted';
       },
-    } as any,
-    docRepository: {
-      update: async (docId: string, data: Record<string, unknown>) => {
-        canonicalUpdates.push({ docId, data });
-        return {};
+      persistCanonicalSnapshot: async (docId: string, snapshot: Uint8Array, seq: number) => {
+        if (canonicalSnapshotResult.status === 'persisted') {
+          createdSnapshots.push({ docId, snapshot, seq });
+          compactedSnapshots.push({ docId, seq });
+          canonicalUpdates.push({ docId, data: {} });
+        }
+        return canonicalSnapshotResult;
       },
     } as any,
     whiteboardCollabRepository: {
@@ -137,6 +168,10 @@ beforeEach(() => {
   createdSnapshots = [];
   compactedSnapshots = [];
   canonicalUpdates = [];
+  docLatestSeq = 0;
+  docCanonicalSeq = 0;
+  docSyncError = null;
+  canonicalSnapshotResult = { status: 'persisted', doc: {} };
   whiteboardLatestSeq = 0;
   shouldRequestWhiteboardSnapshot = false;
   appendedWhiteboardUpdates = [];
@@ -159,6 +194,42 @@ function connectWs(path: string): Promise<WebSocket> {
     ws.onopen = () => resolve(ws);
     ws.onerror = () => reject(new Error(`WS connect failed: ${wsBase}${path}`));
   });
+}
+
+function connectUntilClosed(path: string): Promise<{ code: number; reason: string }> {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(`${wsBase}${path}`, {
+      headers: { Cookie: 'session_id=test-session' },
+    } as any);
+    const timer = setTimeout(() => {
+      ws.close();
+      reject(new Error(`timeout waiting for close on ${ws.url}`));
+    }, 3000);
+    ws.onclose = (event) => {
+      clearTimeout(timer);
+      resolve({ code: event.code, reason: event.reason });
+    };
+    ws.onerror = () => {
+      clearTimeout(timer);
+      reject(new Error(`WS connect failed: ${wsBase}${path}`));
+    };
+  });
+}
+
+function waitForClose(ws: WebSocket): Promise<{ code: number; reason: string }> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`timeout waiting for close on ${ws.url}`)), 3000);
+    ws.addEventListener('close', (event) => {
+      clearTimeout(timer);
+      resolve({ code: event.code, reason: event.reason });
+    }, { once: true });
+  });
+}
+
+function yUpdateBase64(): string {
+  const doc = new Y.Doc();
+  doc.getMap('content').set('key', 'value');
+  return Buffer.from(Y.encodeStateAsUpdate(doc)).toString('base64');
 }
 
 function waitFor(ws: WebSocket, pred: (m: any) => boolean, ms = 3000): Promise<any> {
@@ -257,20 +328,31 @@ describe('Collab WebSocket — normal document collaboration', () => {
     expect(sync).toMatchObject({ snapshot: null, updates: [], latestSeq: 0 });
 
     const ackPromise = waitFor(ws, (message) => message.type === 'doc.ack');
-    ws.send(JSON.stringify({ type: 'doc.update', update: 'AQID' }));
+    const update = yUpdateBase64();
+    ws.send(JSON.stringify({ type: 'doc.update', update }));
     expect(await ackPromise).toMatchObject({ type: 'doc.ack', seq: 7 });
 
     expect(appendedUpdates).toHaveLength(1);
     expect(appendedUpdates[0]).toMatchObject({ docId: 'doc-1', userId: adminUser.id });
-    expect(Array.from(appendedUpdates[0]!.update)).toEqual([1, 2, 3]);
+    expect(Buffer.from(appendedUpdates[0]!.update).toString('base64')).toBe(update);
     expect(broadcasts).toHaveLength(1);
     expect(JSON.parse(broadcasts[0]!.message)).toMatchObject({
       type: 'doc.update',
-      update: 'AQID',
+      update,
       seq: 7,
       actorId: adminUser.id,
     });
 
+    ws.close();
+  });
+
+  it('requests a canonical snapshot after writable clients synchronize', async () => {
+    docLatestSeq = 4;
+    docCanonicalSeq = 0;
+    const ws = await connectWs('/collab/docs/doc-1');
+    const request = await waitFor(ws, (message) => message.type === 'doc.snapshot.request');
+
+    expect(request).toEqual({ type: 'doc.snapshot.request', seq: 4 });
     ws.close();
   });
 
@@ -289,22 +371,154 @@ describe('Collab WebSocket — normal document collaboration', () => {
     ws.close();
   });
 
+  it('rejects non-canonical base64 without appending or acknowledging', async () => {
+    const ws = await connectWs('/collab/docs/doc-1');
+    await waitFor(ws, (message) => message.type === 'doc.sync');
+
+    const closePromise = waitForClose(ws);
+    ws.send(JSON.stringify({ type: 'doc.update', update: 'AQID\n' }));
+    expect(await waitFor(ws, (message) => message.type === 'error')).toMatchObject({
+      type: 'error',
+      code: 'invalid_update',
+      op: 'doc.update',
+    });
+    expect(appendedUpdates).toHaveLength(0);
+    expect(broadcasts).toHaveLength(0);
+    expect(await closePromise).toEqual({ code: 1007, reason: 'Invalid document update' });
+  });
+
+  it('uses invalid-payload close semantics for malformed messages', async () => {
+    const ws = await connectWs('/collab/docs/doc-1');
+    await waitFor(ws, (message) => message.type === 'doc.sync');
+    const closePromise = waitForClose(ws);
+
+    ws.send(JSON.stringify({ type: 42 }));
+
+    expect(await waitFor(ws, (message) => message.type === 'error')).toMatchObject({
+      type: 'error',
+      code: 'invalid_update',
+      op: 'unknown',
+    });
+    expect(await closePromise).toEqual({ code: 1007, reason: 'Invalid collaboration message' });
+  });
+
+  it('rejects decoded updates over one MiB without appending or broadcasting', async () => {
+    const ws = await connectWs('/collab/docs/doc-1');
+    await waitFor(ws, (message) => message.type === 'doc.sync');
+    const oversized = Buffer.alloc(MAX_DOC_UPDATE_BYTES + 1).toString('base64');
+
+    ws.send(JSON.stringify({ type: 'doc.update', update: oversized }));
+    expect(await waitFor(ws, (message) => message.type === 'error')).toMatchObject({
+      type: 'error',
+      code: 'update_too_large',
+      op: 'doc.update',
+    });
+    expect(appendedUpdates).toHaveLength(0);
+    expect(broadcasts).toHaveLength(0);
+    ws.close();
+  });
+
+  it('requires resync for a current-sequence snapshot state mismatch', async () => {
+    canonicalSnapshotResult = { status: 'state_mismatch', currentSeq: 0 };
+    const ws = await connectWs('/collab/docs/doc-1');
+    await waitFor(ws, (message) => message.type === 'doc.sync');
+
+    ws.send(JSON.stringify({ type: 'doc.snapshot', snapshot: yUpdateBase64(), seq: 0 }));
+    expect(await waitFor(ws, (message) => message.type === 'error')).toMatchObject({
+      type: 'error',
+      code: 'resync_required',
+      op: 'doc.snapshot',
+    });
+    expect(createdSnapshots).toHaveLength(0);
+    ws.close();
+  });
+
   it('persists current snapshots and canonical document content', async () => {
     const ws = await connectWs('/collab/docs/doc-1');
     await waitFor(ws, (message) => message.type === 'doc.sync');
     const content = [{ id: 'paragraph-1', type: 'paragraph', content: [] }];
 
-    ws.send(JSON.stringify({ type: 'doc.snapshot', snapshot: 'BAUG', seq: 0, content }));
+    const snapshot = yUpdateBase64();
+    ws.send(JSON.stringify({ type: 'doc.snapshot', snapshot, seq: 0, content }));
     await waitUntil(() => canonicalUpdates.length === 1);
 
     expect(createdSnapshots).toHaveLength(1);
     expect(createdSnapshots[0]).toMatchObject({ docId: 'doc-1', seq: 0 });
-    expect(Array.from(createdSnapshots[0]!.snapshot)).toEqual([4, 5, 6]);
+    expect(Buffer.from(createdSnapshots[0]!.snapshot).toString('base64')).toBe(snapshot);
     expect(compactedSnapshots).toEqual([{ docId: 'doc-1', seq: 0 }]);
     expect(canonicalUpdates[0]).toMatchObject({ docId: 'doc-1' });
-    expect(canonicalUpdates[0]!.data.content).toEqual(content);
+    expect(canonicalUpdates[0]).toMatchObject({ docId: 'doc-1' });
 
     ws.close();
+  });
+
+  it('ignores stale client snapshots without deleting represented history', async () => {
+    docLatestSeq = 2;
+    docCanonicalSeq = 0;
+    const ws = await connectWs('/collab/docs/doc-1');
+    await waitFor(ws, (message) => message.type === 'doc.sync');
+    const retryRequest = waitFor(ws, (message) => message.type === 'doc.snapshot.request');
+
+    ws.send(JSON.stringify({
+      type: 'doc.snapshot',
+      snapshot: yUpdateBase64(),
+      seq: 1,
+      content: [{ id: 'stale', type: 'paragraph', content: [] }],
+    }));
+    expect(await retryRequest).toEqual({ type: 'doc.snapshot.request', seq: 2 });
+
+    expect(createdSnapshots).toHaveLength(0);
+    expect(compactedSnapshots).toHaveLength(0);
+    expect(canonicalUpdates).toHaveLength(0);
+    ws.close();
+  });
+
+  it('requires resync after the one stale snapshot retry is exhausted', async () => {
+    docLatestSeq = 2;
+    docCanonicalSeq = 2;
+    const ws = await connectWs('/collab/docs/doc-1');
+    await waitFor(ws, (message) => message.type === 'doc.sync');
+
+    const retryRequest = waitFor(ws, (message) => message.type === 'doc.snapshot.request');
+    ws.send(JSON.stringify({ type: 'doc.snapshot', snapshot: yUpdateBase64(), seq: 1 }));
+    expect(await retryRequest).toEqual({ type: 'doc.snapshot.request', seq: 2 });
+
+    const closePromise = waitForClose(ws);
+    const errorPromise = waitFor(ws, (message) => message.type === 'error');
+    ws.send(JSON.stringify({ type: 'doc.snapshot', snapshot: yUpdateBase64(), seq: 1 }));
+    expect(await errorPromise).toMatchObject({
+      type: 'error',
+      code: 'resync_required',
+      op: 'doc.snapshot',
+    });
+    expect(await closePromise).toEqual({ code: 1013, reason: 'Document resynchronization required' });
+  });
+
+  it('reports initial synchronization contention as retryable', async () => {
+    docSyncError = new DocSyncBusyError();
+
+    expect(await connectUntilClosed('/collab/docs/doc-1')).toEqual({
+      code: 1013,
+      reason: 'Document sync busy. Retry shortly.',
+    });
+  });
+
+  it('reports oversized initial synchronization state without retrying', async () => {
+    docSyncError = new DocSyncTooLargeError(3 * 1024 * 1024);
+
+    expect(await connectUntilClosed('/collab/docs/doc-1')).toEqual({
+      code: 1009,
+      reason: 'Document sync state too large',
+    });
+  });
+
+  it('does not misreport unexpected initial synchronization failures as access denial', async () => {
+    docSyncError = new Error('database unavailable');
+
+    expect(await connectUntilClosed('/collab/docs/doc-1')).toEqual({
+      code: 1011,
+      reason: 'Doc collaboration failed',
+    });
   });
 });
 

@@ -4,6 +4,7 @@ import { auth, requireProjectAccess } from '../middleware';
 import { requireRouteParam } from '../utils/route-params';
 import { success, errors } from '../utils/response';
 import { validateBody, formatValidationErrors, createDocSchema, updateDocSchema, updateDocSharesSchema } from '../utils/validation';
+import { DocCollabPendingError } from '../repositories/doc';
 
 const docs = new Hono();
 
@@ -274,6 +275,9 @@ docs.patch('/:id', async (c) => {
 
     return success(c, doc);
   } catch (error) {
+    if (error instanceof DocCollabPendingError) {
+      return errors.conflict(c, error.message);
+    }
     if (error instanceof Error) {
       return errors.badRequest(c, error.message);
     }

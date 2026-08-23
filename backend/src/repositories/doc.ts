@@ -1,6 +1,16 @@
-import { eq, and, isNull, desc, exists, or, sql } from 'drizzle-orm';
+import { eq, and, isNull, desc, exists, max, or, sql } from 'drizzle-orm';
+import { assertDocBlocksCanonicalizable } from '../collab/docContent';
 import { db } from '../db/client';
 import { docs, docCollabSnapshots, docCollabUpdates, docShares, type Doc, type NewDoc } from '../db/schema';
+
+export class DocCollabPendingError extends Error {
+  readonly code = 'DOC_COLLAB_PENDING';
+
+  constructor() {
+    super('Document has durable collaborative edits not yet reflected in canonical content. Re-read and retry after collaboration sync completes.');
+    this.name = 'DocCollabPendingError';
+  }
+}
 
 export class DocRepository {
   async findById(id: string): Promise<Doc | null> {
@@ -43,6 +53,7 @@ export class DocRepository {
             isPolicy: true,
             schema: true,
             version: true,
+            canonicalCollabSeq: true,
             createdBy: true,
             createdAt: true,
             updatedAt: true,
@@ -105,11 +116,17 @@ export class DocRepository {
   }
 
   async create(data: NewDoc): Promise<Doc> {
+    if (data.content !== undefined) {
+      assertDocBlocksCanonicalizable(data.content);
+    }
     const [doc] = await db.insert(docs).values(data).returning();
     return doc;
   }
 
   async update(id: string, data: Partial<NewDoc>): Promise<Doc | null> {
+    if (data.content !== undefined) {
+      assertDocBlocksCanonicalizable(data.content);
+    }
     const [doc] = await db
       .update(docs)
       .set({ ...data, updatedAt: new Date(), version: sql`${docs.version} + 1` })
@@ -119,6 +136,9 @@ export class DocRepository {
   }
 
   async updateIfVersion(id: string, expectedVersion: number, data: Partial<NewDoc>): Promise<Doc | null> {
+    if (data.content !== undefined) {
+      assertDocBlocksCanonicalizable(data.content);
+    }
     const [doc] = await db
       .update(docs)
       .set({ ...data, updatedAt: new Date(), version: sql`${docs.version} + 1` })
@@ -128,10 +148,45 @@ export class DocRepository {
   }
 
   async updateContentAndResetCollab(id: string, data: Partial<NewDoc>): Promise<Doc | null> {
+    if (data.content !== undefined) {
+      assertDocBlocksCanonicalizable(data.content);
+    }
     return db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({ canonicalCollabSeq: docs.canonicalCollabSeq })
+        .from(docs)
+        .where(eq(docs.id, id))
+        .for('update');
+
+      if (!current) {
+        return null;
+      }
+
+      const latestUpdate = await tx
+        .select({ seq: max(docCollabUpdates.seq) })
+        .from(docCollabUpdates)
+        .where(eq(docCollabUpdates.docId, id));
+      const latestSnapshot = await tx
+        .select({ seq: max(docCollabSnapshots.seq) })
+        .from(docCollabSnapshots)
+        .where(eq(docCollabSnapshots.docId, id));
+      const canonicalSeq = current.canonicalCollabSeq;
+      if (
+        canonicalSeq === null
+        || (latestUpdate[0]?.seq ?? 0) > canonicalSeq
+        || (latestSnapshot[0]?.seq ?? 0) > canonicalSeq
+      ) {
+        throw new DocCollabPendingError();
+      }
+
       const [doc] = await tx
         .update(docs)
-        .set({ ...data, updatedAt: new Date(), version: sql`${docs.version} + 1` })
+        .set({
+          ...data,
+          canonicalCollabSeq: 0,
+          updatedAt: new Date(),
+          version: sql`${docs.version} + 1`,
+        })
         .where(eq(docs.id, id))
         .returning();
 
@@ -150,10 +205,45 @@ export class DocRepository {
     expectedVersion: number,
     data: Partial<NewDoc>
   ): Promise<Doc | null> {
+    if (data.content !== undefined) {
+      assertDocBlocksCanonicalizable(data.content);
+    }
     return db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({ canonicalCollabSeq: docs.canonicalCollabSeq, version: docs.version })
+        .from(docs)
+        .where(eq(docs.id, id))
+        .for('update');
+
+      if (!current || current.version !== expectedVersion) {
+        return null;
+      }
+
+      const latestUpdate = await tx
+        .select({ seq: max(docCollabUpdates.seq) })
+        .from(docCollabUpdates)
+        .where(eq(docCollabUpdates.docId, id));
+      const latestSnapshot = await tx
+        .select({ seq: max(docCollabSnapshots.seq) })
+        .from(docCollabSnapshots)
+        .where(eq(docCollabSnapshots.docId, id));
+      const canonicalSeq = current.canonicalCollabSeq;
+      if (
+        canonicalSeq === null
+        || (latestUpdate[0]?.seq ?? 0) > canonicalSeq
+        || (latestSnapshot[0]?.seq ?? 0) > canonicalSeq
+      ) {
+        throw new DocCollabPendingError();
+      }
+
       const [doc] = await tx
         .update(docs)
-        .set({ ...data, updatedAt: new Date(), version: sql`${docs.version} + 1` })
+        .set({
+          ...data,
+          canonicalCollabSeq: 0,
+          updatedAt: new Date(),
+          version: sql`${docs.version} + 1`,
+        })
         .where(and(eq(docs.id, id), eq(docs.version, expectedVersion)))
         .returning();
 
