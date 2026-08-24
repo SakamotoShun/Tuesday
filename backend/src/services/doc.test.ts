@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach, afterAll, mock } from 'bun:test';
 
 let findByProjectId: (...args: any[]) => Promise<any> = async () => [];
 let findPersonalDocs: (...args: any[]) => Promise<any> = async () => [];
@@ -93,6 +93,8 @@ mock.module('../repositories/sharedLink', () => ({
 const { docService } = await import('./doc');
 const { activityService } = await import('./activity');
 const originalRecord = activityService.record.bind(activityService);
+
+afterAll(() => mock.restore());
 
 const memberUser = {
   id: '11111111-1111-4111-8111-111111111111',

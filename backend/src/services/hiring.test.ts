@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test';
 
 let createStoredDoc: (...args: any[]) => Promise<any>;
 let updateStoredDocContent: (...args: any[]) => Promise<any>;
@@ -35,6 +35,8 @@ mock.module('./file', () => ({ fileService: {} }));
 
 const { DocBlockCanonicalizationError } = await import('../collab/docContent');
 const { hiringService } = await import('./hiring');
+
+afterAll(() => mock.restore());
 
 const adminUser = {
   id: '11111111-1111-4111-8111-111111111111',

@@ -98,6 +98,7 @@ export function useDocCollaboration(docId: string, options: UseDocCollaborationO
   const socketRef = useRef<WebSocket | null>(null)
   const reconnectRef = useRef<number | null>(null)
   const pendingMessages = useRef<string[]>([])
+  const unacknowledgedDocUpdates = useRef<string[]>([])
   const isCleanedUp = useRef(false)
   const hasFatalErrorRef = useRef(false)
   const initialSyncCompleteRef = useRef(false)
@@ -146,6 +147,7 @@ export function useDocCollaboration(docId: string, options: UseDocCollaborationO
     latestServerSeqRef.current = 0
     pendingAwarenessUpdatesRef.current = []
     pendingMessages.current = []
+    unacknowledgedDocUpdates.current = []
     setSyncError(null)
     setInitialSyncComplete(false)
     setHasRemoteContent(false)
@@ -174,6 +176,7 @@ export function useDocCollaboration(docId: string, options: UseDocCollaborationO
         hasFatalErrorRef.current = true
         initialSyncCompleteRef.current = false
         pendingMessages.current = []
+        unacknowledgedDocUpdates.current = []
         pendingAwarenessUpdatesRef.current = []
         if (reconnectRef.current) window.clearTimeout(reconnectRef.current)
         reconnectRef.current = null
@@ -257,6 +260,14 @@ export function useDocCollaboration(docId: string, options: UseDocCollaborationO
               return
             }
           }
+          for (const update of unacknowledgedDocUpdates.current) {
+            try {
+              socket.send(update)
+            } catch {
+              socket.close()
+              return
+            }
+          }
           const localAwarenessUpdate = encodeAwarenessUpdate(awareness, [ydoc.clientID])
           sendMessage({ type: "presence.update", update: encodeBase64(localAwarenessUpdate) })
           return
@@ -272,6 +283,7 @@ export function useDocCollaboration(docId: string, options: UseDocCollaborationO
 
         if (message.type === "doc.ack" && typeof message.seq === "number") {
           latestServerSeqRef.current = Math.max(latestServerSeqRef.current, message.seq)
+          unacknowledgedDocUpdates.current.shift()
           return
         }
 
@@ -331,7 +343,16 @@ export function useDocCollaboration(docId: string, options: UseDocCollaborationO
     const handleDocUpdate = (update: Uint8Array, origin: unknown) => {
       if (origin === "remote" || !initialSyncCompleteRef.current) return
       onLocalChangeRef.current?.()
-      sendMessage({ type: "doc.update", update: encodeBase64(update) })
+      const payload = JSON.stringify({ type: "doc.update", update: encodeBase64(update) })
+      unacknowledgedDocUpdates.current.push(payload)
+      const socket = socketRef.current
+      if (socket?.readyState === WebSocket.OPEN) {
+        try {
+          socket.send(payload)
+        } catch {
+          socket.close()
+        }
+      }
     }
 
     const handleAwarenessUpdate = (

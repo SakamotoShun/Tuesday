@@ -95,6 +95,40 @@ describe("useDocCollaboration", () => {
     unmount()
   })
 
+  it("resends a sent document update after reconnect until it is acknowledged", async () => {
+    const { result, unmount } = renderHook(() => useDocCollaboration("doc-1"))
+    const firstSocket = MockWebSocket.instances[0]!
+
+    act(() => {
+      firstSocket.emitOpen()
+      firstSocket.emitMessage({ type: "doc.sync", snapshot: null, updates: [], latestSeq: 0 })
+      result.current.ydoc.getText("content").insert(0, "sent before disconnect")
+    })
+    expect(firstSocket.messagesOfType("doc.update")).toHaveLength(1)
+
+    act(() => firstSocket.emitClose())
+    await waitFor(() => expect(MockWebSocket.instances).toHaveLength(2), { timeout: 1500 })
+    const secondSocket = MockWebSocket.instances[1]!
+    act(() => secondSocket.emitOpen())
+    expect(secondSocket.messagesOfType("doc.update")).toHaveLength(0)
+
+    act(() => secondSocket.emitMessage({ type: "doc.sync", snapshot: null, updates: [], latestSeq: 0 }))
+    expect(secondSocket.messagesOfType("doc.update")).toHaveLength(1)
+
+    act(() => {
+      secondSocket.emitMessage({ type: "doc.ack", seq: 1 })
+      secondSocket.emitClose()
+    })
+    await waitFor(() => expect(MockWebSocket.instances).toHaveLength(3), { timeout: 1500 })
+    const thirdSocket = MockWebSocket.instances[2]!
+    act(() => {
+      thirdSocket.emitOpen()
+      thirdSocket.emitMessage({ type: "doc.sync", snapshot: null, updates: [], latestSeq: 1 })
+    })
+    expect(thirdSocket.messagesOfType("doc.update")).toHaveLength(0)
+    unmount()
+  })
+
   it("fails closed when sync data cannot be decoded or applied", () => {
     const { result, unmount } = renderHook(() => useDocCollaboration("doc-1"))
     const socket = MockWebSocket.instances[0]!
