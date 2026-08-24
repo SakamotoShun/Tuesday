@@ -1,4 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach, afterAll, mock } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach, afterAll, mock, spyOn } from 'bun:test';
+import { docRepository } from '../repositories/doc';
+import { docShareRepository } from '../repositories/docShare';
+import { sharedLinkRepository } from '../repositories/sharedLink';
+import { userRepository } from '../repositories/user';
 
 let findByProjectId: (...args: any[]) => Promise<any> = async () => [];
 let findPersonalDocs: (...args: any[]) => Promise<any> = async () => [];
@@ -20,75 +24,37 @@ let findShareLinkByToken: (...args: any[]) => Promise<any> = async () => null;
 let upsertDocShareLink: (...args: any[]) => Promise<any> = async () => null;
 let deleteDocShareLink: (...args: any[]) => Promise<any> = async () => 0;
 
-mock.module('../repositories/doc', () => ({
-  DocCollabPendingError: class DocCollabPendingError extends Error {},
-  DocRepository: class {},
-  docRepository: {
-    findByProjectId: (projectId: string) => findByProjectId(projectId),
-    findPersonalDocs: (userId: string) => findPersonalDocs(userId),
-    findByIdWithParent: (docId: string) => findByIdWithParent(docId),
-    findChildren: (docId: string) => findChildren(docId),
-    findById: (docId: string) => findById(docId),
-    create: (data: any) => createDoc(data),
-    update: (docId: string, data: any) => updateDoc(docId, data),
-    updateIfVersion: (docId: string, expectedVersion: number, data: any) => updateDocIfVersion(docId, expectedVersion, data),
-    updateContentAndResetCollab: (docId: string, data: any) => updateDocContent(docId, data),
-    updateContentIfVersionAndResetCollab: (docId: string, expectedVersion: number, data: any) => updateDocContentIfVersion(docId, expectedVersion, data),
-    delete: (docId: string) => deleteDoc(docId),
-  },
-}));
-
-mock.module('../repositories/docShare', () => ({
-  DocShareRepository: class {},
-  docShareRepository: {
-    hasUserAccess: (docId: string, userId: string) => hasUserAccessToDoc(docId, userId),
-    findByDocId: (docId: string) => listDocShares(docId),
-    replaceShares: (docId: string, userIds: string[], sharedBy: string) => replaceDocShares(docId, userIds, sharedBy),
-  },
-}));
-
-mock.module('../repositories/user', () => {
-  class MockUserRepository {
-    findById(userId: string) {
-      return findUserById(userId);
-    }
-
-    findByEmail() {
-      return Promise.resolve(null);
-    }
-
-    create(data: any) {
-      return Promise.resolve({ id: 'user-1', ...data });
-    }
-
-    update(id: string, data: any) {
-      return Promise.resolve({ id, ...data });
-    }
-
-    count() {
-      return Promise.resolve(0);
-    }
-
-    findAll() {
-      return Promise.resolve([]);
-    }
-  }
-
-  return {
-    UserRepository: MockUserRepository,
-    userRepository: new MockUserRepository(),
-  };
-});
-
-mock.module('../repositories/sharedLink', () => ({
-  SharedLinkRepository: class {},
-  sharedLinkRepository: {
-    findDocLink: (docId: string) => findDocShareLink(docId),
-    findByToken: (token: string) => findShareLinkByToken(token),
-    upsertDocViewLink: (docId: string, token: string, createdBy: string) => upsertDocShareLink(docId, token, createdBy),
-    deleteDocLink: (docId: string) => deleteDocShareLink(docId),
-  },
-}));
+spyOn(docRepository, 'findByProjectId').mockImplementation((projectId) => findByProjectId(projectId));
+spyOn(docRepository, 'findPersonalDocs').mockImplementation((userId) => findPersonalDocs(userId));
+spyOn(docRepository, 'findByIdWithParent').mockImplementation((docId) => findByIdWithParent(docId));
+spyOn(docRepository, 'findChildren').mockImplementation((docId) => findChildren(docId));
+spyOn(docRepository, 'findById').mockImplementation((docId) => findById(docId));
+spyOn(docRepository, 'create').mockImplementation((data) => createDoc(data));
+spyOn(docRepository, 'update').mockImplementation((docId, data) => updateDoc(docId, data));
+spyOn(docRepository, 'updateIfVersion').mockImplementation(
+  (docId, expectedVersion, data) => updateDocIfVersion(docId, expectedVersion, data)
+);
+spyOn(docRepository, 'updateContentAndResetCollab').mockImplementation(
+  (docId, data) => updateDocContent(docId, data)
+);
+spyOn(docRepository, 'updateContentIfVersionAndResetCollab').mockImplementation(
+  (docId, expectedVersion, data) => updateDocContentIfVersion(docId, expectedVersion, data)
+);
+spyOn(docRepository, 'delete').mockImplementation((docId) => deleteDoc(docId));
+spyOn(docShareRepository, 'hasUserAccess').mockImplementation(
+  (docId, userId) => hasUserAccessToDoc(docId, userId)
+);
+spyOn(docShareRepository, 'findByDocId').mockImplementation((docId) => listDocShares(docId));
+spyOn(docShareRepository, 'replaceShares').mockImplementation(
+  (docId, userIds, sharedBy) => replaceDocShares(docId, userIds, sharedBy)
+);
+spyOn(userRepository, 'findById').mockImplementation((userId) => findUserById(userId));
+spyOn(sharedLinkRepository, 'findDocLink').mockImplementation((docId) => findDocShareLink(docId));
+spyOn(sharedLinkRepository, 'findByToken').mockImplementation((token) => findShareLinkByToken(token));
+spyOn(sharedLinkRepository, 'upsertDocViewLink').mockImplementation(
+  (docId, token, createdBy) => upsertDocShareLink(docId, token, createdBy)
+);
+spyOn(sharedLinkRepository, 'deleteDocLink').mockImplementation((docId) => deleteDocShareLink(docId));
 
 const { docService } = await import('./doc');
 const { activityService } = await import('./activity');

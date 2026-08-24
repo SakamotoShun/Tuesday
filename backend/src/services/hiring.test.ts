@@ -1,4 +1,7 @@
-import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
+import { docCollabHub } from '../collab/hub';
+import { docRepository } from '../repositories/doc';
+import { interviewNoteRepository } from '../repositories/interviewNote';
 
 let createStoredDoc: (...args: any[]) => Promise<any>;
 let updateStoredDocContent: (...args: any[]) => Promise<any>;
@@ -6,32 +9,16 @@ let findStoredNote: (...args: any[]) => Promise<any>;
 let createStoredNote: (...args: any[]) => Promise<any>;
 let updateStoredNote: (...args: any[]) => Promise<any>;
 
-mock.module('../repositories', () => ({
-  interviewStageRepository: {},
-  jobPositionRepository: {},
-  candidateRepository: {},
-  jobApplicationRepository: {},
-  interviewRepository: {},
-  positionDocRepository: {},
-  docRepository: {
-    create: (data: any) => createStoredDoc(data),
-    updateContentAndResetCollab: (id: string, data: any) => updateStoredDocContent(id, data),
-  },
-  interviewNoteRepository: {
-    findById: (id: string) => findStoredNote(id),
-    create: (data: any) => createStoredNote(data),
-    update: (id: string, data: any) => updateStoredNote(id, data),
-  },
-}));
-
-mock.module('../collab/hub', () => ({
-  docCollabHub: {
-    runContentMutation: (_docId: string, mutation: () => Promise<any>) => mutation(),
-  },
-}));
-
-mock.module('./doc', () => ({ docService: {} }));
-mock.module('./file', () => ({ fileService: {} }));
+spyOn(docRepository, 'create').mockImplementation((data) => createStoredDoc(data));
+spyOn(docRepository, 'updateContentAndResetCollab').mockImplementation(
+  (id, data) => updateStoredDocContent(id, data)
+);
+spyOn(interviewNoteRepository, 'findById').mockImplementation((id) => findStoredNote(id));
+spyOn(interviewNoteRepository, 'create').mockImplementation((data) => createStoredNote(data));
+spyOn(interviewNoteRepository, 'update').mockImplementation((id, data) => updateStoredNote(id, data));
+spyOn(docCollabHub, 'runContentMutation').mockImplementation(
+  ((_docId: string, mutation: () => Promise<any>) => mutation()) as typeof docCollabHub.runContentMutation
+);
 
 const { DocBlockCanonicalizationError } = await import('../collab/docContent');
 const { hiringService } = await import('./hiring');

@@ -1,8 +1,13 @@
 import { createHash, createHmac } from 'crypto';
 import { config } from '../config';
-import { describe, it, expect, beforeEach, mock } from 'bun:test';
+import { afterAll, describe, it, expect, beforeEach, mock, spyOn } from 'bun:test';
 import { TokenType } from '../db/schema';
+import { sessionRepository } from '../repositories/session';
+import { settingsRepository } from '../repositories/settings';
+import { tokenRepository } from '../repositories/token';
+import { userRepository } from '../repositories/user';
 import { hashPassword } from '../utils/password';
+import { emailService } from './email';
 
 let findByEmail: (email: string) => Promise<any> = async () => null;
 let findByUserId: (id: string) => Promise<any> = async () => null;
@@ -14,7 +19,7 @@ let createUser: (data: any) => Promise<any> = async (data) => ({
   ...data,
 });
 let updateUser: (id: string, data: any) => Promise<any> = async (_id, data) => ({ id: 'user-1', ...data });
-let sessionCreate: (data: any) => Promise<void> = async () => {};
+let sessionCreate: (data: any) => Promise<any> = async () => null;
 let sessionDelete: (id: string) => Promise<boolean> = async () => true;
 let sessionDeleteByUserId: (userId: string) => Promise<number> = async () => 0;
 let sessionFind: (id: string) => Promise<any> = async () => null;
@@ -27,75 +32,30 @@ let tokenDeleteExpiredOrUsed: () => Promise<number> = async () => 0;
 let sendPasswordResetEmail: (input: any) => Promise<boolean> = async () => true;
 let sendPasswordChangedEmail: (input: any) => Promise<boolean> = async () => true;
 
-mock.module('../repositories/user', () => {
-  class MockUserRepository {
-    findByEmail(email: string) {
-      return findByEmail(email);
-    }
-
-    findById(id: string) {
-      return findByUserId(id);
-    }
-
-    create(data: any) {
-      return createUser(data);
-    }
-
-    update(id: string, data: any) {
-      return updateUser(id, data);
-    }
-
-    count() {
-      return Promise.resolve(0);
-    }
-
-    findAll() {
-      return Promise.resolve([]);
-    }
-  }
-
-  return {
-    UserRepository: MockUserRepository,
-    userRepository: new MockUserRepository(),
-  };
-});
-
-mock.module('../repositories/session', () => ({
-  SessionRepository: class {},
-  sessionRepository: {
-    create: (data: any) => sessionCreate(data),
-    delete: (id: string) => sessionDelete(id),
-    deleteByUserId: (userId: string) => sessionDeleteByUserId(userId),
-    findByIdWithUser: (id: string) => sessionFind(id),
-  },
-}));
-
-mock.module('../repositories/settings', () => ({
-  SettingsRepository: class {},
-  settingsRepository: {
-    get: (key: string) => getSetting(key),
-  },
-}));
-
-mock.module('../repositories/token', () => ({
-  TokenRepository: class {},
-  tokenRepository: {
-    create: (data: any) => tokenCreate(data),
-    deleteByUserAndType: (userId: string, type: string) => tokenDeleteByUserAndType(userId, type),
-    findActiveByTokenHash: (tokenHash: string, type: string) => tokenFindActiveByTokenHash(tokenHash, type),
-    markUsed: (id: string) => tokenMarkUsed(id),
-    deleteExpiredOrUsed: () => tokenDeleteExpiredOrUsed(),
-  },
-}));
-
-mock.module('./email', () => ({
-  emailService: {
-    sendPasswordResetEmail: (input: any) => sendPasswordResetEmail(input),
-    sendPasswordChangedEmail: (input: any) => sendPasswordChangedEmail(input),
-  },
-}));
+spyOn(userRepository, 'findByEmail').mockImplementation((email) => findByEmail(email));
+spyOn(userRepository, 'findById').mockImplementation((id) => findByUserId(id));
+spyOn(userRepository, 'create').mockImplementation((data) => createUser(data));
+spyOn(userRepository, 'update').mockImplementation((id, data) => updateUser(id, data));
+spyOn(sessionRepository, 'create').mockImplementation((data) => sessionCreate(data));
+spyOn(sessionRepository, 'delete').mockImplementation((id) => sessionDelete(id));
+spyOn(sessionRepository, 'deleteByUserId').mockImplementation((userId) => sessionDeleteByUserId(userId));
+spyOn(sessionRepository, 'findByIdWithUser').mockImplementation((id) => sessionFind(id));
+spyOn(settingsRepository, 'get').mockImplementation((key) => getSetting(key));
+spyOn(tokenRepository, 'create').mockImplementation((data) => tokenCreate(data));
+spyOn(tokenRepository, 'deleteByUserAndType').mockImplementation(
+  (userId, type) => tokenDeleteByUserAndType(userId, type)
+);
+spyOn(tokenRepository, 'findActiveByTokenHash').mockImplementation(
+  (tokenHash, type) => tokenFindActiveByTokenHash(tokenHash, type)
+);
+spyOn(tokenRepository, 'markUsed').mockImplementation((id) => tokenMarkUsed(id));
+spyOn(tokenRepository, 'deleteExpiredOrUsed').mockImplementation(() => tokenDeleteExpiredOrUsed());
+spyOn(emailService, 'sendPasswordResetEmail').mockImplementation((input) => sendPasswordResetEmail(input));
+spyOn(emailService, 'sendPasswordChangedEmail').mockImplementation((input) => sendPasswordChangedEmail(input));
 
 const { authService } = await import('./auth');
+
+afterAll(() => mock.restore());
 
 describe('AuthService', () => {
   beforeEach(() => {
