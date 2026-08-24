@@ -1,4 +1,4 @@
-import { asc, count, desc, eq, isNull, max, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, isNull, max, sql } from 'drizzle-orm';
 import * as Y from 'yjs';
 import {
   deriveValidatedDocBlocks,
@@ -16,6 +16,13 @@ import { db } from './client';
 import { docs, docCollabSnapshots, docCollabUpdates } from './schema';
 
 const DOC_BATCH_SIZE = 100;
+
+export class DocCanonicalRecoveryError extends Error {
+  constructor(docId: string, cause: unknown) {
+    super(`Canonical content for document ${docId} cannot seed collaboration recovery`, { cause });
+    this.name = 'DocCanonicalRecoveryError';
+  }
+}
 
 function isInvalidHistoryError(error: unknown): boolean {
   return error instanceof DocInvalidUpdateError || error instanceof DocSyncTooLargeError;
@@ -94,11 +101,11 @@ async function resetInvalidHistory(docId: string, error: unknown): Promise<'rese
       const baselineDoc = yDocFromBlocks(doc.content);
       deriveValidatedDocBlocks(baselineDoc);
       baseline = Y.encodeStateAsUpdate(baselineDoc);
+      if (baseline.byteLength > MAX_DOC_SYNC_PAYLOAD_BYTES) {
+        throw new DocSyncTooLargeError(baseline.byteLength);
+      }
     } catch (cause) {
-      throw new Error(`Canonical content for document ${docId} cannot seed collaboration recovery`, { cause });
-    }
-    if (baseline.byteLength > MAX_DOC_SYNC_PAYLOAD_BYTES) {
-      throw new DocSyncTooLargeError(baseline.byteLength);
+      throw new DocCanonicalRecoveryError(docId, cause);
     }
 
     await tx.delete(docCollabUpdates).where(eq(docCollabUpdates.docId, docId));
@@ -131,12 +138,16 @@ async function resetInvalidHistory(docId: string, error: unknown): Promise<'rese
 export async function reconcileCanonicalDocCollabHistory(): Promise<void> {
   let reconciled = 0;
   let reset = 0;
+  let quarantined = 0;
+  let cursor: string | undefined;
 
   while (true) {
     const candidates = await db
       .select({ id: docs.id })
       .from(docs)
-      .where(isNull(docs.canonicalCollabSeq))
+      .where(cursor
+        ? and(isNull(docs.canonicalCollabSeq), gt(docs.id, cursor))
+        : isNull(docs.canonicalCollabSeq))
       .orderBy(asc(docs.id))
       .limit(DOC_BATCH_SIZE);
     if (candidates.length === 0) {
@@ -144,6 +155,7 @@ export async function reconcileCanonicalDocCollabHistory(): Promise<void> {
     }
 
     for (const { id: docId } of candidates) {
+      cursor = docId;
       let outcome: 'reconciled' | 'reset' | 'skipped';
       try {
         outcome = await reconcileValidHistory(docId);
@@ -151,7 +163,19 @@ export async function reconcileCanonicalDocCollabHistory(): Promise<void> {
         if (!isInvalidHistoryError(error)) {
           throw error;
         }
-        outcome = await resetInvalidHistory(docId, error);
+        try {
+          outcome = await resetInvalidHistory(docId, error);
+        } catch (recoveryError) {
+          if (!(recoveryError instanceof DocCanonicalRecoveryError)) {
+            throw recoveryError;
+          }
+          quarantined += 1;
+          log('warn', 'doc_collab.recovery_quarantined', {
+            doc_id: docId,
+            error: recoveryError,
+          });
+          continue;
+        }
       }
 
       if (outcome === 'reconciled') reconciled += 1;
@@ -159,18 +183,25 @@ export async function reconcileCanonicalDocCollabHistory(): Promise<void> {
     }
   }
 
-  await db.execute(sql.raw(`
-    DO $$
-    BEGIN
-      IF EXISTS (
-        SELECT 1 FROM pg_constraint
-        WHERE conname = 'doc_collab_updates_update_size_check'
-          AND conrelid = 'doc_collab_updates'::regclass
-      ) THEN
-        ALTER TABLE "doc_collab_updates"
-          VALIDATE CONSTRAINT "doc_collab_updates_update_size_check";
-      END IF;
-    END $$
-  `));
-  log('info', 'doc_collab.recovery_completed', { reconciled_count: reconciled, reset_count: reset });
+  if (quarantined === 0) {
+    await db.execute(sql.raw(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conname = 'doc_collab_updates_update_size_check'
+            AND conrelid = 'doc_collab_updates'::regclass
+        ) THEN
+          ALTER TABLE "doc_collab_updates"
+            VALIDATE CONSTRAINT "doc_collab_updates_update_size_check";
+        END IF;
+      END $$
+    `));
+  }
+  log('info', 'doc_collab.recovery_completed', {
+    reconciled_count: reconciled,
+    reset_count: reset,
+    quarantined_count: quarantined,
+    constraint_validation_skipped: quarantined > 0,
+  });
 }

@@ -215,4 +215,59 @@ describeIntegration('Doc repository collaboration safety', () => {
     expect(snapshots).toHaveLength(1);
     expect(snapshots[0]?.seq).toBe(0);
   });
+
+  it('quarantines invalid canonical recovery and continues with later documents', async () => {
+    const user = await seedUser();
+    const first = await seedDoc(null, user.id, { content: [] });
+    const second = await seedDoc(null, user.id, { content: [] });
+    const [quarantined, recoverable] = [first, second].sort((left, right) => left.id < right.id ? -1 : 1);
+    const recoverableContent = [
+      { id: 'later-valid', type: 'paragraph', props: {}, content: [], children: [] },
+    ];
+    const malformedUpdate = Buffer.from([1, 2, 3]);
+
+    await db.update(docs).set({
+      content: { invalid: true },
+      canonicalCollabSeq: null,
+    }).where(eq(docs.id, quarantined.id));
+    await db.insert(docCollabUpdates).values({
+      docId: quarantined.id,
+      actorId: user.id,
+      update: malformedUpdate,
+    });
+    await db.insert(docCollabSnapshots).values({
+      docId: recoverable.id,
+      seq: 9,
+      snapshot: Buffer.from(Y.encodeStateAsUpdate(yDocFromBlocks(recoverableContent))),
+    });
+    await db.update(docs).set({ canonicalCollabSeq: null }).where(eq(docs.id, recoverable.id));
+
+    await reconcileCanonicalDocCollabHistory();
+    await reconcileCanonicalDocCollabHistory();
+
+    const quarantinedAfter = await docRepository.findById(quarantined.id);
+    const quarantinedUpdates = await db
+      .select()
+      .from(docCollabUpdates)
+      .where(eq(docCollabUpdates.docId, quarantined.id));
+    const quarantinedSnapshots = await db
+      .select()
+      .from(docCollabSnapshots)
+      .where(eq(docCollabSnapshots.docId, quarantined.id));
+    const recoveredAfter = await docRepository.findById(recoverable.id);
+
+    expect(quarantinedAfter).toMatchObject({
+      canonicalCollabSeq: null,
+      content: { invalid: true },
+      version: quarantined.version,
+    });
+    expect(quarantinedUpdates).toHaveLength(1);
+    expect(quarantinedUpdates[0]?.update).toEqual(malformedUpdate);
+    expect(quarantinedSnapshots).toHaveLength(0);
+    expect(recoveredAfter?.canonicalCollabSeq).toBe(9);
+    expect(recoveredAfter?.content).toEqual(canonicalizeDocBlocks(recoverableContent));
+
+    await db.delete(docs).where(eq(docs.id, quarantined.id));
+    await db.delete(docs).where(eq(docs.id, recoverable.id));
+  });
 });

@@ -15,17 +15,23 @@ function shouldLog(level: LogLevel) {
   return LOG_LEVEL_PRIORITY[level] >= LOG_LEVEL_PRIORITY[config.logLevel];
 }
 
-function serializeError(error: Error) {
+function serializeError(error: Error, seen: WeakSet<object>) {
+  if (seen.has(error)) {
+    return '[Circular]';
+  }
+
+  seen.add(error);
   return {
     name: error.name,
     message: error.message,
     stack: error.stack,
+    ...(error.cause === undefined ? {} : { cause: sanitizeValue(error.cause, seen) }),
   };
 }
 
 function sanitizeValue(value: unknown, seen: WeakSet<object> = new WeakSet()): unknown {
   if (value instanceof Error) {
-    return serializeError(value);
+    return serializeError(value, seen);
   }
 
   if (Array.isArray(value)) {
