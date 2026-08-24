@@ -1,50 +1,20 @@
-import { describe, it, expect, beforeEach, mock } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
+import { settingsRepository } from '../repositories/settings';
+import { userRepository } from '../repositories/user';
 
 let countUsers: () => Promise<number> = async () => 0;
 let setSetting: (key: string, value: unknown) => Promise<void> = async () => {};
 let registerUser: (input: any) => Promise<any> = async () => ({ id: 'admin-1' });
 
-mock.module('../repositories/user', () => {
-  class MockUserRepository {
-    findById() {
-      return Promise.resolve(null);
-    }
-
-    findByEmail() {
-      return Promise.resolve(null);
-    }
-
-    create(data: any) {
-      return Promise.resolve({ id: 'user-1', ...data });
-    }
-
-    update(id: string, data: any) {
-      return Promise.resolve({ id, ...data });
-    }
-
-    count() {
-      return countUsers();
-    }
-
-    findAll() {
-      return Promise.resolve([]);
-    }
-  }
-
-  return {
-    UserRepository: MockUserRepository,
-    userRepository: new MockUserRepository(),
-  };
-});
-
-mock.module('../repositories/settings', () => ({
-  SettingsRepository: class {},
-  settingsRepository: {
-    set: (key: string, value: unknown) => setSetting(key, value),
-  },
-}));
+spyOn(userRepository, 'count').mockImplementation(() => countUsers());
+spyOn(settingsRepository, 'set').mockImplementation((key, value) => setSetting(key, value));
 
 const { setupService, setRegisterAdminUserForTests } = await import('./setup');
+
+afterAll(() => {
+  setRegisterAdminUserForTests(null);
+  mock.restore();
+});
 
 describe('SetupService', () => {
   beforeEach(() => {
