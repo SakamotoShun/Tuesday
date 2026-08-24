@@ -1,14 +1,17 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, it, spyOn } from 'bun:test';
+import * as logger from './logger';
 
 const logCalls: Array<{ level: string; event: string; context: Record<string, unknown> }> = [];
 
-mock.module('./logger', () => ({
-  log: (level: string, event: string, context: Record<string, unknown>) => {
+const logSpy = spyOn(logger, 'log').mockImplementation(
+  (level: string, event: string, context: Record<string, unknown> = {}) => {
     logCalls.push({ level, event, context });
   },
-}));
+);
 
 const { sendWebSocketMessage } = await import('./websocket');
+
+afterAll(() => logSpy.mockRestore());
 
 function createWebSocket(sendImpl: () => number | void) {
   const closeCalls: Array<{ code: number; reason: string }> = [];

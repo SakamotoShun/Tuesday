@@ -1,13 +1,14 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterAll, afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { Hono } from 'hono';
+import * as logger from '../utils/logger';
 
 const logCalls: Array<{ level: string; event: string; context: Record<string, unknown> }> = [];
 
-mock.module('../utils/logger', () => ({
-  log: (level: string, event: string, context: Record<string, unknown>) => {
+const logSpy = spyOn(logger, 'log').mockImplementation(
+  (level: string, event: string, context: Record<string, unknown> = {}) => {
     logCalls.push({ level, event, context });
   },
-}));
+);
 
 const { config } = await import('../config');
 const { authService, oauthService } = await import('../services');
@@ -17,6 +18,8 @@ const originalRegisterClient = oauthService.registerClient;
 const originalValidateSession = authService.validateSession;
 const originalGetAuthorizeDetails = oauthService.getAuthorizeDetails;
 const originalRateLimitEnabled = config.rateLimitEnabled;
+
+afterAll(() => logSpy.mockRestore());
 
 function createApp() {
   const app = new Hono();
