@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import { validateRawDocBlocks } from '../utils/doc-blocks';
 import {
   alignLegacyBlockIds,
   assertDocBlocksCanonicalizable,
@@ -39,6 +40,89 @@ describe('document Yjs content conversion', () => {
       props: { language: 'typescript' },
       content: blocks[0]?.content,
     });
+  });
+
+  it.each([
+    {},
+    { columnWidths: [null, 180] },
+    { columnWidths: [120, 180], headerRows: 1 },
+    { headerCols: 1 },
+    { headerRows: 1, headerCols: 1 },
+  ])('round-trips tables with optional settings %j as JSON-safe blocks', (settings) => {
+    const styledText = [{ type: 'text', text: 'Name', styles: { bold: true } }];
+    const blocks = [{
+      id: 'table-1',
+      type: 'table',
+      props: {},
+      children: [],
+      customTop: 'keep',
+      content: {
+        type: 'tableContent',
+        ...settings,
+        rows: [
+          { cells: [{ type: 'tableCell', props: { textAlignment: 'center' }, content: styledText }, 'Status'] },
+          { cells: ['Alice', 'Active'] },
+        ],
+      },
+    }];
+
+    const canonical = canonicalizeDocBlocks(blocks);
+    expect(canonical[0]).toMatchObject({
+      id: 'table-1',
+      type: 'table',
+      children: [],
+      content: {
+        type: 'tableContent',
+        columnWidths: settings.columnWidths ?? [null, null],
+        ...settings,
+        rows: [
+          { cells: [
+            { props: { textAlignment: 'center' }, content: styledText },
+            { content: [{ type: 'text', text: 'Status', styles: {} }] },
+          ] },
+          { cells: [
+            { content: [{ type: 'text', text: 'Alice', styles: {} }] },
+            { content: [{ type: 'text', text: 'Active', styles: {} }] },
+          ] },
+        ],
+      },
+    });
+    expect(canonical).toEqual(JSON.parse(JSON.stringify(canonical)));
+    expect(() => validateRawDocBlocks(canonical)).not.toThrow();
+    expect(canonicalizeDocBlocks(canonical)).toEqual(canonical);
+    expect(blocksFromYDoc(yDocFromBlocks(blocks))).toEqual(canonical);
+    expect(blocksFromYDoc(yDocFromBlocks(canonical))).toEqual(canonical);
+    expect(canonicalizeDocBlocksForPersistence(blocks)).toEqual([
+      { ...canonical[0], customTop: 'keep' },
+    ]);
+  });
+
+  it('normalizes generated table fields inside nested blocks', () => {
+    const blocks = [{
+      id: 'parent', type: 'paragraph', props: {}, content: [],
+      children: [{
+        id: 'nested-table', type: 'table', props: {}, children: [],
+        content: { type: 'tableContent', rows: [{ cells: ['Nested'] }] },
+      }],
+    }];
+    const canonical = canonicalizeDocBlocks(blocks);
+
+    expect(canonical[0].children[0]).toMatchObject({
+      id: 'nested-table',
+      content: { columnWidths: [null], rows: [{ cells: [{ content: [{ text: 'Nested' }] }] }] },
+    });
+    expect(blocksFromYDoc(yDocFromBlocks(canonical))).toEqual(canonical);
+  });
+
+  it('still rejects non-JSON input before BlockNote conversion', () => {
+    const blocks = [{
+      id: 'table-1', type: 'table', props: {}, children: [],
+      content: { type: 'tableContent', headerRows: undefined, rows: [{ cells: ['A'] }] },
+    }];
+
+    expect(() => canonicalizeDocBlocks(blocks)).toThrow('only JSON values');
+    expect(() => canonicalizeDocBlocksForPersistence(blocks)).toThrow('only JSON values');
+    expect(() => yDocFromBlocks(blocks)).toThrow('only JSON values');
   });
 
   it('aligns missing legacy IDs and preserves opaque block metadata', () => {

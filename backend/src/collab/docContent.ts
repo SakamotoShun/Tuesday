@@ -4,7 +4,6 @@ import * as Y from 'yjs';
 import {
   DocBlockValidationError,
   normalizeLegacyDocBlocks,
-  validateRawDocBlocks,
   type RawDocBlock,
 } from '../utils/doc-blocks';
 
@@ -25,13 +24,14 @@ function roundTripNormalizedBlocks(blocks: RawDocBlock[]): RawDocBlock[] {
     throw new DocBlockCanonicalizationError(cause);
   }
 
-  const canonical = yDocToBlocks(editor, ydoc, 'prosemirror');
-  validateRawDocBlocks(canonical);
-  return canonical;
+  return blocksFromYDoc(ydoc);
 }
 
 export function blocksFromYDoc(doc: Y.Doc): RawDocBlock[] {
-  return normalizeLegacyDocBlocks(yDocToBlocks(editor, doc, 'prosemirror'));
+  const blocks = yDocToBlocks(editor, doc, 'prosemirror');
+  // BlockNote emits undefined table headers and widths. Match persisted JSON,
+  // omitting unset properties while retaining column positions as null.
+  return normalizeLegacyDocBlocks(JSON.parse(JSON.stringify(blocks)));
 }
 
 export function yDocFromBlocks(value: unknown): Y.Doc {

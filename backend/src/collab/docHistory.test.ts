@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'bun:test';
 import * as Y from 'yjs';
+import { blocksFromYDoc, yDocFromBlocks } from './docContent';
 import {
   applyAndValidateDocUpdate,
   decodeStrictBase64,
+  deriveValidatedDocBlocks,
   DocInvalidUpdateError,
   DocUpdateTooLargeError,
   materializeDocHistory,
@@ -59,5 +61,52 @@ describe('document Yjs history validation', () => {
   it('rejects decoded updates over one MiB before applying them', () => {
     expect(() => applyAndValidateDocUpdate(null, [], new Uint8Array(MAX_DOC_UPDATE_BYTES + 1)))
       .toThrow(DocUpdateTooLargeError);
+  });
+
+  it.each(['insert table', 'edit cell', 'edit adjacent paragraph'])('accepts and replays a table document update: %s', (operation) => {
+    const source = yDocFromBlocks([
+      {
+        id: 'table-1', type: 'table', props: {}, children: [],
+        content: { type: 'tableContent', rows: [{ cells: ['Cell', 'Other'] }] },
+      },
+      {
+        id: 'paragraph-1', type: 'paragraph', props: {}, children: [],
+        content: [{ type: 'text', text: 'Beside', styles: {} }],
+      },
+    ]);
+    const baseline = operation === 'insert table' ? null : Y.encodeStateAsUpdate(source);
+    let update: Uint8Array;
+    if (operation === 'insert table') {
+      update = Y.encodeStateAsUpdate(source);
+    } else {
+      const texts = Array.from(source.getXmlFragment('prosemirror').createTreeWalker(
+        (node) => node instanceof Y.XmlText,
+      )) as Y.XmlText[];
+      const text = texts[operation === 'edit cell' ? 0 : 2];
+      update = captureNextUpdate(source, () => text.insert(text.length, ' edited'));
+    }
+
+    const result = applyAndValidateDocUpdate(baseline, [], update);
+    expect(result.blocks).toMatchObject([
+      {
+        id: 'table-1',
+        content: {
+          columnWidths: [null, null],
+          rows: [{ cells: [
+            { content: [{ text: operation === 'edit cell' ? 'Cell edited' : 'Cell' }] },
+            { content: [{ text: 'Other' }] },
+          ] }],
+        },
+      },
+      {
+        id: 'paragraph-1',
+        content: [{ text: operation === 'edit adjacent paragraph' ? 'Beside edited' : 'Beside' }],
+      },
+    ]);
+    expect(deriveValidatedDocBlocks(result.doc)).toEqual(result.blocks);
+    expect(blocksFromYDoc(materializeDocHistory(baseline, [update]))).toEqual(result.blocks);
+    expect(blocksFromYDoc(materializeDocHistory(Y.encodeStateAsUpdate(result.doc), [])))
+      .toEqual(result.blocks);
+    expect(blocksFromYDoc(yDocFromBlocks(result.blocks))).toEqual(result.blocks);
   });
 });
