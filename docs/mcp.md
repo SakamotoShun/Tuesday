@@ -37,6 +37,44 @@ Available scopes:
 - `time:write`
 - `search:read`
 
+Selecting a write scope also grants its matching read scope. This lets clients read the current resource and version before attempting an optimistic-concurrency update. Unknown OAuth scopes are rejected rather than ignored.
+
+## Core tools
+
+Identity tools are available to every authenticated MCP credential:
+
+- `ping`: verify connectivity and inspect the current role and granted scopes.
+- `whoami`: inspect the authenticated user ID, name, role, authentication type, and scopes.
+
+Project and task discovery:
+
+- `list_projects`, `get_project`, `list_project_statuses`
+- `list_project_tasks`, `list_my_tasks`, `get_task`
+- `list_task_statuses`, `list_project_members`
+
+Task mutations:
+
+- `create_task`: accepts optional `startDate`, `dueDate`, and assignee IDs. An idempotency key is required when assigning one or more users during creation; otherwise it is optional.
+- `update_task_status`, `rename_task`, `update_task_description`
+- `update_task_dates`: set a `YYYY-MM-DD` date, pass `null` to clear it, or omit it to leave it unchanged.
+- `update_task_assignees`: atomically replaces the complete assignee set. `assign_task` remains a compatibility alias with the same replacement semantics.
+
+Task list calls are bounded and return pagination metadata. Use `list_task_statuses` and `list_project_members` instead of guessing IDs. Every update to an existing task requires the exact positive `expectedVersion` returned by the latest `get_task` call; successful browser and MCP mutations both advance this version. Task creation does not take an expected version.
+
+Document tools include project listing/read, creation, title updates, append, targeted block editing, and complete block replacement. `create_time_entry` currently upserts the authenticated user's entry for the same project and date; it does not append a second entry.
+
+## Validation and errors
+
+Tuesday validates each call against the same JSON Schema published by `tools/list`. Invalid UUIDs, impossible calendar dates, fractional or non-positive versions, duplicate assignees, unknown properties, and out-of-range values are rejected before a tool handler runs. Stale versions are rejected when the service attempts the update.
+
+Tool failures set `isError: true` and return a stable structured error in both the compatibility text content and `structuredContent`. Callers should branch on codes such as `VALIDATION_ERROR`, `ACCESS_DENIED`, `READ_ONLY_ROLE`, `VERSION_CONFLICT`, and `IDEMPOTENCY_KEY_REUSED` rather than parsing error prose.
+
+## Idempotency
+
+Creation tools that accept `idempotencyKey` store the resource mutation and replay record in one database transaction for both personal tokens and OAuth. Personal-token keys are scoped to that token; OAuth keys are scoped to the user and client, so access-token refresh preserves them. Both include the tool name. Replays recheck current role, parent/project access, and access to the stored result. Reusing a key with the same canonical request returns the stored response; reusing it with changed input returns `IDEMPOTENCY_KEY_REUSED`. Records created before request hashing was introduced retain their original replay behaviour because their original input is unavailable, but still require current access to the stored result.
+
+Keep keys at most 200 characters and identify one intended operation, for example `task:<project-id>:release-checklist:2026-08-23`. After a timeout, retry the exact same request and key instead of inventing another key.
+
 When prompted for a connector URL, use the MCP endpoint URL: `https://tuesday.ultreonai.com/mcp`. The `/mcp` path avoids a known claude.ai connector failure after successful OAuth. Compatible clients should discover the OAuth endpoints automatically.
 
 ## Get a token

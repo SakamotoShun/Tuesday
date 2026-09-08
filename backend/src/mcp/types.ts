@@ -9,7 +9,7 @@ export interface McpContext {
 export interface TuesdayMcpTool {
   name: string;
   description: string;
-  requiredScope: string;
+  requiredScope?: string;
   inputSchema: Record<string, unknown>;
   handler: (input: unknown, ctx: McpContext) => Promise<unknown>;
 }

@@ -1,62 +1,89 @@
-import { useEffect, useMemo } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useEffect } from "react"
+import { useInfiniteQuery, useMutation, useQueryClient, type InfiniteData } from "@tanstack/react-query"
 import { notificationsApi } from "@/api/notifications"
-import type { Notification } from "@/api/types"
+import type { Notification, NotificationPage } from "@/api/types"
 import { useWebSocket } from "@/hooks/use-websocket"
 
 export function useNotifications() {
   const queryClient = useQueryClient()
   const { onMessage } = useWebSocket()
 
-  const notificationsQuery = useQuery({
+  const notificationsQuery = useInfiniteQuery({
     queryKey: ["notifications"],
-    queryFn: () => notificationsApi.list({ limit: 50 }),
+    queryFn: ({ pageParam }) => notificationsApi.list({ limit: 50, cursor: pageParam }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   })
 
   useEffect(() => {
-    return onMessage((event) => {
+    return onMessage(async (event) => {
       if (event.type !== "notification") return
       const notification = event.notification as Notification | undefined
       if (!notification) return
 
-      queryClient.setQueryData<Notification[]>(["notifications"], (current) => {
-        const existing = current ?? []
-        if (existing.some((item) => item.id === notification.id)) return existing
-        return [notification, ...existing]
+      // A page fetched before this event must not overwrite the new notification.
+      await queryClient.cancelQueries({ queryKey: ["notifications"] })
+      queryClient.setQueryData<InfiniteData<NotificationPage, string | undefined>>(["notifications"], (current) => {
+        if (!current) return current
+        if (current.pages.some((page) => page.items.some((item) => item.id === notification.id))) return current
+        const [firstPage, ...remainingPages] = current.pages
+        if (!firstPage) return current
+        return {
+          ...current,
+          pages: [{
+            ...firstPage,
+            items: [notification, ...firstPage.items],
+            unreadCount: firstPage.unreadCount + (notification.read ? 0 : 1),
+          }, ...remainingPages],
+        }
       })
+      void queryClient.invalidateQueries({ queryKey: ["notifications"] })
     })
   }, [onMessage, queryClient])
 
   const markRead = useMutation({
     mutationFn: (id: string) => notificationsApi.markRead(id),
     onSuccess: (updated) => {
-      queryClient.setQueryData<Notification[]>(["notifications"], (current) => {
+      queryClient.setQueryData<InfiniteData<NotificationPage, string | undefined>>(["notifications"], (current) => {
         if (!current) return current
-        return current.map((item) => (item.id === updated.id ? updated : item))
+        const wasUnread = current.pages.some((page) => page.items.some((item) => item.id === updated.id && !item.read))
+        return {
+          ...current,
+          pages: current.pages.map((page) => ({
+            ...page,
+            unreadCount: Math.max(0, page.unreadCount - (wasUnread ? 1 : 0)),
+            items: page.items.map((item) => (item.id === updated.id ? updated : item)),
+          })),
+        }
       })
     },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["notifications"] }),
   })
 
   const markAllRead = useMutation({
     mutationFn: notificationsApi.markAllRead,
-    onSuccess: () => {
-      queryClient.setQueryData<Notification[]>(["notifications"], (current) => {
-        if (!current) return current
-        return current.map((item) => ({ ...item, read: true }))
-      })
-    },
+    // New notifications may arrive after the server update but before its response.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["notifications"] }),
   })
 
-  const unreadCount = useMemo(() => {
-    return (notificationsQuery.data ?? []).filter((item) => !item.read).length
-  }, [notificationsQuery.data])
+  const seen = new Set<string>()
+  const notifications = (notificationsQuery.data?.pages.flatMap((page) => page.items) ?? []).filter((item) => {
+    if (seen.has(item.id)) return false
+    seen.add(item.id)
+    return true
+  })
+  const unreadCount = notificationsQuery.data?.pages[0]?.unreadCount ?? 0
 
   return {
-    notifications: notificationsQuery.data ?? [],
+    notifications,
     isLoading: notificationsQuery.isLoading,
     error: notificationsQuery.error,
     unreadCount,
     markRead,
     markAllRead,
+    hasNextPage: notificationsQuery.hasNextPage,
+    fetchNextPage: notificationsQuery.fetchNextPage,
+    isFetchingNextPage: notificationsQuery.isFetchingNextPage,
+    refetch: notificationsQuery.refetch,
   }
 }

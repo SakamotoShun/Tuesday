@@ -12,6 +12,7 @@ import { convertDocSourceToBlocks, type DocSourceFormat } from '../utils/doc-imp
 import { assertNotFreelancer, isFreelancer } from '../utils/permissions';
 import { docCollabHub } from '../collab/hub';
 import { canonicalizeDocBlocksForPersistence } from '../collab/docContent';
+import { db, type DbTransaction } from '../db/client';
 import {
   applyDocBlockEdits,
   normalizeLegacyDocBlocks,
@@ -242,7 +243,12 @@ export class DocService {
   /**
    * Create a new doc
    */
-  async createDoc(input: CreateDocInput, user: User): Promise<Doc> {
+  async createDoc(
+    input: CreateDocInput,
+    user: User,
+    transaction?: DbTransaction,
+    publishSideEffects = true,
+  ): Promise<Doc> {
     assertNotFreelancer(user, 'Freelancers cannot create docs');
 
     // Validate title
@@ -260,7 +266,7 @@ export class DocService {
 
     // Validate parent doc if provided
     if (input.parentId) {
-      const parent = await docRepository.findById(input.parentId);
+      const parent = await docRepository.findById(input.parentId, transaction ?? db);
       if (!parent) {
         throw new Error('Parent doc not found');
       }
@@ -282,8 +288,14 @@ export class DocService {
       schema: input.schema || null,
       properties: input.properties || {},
       createdBy: user.id,
-    });
+    }, transaction ?? db);
 
+    if (publishSideEffects) await this.publishDocCreated(doc, user);
+
+    return doc;
+  }
+
+  async publishDocCreated(doc: Doc, user: User): Promise<void> {
     await activityService.record({
       actorId: user.id,
       action: 'doc.created',
@@ -292,14 +304,14 @@ export class DocService {
       entityName: doc.title,
       projectId: doc.projectId,
     });
-
-    return doc;
   }
 
   async createDocFromParent(
     parent: DocMcpParent,
     input: { title: string; blocks?: Array<Record<string, unknown>>; source?: string; sourceFormat?: DocSourceFormat },
-    user: User
+    user: User,
+    transaction?: DbTransaction,
+    publishSideEffects = true,
   ): Promise<Doc> {
     if (!parent || (parent.type !== 'project' && parent.type !== 'doc') || !parent.id) {
       throw new Error('Invalid doc parent');
@@ -316,10 +328,10 @@ export class DocService {
         source: input.source,
         sourceFormat: input.sourceFormat,
         projectId: parent.id,
-      }, user);
+      }, user, transaction, publishSideEffects);
     }
 
-    const parentDoc = await docRepository.findById(parent.id);
+    const parentDoc = await docRepository.findById(parent.id, transaction ?? db);
     if (!parentDoc) {
       throw new Error('Parent doc not found');
     }
@@ -332,7 +344,7 @@ export class DocService {
       sourceFormat: input.sourceFormat,
       projectId: parentDoc.projectId,
       parentId: parentDoc.id,
-    }, user);
+    }, user, transaction, publishSideEffects);
   }
 
   async updateDocTitle(docId: string, title: string, expectedVersion: number, user: User): Promise<Doc | null> {

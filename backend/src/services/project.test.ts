@@ -1,5 +1,13 @@
-import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach, mock, spyOn } from 'bun:test';
 import { ProjectMemberRole, ProjectMemberSource, UserRole } from '../db/schema';
+import { db, type DbTransaction } from '../db/client';
+
+const transaction = {} as DbTransaction;
+const spies: Array<{ mockRestore(): void }> = [];
+let commitError: Error | null = null;
+let committed = false;
+let createNotification: (...args: any[]) => Promise<any> = async (data) => ({ id: 'notification-1', ...data });
+let createDelivery: (...args: any[]) => Promise<any> = async () => {};
 
 let findAll: (...args: any[]) => Promise<any> = async () => [];
 let findByUserId: (...args: any[]) => Promise<any> = async () => [];
@@ -58,10 +66,9 @@ mock.module('../repositories/projectMember', () => ({
     isMember: (projectId: string, userId: string) => isMember(projectId, userId),
     isOwner: (projectId: string, userId: string) => isOwner(projectId, userId),
     findByProjectId: (projectId: string) => findByProjectId(projectId),
-    findMembership: (projectId: string, userId: string) => findMembership(projectId, userId),
-    addMember: (projectId: string, userId: string, role: string, source?: any, sourceTeamId?: any) =>
-      addMember(projectId, userId, role),
-    updateMembership: (projectId: string, userId: string, data: any) => updateMembership(projectId, userId, data),
+    findMembership: (...args: any[]) => findMembership(...args),
+    addMember: (...args: any[]) => addMember(...args),
+    updateMembership: (...args: any[]) => updateMembership(...args),
     updateRole: (projectId: string, userId: string, role: string) => updateRole(projectId, userId, role),
     removeMember: (projectId: string, userId: string) => removeMember(projectId, userId),
   },
@@ -122,9 +129,17 @@ mock.module('./file', () => ({
   },
 }));
 
+mock.module('../repositories/notification', () => ({
+  NotificationRepository: class {},
+  notificationRepository: {
+    create: (...args: any[]) => createNotification(...args),
+    createDeliveryIfEnabled: (...args: any[]) => createDelivery(...args),
+  },
+}));
+
 const { projectService } = await import('./project');
 const { activityService } = await import('./activity');
-const originalRecord = activityService.record.bind(activityService);
+const { notificationService } = await import('./notification');
 
 const memberUser = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -168,11 +183,24 @@ describe('ProjectService', () => {
     findTeamIdsForUserProject = async () => [];
     findUserById = async () => memberUser;
     cleanupProjectFiles = async () => 0;
-    activityService.record = async () => {};
+    createNotification = async (data) => ({ id: 'notification-1', ...data });
+    createDelivery = async () => {};
+    commitError = null;
+    committed = false;
+    spies.push(spyOn(db, 'transaction').mockImplementation(async (callback) => {
+      const result = await callback(transaction);
+      if (commitError) throw commitError;
+      committed = true;
+      return result;
+    }));
+    spies.push(spyOn(activityService, 'record').mockResolvedValue(undefined));
+    spies.push(spyOn(notificationService, 'publishMany').mockImplementation(() => {
+      expect(committed).toBe(true);
+    }));
   });
 
   afterEach(() => {
-    activityService.record = originalRecord;
+    for (const spy of spies.splice(0).reverse()) spy.mockRestore();
   });
 
   it('returns all projects for admin', async () => {
@@ -249,12 +277,38 @@ describe('ProjectService', () => {
   });
 
   it('adds member when valid', async () => {
-    findById = async () => null;
+    findById = async () => ({ id: 'project-1', name: 'Project' });
+    addMember = mock(async () => ({ projectId: 'project-1', userId: 'user-2', role: ProjectMemberRole.MEMBER }));
+    createNotification = mock(async (data) => ({ id: 'notification-1', ...data }));
+    createDelivery = mock(async () => {});
     const member = await projectService.addMember('project-1', 'user-2', ProjectMemberRole.MEMBER, memberUser);
     expect(member.userId).toBe('user-2');
+    expect(addMember).toHaveBeenCalledWith('project-1', 'user-2', ProjectMemberRole.MEMBER, ProjectMemberSource.DIRECT, null, transaction);
+    expect(createNotification).toHaveBeenCalledWith(expect.objectContaining({ userId: 'user-2', type: 'project_invite' }), transaction);
+    expect(createDelivery).toHaveBeenCalledWith(expect.objectContaining({ id: 'notification-1' }), transaction);
+    expect(notificationService.publishMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not publish invitations when membership commit fails', async () => {
+    findById = async () => ({ id: 'project-1', name: 'Project' });
+    commitError = new Error('Commit failed');
+    await expect(projectService.addMember('project-1', 'user-2', ProjectMemberRole.MEMBER, memberUser))
+      .rejects.toThrow('Commit failed');
+    expect(notificationService.publishMany).not.toHaveBeenCalled();
+    expect(activityService.record).not.toHaveBeenCalled();
+  });
+
+  it('propagates invitation outbox failure without committing membership', async () => {
+    findById = async () => ({ id: 'project-1', name: 'Project' });
+    createDelivery = async () => { throw new Error('Outbox unavailable'); };
+    await expect(projectService.addMember('project-1', 'user-2', ProjectMemberRole.MEMBER, memberUser))
+      .rejects.toThrow('Outbox unavailable');
+    expect(committed).toBe(false);
+    expect(notificationService.publishMany).not.toHaveBeenCalled();
   });
 
   it('rejects adding duplicate direct member', async () => {
+    findById = async () => ({ id: 'project-1', name: 'Project' });
     findMembership = async () => ({ source: ProjectMemberSource.DIRECT });
     await expect(
       projectService.addMember('project-1', 'user-2', ProjectMemberRole.MEMBER, memberUser)
@@ -262,7 +316,9 @@ describe('ProjectService', () => {
   });
 
   it('converts team membership to direct', async () => {
+    findById = async () => ({ id: 'project-1', name: 'Project' });
     findMembership = async () => ({ source: ProjectMemberSource.TEAM });
+    createNotification = mock(async (data) => ({ id: 'notification-1', ...data }));
     let updated = false;
     updateMembership = async () => {
       updated = true;
@@ -278,6 +334,7 @@ describe('ProjectService', () => {
     const member = await projectService.addMember('project-1', 'user-2', ProjectMemberRole.MEMBER, memberUser);
     expect(updated).toBe(true);
     expect(member.source).toBe(ProjectMemberSource.DIRECT);
+    expect(createNotification).not.toHaveBeenCalled();
   });
 
   it('rejects invalid member role', async () => {

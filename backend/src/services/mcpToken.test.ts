@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test';
-import { mcpTokenService, VALID_MCP_SCOPES, type McpScope } from './mcpToken';
+import { expandMcpScopes, mcpTokenService, VALID_MCP_SCOPES, type McpScope } from './mcpToken';
 
 describe('McpTokenService', () => {
   it('is defined', () => {
@@ -42,5 +42,16 @@ describe('VALID_MCP_SCOPES', () => {
   it('rejects unknown scopes', () => {
     expect(VALID_MCP_SCOPES.has('admin:delete' as McpScope)).toBe(false);
     expect(VALID_MCP_SCOPES.has('' as McpScope)).toBe(false);
+  });
+
+  it('adds read prerequisites for write scopes without duplicating scopes', () => {
+    expect(new Set(expandMcpScopes(['tasks:write']))).toEqual(new Set(['tasks:read', 'tasks:write']));
+    expect(new Set(expandMcpScopes(['docs:read', 'docs:write']))).toEqual(new Set(['docs:read', 'docs:write']));
+    expect(new Set(expandMcpScopes(['time:write', 'meetings:write']))).toEqual(new Set([
+      'time:read',
+      'time:write',
+      'meetings:read',
+      'meetings:write',
+    ]));
   });
 });

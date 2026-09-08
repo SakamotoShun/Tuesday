@@ -1,4 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach, mock, spyOn } from 'bun:test';
+import { db, type DbTransaction } from '../db/client';
+
+const transaction = {} as DbTransaction;
+const spies: Array<{ mockRestore(): void }> = [];
+let commitError: Error | null = null;
+let committed = false;
+let createNotification: (...args: any[]) => Promise<any> = async (data) => ({ id: 'notification-1', ...data });
+let createDelivery: (...args: any[]) => Promise<any> = async () => {};
 
 let findByProjectId: (...args: any[]) => Promise<any> = async () => [];
 let findById: (...args: any[]) => Promise<any> = async () => null;
@@ -16,10 +24,10 @@ mock.module('../repositories/meeting', () => ({
   MeetingRepository: class {},
   meetingRepository: {
     findByProjectId: (projectId: string) => findByProjectId(projectId),
-    findById: (meetingId: string) => findById(meetingId),
+    findById: (...args: any[]) => findById(...args),
     findByAttendee: (userId: string) => findByAttendee(userId),
-    create: (data: any) => createMeeting(data),
-    update: (meetingId: string, data: any) => updateMeeting(meetingId, data),
+    create: (...args: any[]) => createMeeting(...args),
+    update: (...args: any[]) => updateMeeting(...args),
     delete: (meetingId: string) => deleteMeeting(meetingId),
   },
 }));
@@ -27,8 +35,8 @@ mock.module('../repositories/meeting', () => ({
 mock.module('../repositories/meetingAttendee', () => ({
   MeetingAttendeeRepository: class {},
   meetingAttendeeRepository: {
-    setAttendees: (meetingId: string, attendeeIds: string[]) => setAttendees(meetingId, attendeeIds),
-    findByMeetingId: (meetingId: string) => findAttendees(meetingId),
+    setAttendees: (...args: any[]) => setAttendees(...args),
+    findByMeetingId: (...args: any[]) => findAttendees(...args),
   },
 }));
 
@@ -39,9 +47,17 @@ mock.module('../repositories/settings', () => ({
   },
 }));
 
+mock.module('../repositories/notification', () => ({
+  NotificationRepository: class {},
+  notificationRepository: {
+    create: (...args: any[]) => createNotification(...args),
+    createDeliveryIfEnabled: (...args: any[]) => createDelivery(...args),
+  },
+}));
+
 const { meetingService } = await import('./meeting');
 const { activityService } = await import('./activity');
-const originalRecord = activityService.record.bind(activityService);
+const { notificationService } = await import('./notification');
 
 const memberUser = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -75,11 +91,24 @@ describe('MeetingService', () => {
     setAttendees = async () => {};
     findAttendees = async () => [];
     getSetting = async () => null;
-    activityService.record = async () => {};
+    createNotification = async (data) => ({ id: 'notification-1', ...data });
+    createDelivery = async () => {};
+    commitError = null;
+    committed = false;
+    spies.push(spyOn(db, 'transaction').mockImplementation(async (callback) => {
+      const result = await callback(transaction);
+      if (commitError) throw commitError;
+      committed = true;
+      return result;
+    }));
+    spies.push(spyOn(activityService, 'record').mockResolvedValue(undefined));
+    spies.push(spyOn(notificationService, 'publishMany').mockImplementation(() => {
+      expect(committed).toBe(true);
+    }));
   });
 
   afterEach(() => {
-    activityService.record = originalRecord;
+    for (const spy of spies.splice(0).reverse()) spy.mockRestore();
   });
 
   it('rejects creating meeting without title', async () => {
@@ -128,6 +157,40 @@ describe('MeetingService', () => {
     );
 
     expect(attendees).toEqual(expect.arrayContaining([adminUser.id]));
+  });
+
+  it('creates invitees and their notifications in the meeting transaction', async () => {
+    createMeeting = mock(async (data) => ({ id: 'meeting-1', ...data }));
+    setAttendees = mock(async () => {});
+    createNotification = mock(async (data) => ({ id: 'notification-1', ...data }));
+    createDelivery = mock(async () => {});
+    await meetingService.createMeeting('project-1', {
+      title: 'Meet', startTime: '2024-01-01', endTime: '2024-01-02', attendeeIds: ['user-2', 'user-2', adminUser.id],
+    }, adminUser);
+    expect(createMeeting).toHaveBeenCalledWith(expect.objectContaining({ title: 'Meet' }), transaction);
+    expect(setAttendees).toHaveBeenCalledWith('meeting-1', ['user-2', adminUser.id], transaction);
+    expect(createNotification).toHaveBeenCalledTimes(1);
+    expect(createNotification).toHaveBeenCalledWith(expect.objectContaining({ userId: 'user-2', type: 'meeting_invite' }), transaction);
+    expect(createDelivery).toHaveBeenCalledWith(expect.objectContaining({ id: 'notification-1' }), transaction);
+    expect(notificationService.publishMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not publish invitations when the meeting transaction fails to commit', async () => {
+    commitError = new Error('Commit failed');
+    await expect(meetingService.createMeeting('project-1', {
+      title: 'Meet', startTime: '2024-01-01', endTime: '2024-01-02', attendeeIds: ['user-2'],
+    }, adminUser)).rejects.toThrow('Commit failed');
+    expect(notificationService.publishMany).not.toHaveBeenCalled();
+    expect(activityService.record).not.toHaveBeenCalled();
+  });
+
+  it('propagates invitation outbox failure without committing the meeting', async () => {
+    createDelivery = async () => { throw new Error('Outbox unavailable'); };
+    await expect(meetingService.createMeeting('project-1', {
+      title: 'Meet', startTime: '2024-01-01', endTime: '2024-01-02', attendeeIds: ['user-2'],
+    }, adminUser)).rejects.toThrow('Outbox unavailable');
+    expect(committed).toBe(false);
+    expect(notificationService.publishMany).not.toHaveBeenCalled();
   });
 
   it('generates a JaaS link by default when JaaS is enabled', async () => {

@@ -107,7 +107,7 @@ authRouter.post('/login', authRateLimit, async (c) => {
  */
 authRouter.post('/forgot-password', authRateLimit, async (c) => {
   try {
-    const passwordResetEnabled = await emailService.hasConfiguration();
+    const passwordResetEnabled = await emailService.isPasswordResetAvailable();
     if (!passwordResetEnabled) {
       return errors.forbidden(c, 'Password reset is not configured');
     }

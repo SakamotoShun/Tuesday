@@ -460,6 +460,8 @@ export interface AdminSettings {
   smtpPass: string
   smtpFrom: string
   smtpSecure: boolean
+  notificationEmailsEnabled: boolean
+  smtpConfigured: boolean
 }
 
 export interface UpdateAdminSettingsInput {
@@ -480,6 +482,48 @@ export interface UpdateAdminSettingsInput {
   smtpPass?: string
   smtpFrom?: string
   smtpSecure?: boolean
+  notificationEmailsEnabled?: boolean
+}
+
+export type EmailDeliveryState =
+  | "queued"
+  | "leased"
+  | "retry_wait"
+  | "sending"
+  | "sent"
+  | "dead"
+  | "cancelled"
+
+export interface DeadEmailDelivery {
+  id: string
+  type: NotificationEmailType
+  attemptCount: number
+  retryCycle: number
+  lastError: string | null
+  createdAt: string
+  updatedAt: string
+  retryable: boolean
+}
+
+export interface EmailDeliveryStatus {
+  queue: Record<EmailDeliveryState, number>
+  worker: {
+    state: "stopped" | "running" | "draining"
+    cycleInFlight: boolean
+    startedAt: string | null
+    lastPollAt: string | null
+    lastSuccessAt: string | null
+    lastDurationMs: number | null
+    claimed: number
+    sent: number
+    retried: number
+    dead: number
+    lastError: string | null
+  }
+  dead: {
+    items: DeadEmailDelivery[]
+    nextCursor: string | null
+  }
 }
 
 export interface AdminCreateUserInput {
@@ -689,17 +733,41 @@ export interface MessageReaction {
 }
 
 // Notification types
-export type NotificationType = "mention" | "assignment" | "meeting_invite" | "project_invite"
+export type NotificationType =
+  | "mention"
+  | "assignment"
+  | "task_assignment"
+  | "notice_assignment"
+  | "meeting_invite"
+  | "project_invite"
+
+export type NotificationEmailType = Exclude<NotificationType, "assignment">
 
 export interface Notification {
   id: string
   userId: string
+  sourceEventId: string | null
   type: NotificationType
   title: string
   body: string | null
   link: string | null
   read: boolean
+  templateVersion: number
+  templateData: Record<string, string>
   createdAt: string
+}
+
+export interface NotificationPage {
+  items: Notification[]
+  unreadCount: number
+  nextCursor: string | null
+}
+
+export type NotificationEmailPreferences = Record<NotificationEmailType, boolean>
+
+export interface NotificationEmailPreferencesResponse {
+  preferences: NotificationEmailPreferences
+  types: NotificationEmailType[]
 }
 
 export type FavoriteEntityType = "project" | "task" | "doc"

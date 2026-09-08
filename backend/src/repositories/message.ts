@@ -1,5 +1,5 @@
 import { and, desc, eq, gt, isNull, lt, sql } from 'drizzle-orm';
-import { db } from '../db/client';
+import { db, type DbExecutor } from '../db/client';
 import { messageAttachments, messages, type Message, type MessageReaction, type NewMessage, type File } from '../db/schema';
 
 export type MessageWithUser = Message & {
@@ -15,8 +15,8 @@ export interface MessageQueryOptions {
 }
 
 export class MessageRepository {
-  async findById(id: string): Promise<MessageWithUser | null> {
-    const result = await db.query.messages.findFirst({
+  async findById(id: string, executor: DbExecutor = db): Promise<MessageWithUser | null> {
+    const result = await executor.query.messages.findFirst({
       where: eq(messages.id, id),
       with: {
         user: {
@@ -86,8 +86,8 @@ export class MessageRepository {
     return result;
   }
 
-  async create(data: NewMessage): Promise<Message> {
-    const [message] = await db.insert(messages).values(data).returning();
+  async create(data: NewMessage, executor: DbExecutor = db): Promise<Message> {
+    const [message] = await executor.insert(messages).values(data).returning();
     return message;
   }
 
@@ -105,14 +105,14 @@ export class MessageRepository {
     return result.length > 0;
   }
 
-  async addAttachments(messageId: string, fileIds: string[]): Promise<void> {
+  async addAttachments(messageId: string, fileIds: string[], executor: DbExecutor = db): Promise<void> {
     if (fileIds.length === 0) return;
     const rows = fileIds.map((fileId, index) => ({
       messageId,
       fileId,
       sortOrder: index,
     }));
-    await db.insert(messageAttachments).values(rows);
+    await executor.insert(messageAttachments).values(rows);
   }
 
   async softDelete(id: string): Promise<Message | null> {

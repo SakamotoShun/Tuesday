@@ -1,10 +1,10 @@
 import { and, eq } from 'drizzle-orm';
-import { db } from '../db/client';
+import { db, type DbExecutor, type DbTransaction } from '../db/client';
 import { meetingAttendees, type MeetingAttendee, type NewMeetingAttendee } from '../db/schema';
 
 export class MeetingAttendeeRepository {
-  async findByMeetingId(meetingId: string): Promise<(MeetingAttendee & { user: { id: string; name: string; email: string; avatarUrl: string | null } })[]> {
-    const result = await db.query.meetingAttendees.findMany({
+  async findByMeetingId(meetingId: string, executor: DbExecutor = db): Promise<(MeetingAttendee & { user: { id: string; name: string; email: string; avatarUrl: string | null } })[]> {
+    const result = await executor.query.meetingAttendees.findMany({
       where: eq(meetingAttendees.meetingId, meetingId),
       with: {
         user: {
@@ -41,8 +41,8 @@ export class MeetingAttendeeRepository {
     return result.length > 0;
   }
 
-  async setAttendees(meetingId: string, userIds: string[]): Promise<void> {
-    await db.transaction(async (tx) => {
+  async setAttendees(meetingId: string, userIds: string[], executor: DbExecutor = db): Promise<void> {
+    const replace = async (tx: DbTransaction) => {
       await tx.delete(meetingAttendees).where(eq(meetingAttendees.meetingId, meetingId));
 
       if (userIds.length > 0) {
@@ -53,7 +53,9 @@ export class MeetingAttendeeRepository {
           })) as NewMeetingAttendee[]
         );
       }
-    });
+    };
+    if (executor === db) await db.transaction(replace);
+    else await replace(executor as DbTransaction);
   }
 
   async isAttendee(meetingId: string, userId: string): Promise<boolean> {

@@ -11,12 +11,17 @@ import { NotificationPanel } from "@/components/notifications/notification-panel
 
 export function NotificationBell() {
   const navigate = useNavigate()
-  const { notifications, unreadCount, markRead, markAllRead } = useNotifications()
+  const { notifications, unreadCount, error, markRead, markAllRead } = useNotifications()
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon" className="relative">
+        <Button
+          variant="outline"
+          size="icon"
+          className="relative"
+          aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ""}`}
+        >
           <Bell className="h-4 w-4" />
           {unreadCount > 0 && (
             <span className="absolute -top-1 -right-1 h-4 w-4 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full flex items-center justify-center">
@@ -28,6 +33,7 @@ export function NotificationBell() {
       <DropdownMenuContent className="w-80 max-w-[calc(100vw-16px)] p-0">
         <NotificationPanel
           notifications={notifications}
+          error={Boolean(error)}
           onMarkAllRead={() => markAllRead.mutate()}
           onSelect={(notification) => {
             if (!notification.read) {

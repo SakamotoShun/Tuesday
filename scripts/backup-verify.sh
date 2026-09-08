@@ -4,15 +4,20 @@ set -euo pipefail
 BACKUP_DIR="${BACKUP_DIR:-./backups}"
 POSTGRES_IMAGE="${POSTGRES_IMAGE:-postgres:16-alpine}"
 VERIFY_CONTAINER="tuesday-backup-verify-$$"
+VERIFY_CONTAINER_ID=""
 BACKUP_FILE="${1:-}"
 TMP_DIR=$(mktemp -d)
 
 cleanup() {
-    docker rm -f "$VERIFY_CONTAINER" >/dev/null 2>&1 || true
+    if [ -n "$VERIFY_CONTAINER_ID" ]; then
+        docker rm -f "$VERIFY_CONTAINER_ID" >/dev/null 2>&1 || true
+    fi
     rm -rf "$TMP_DIR"
 }
 
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 if [ -z "$BACKUP_FILE" ]; then
     mapfile -t backups < <(ls -1t "$BACKUP_DIR"/tuesday_backup_*.tar.gz 2>/dev/null || true)
@@ -29,7 +34,7 @@ if [ ! -f "$BACKUP_FILE" ]; then
 fi
 
 echo "Verifying backup archive: $BACKUP_FILE"
-tar -xzf "$BACKUP_FILE" -C "$TMP_DIR"
+tar --no-same-owner -xzf "$BACKUP_FILE" -C "$TMP_DIR"
 
 if [ ! -f "$TMP_DIR/database.sql" ]; then
     echo "Error: archive is missing database.sql"
@@ -41,30 +46,35 @@ if [ ! -d "$TMP_DIR/uploads" ]; then
     exit 1
 fi
 
-docker run -d --rm \
+if [ ! -f "$TMP_DIR/metadata.env" ] || ! grep -qx 'FORMAT=tuesday-backup-v2' "$TMP_DIR/metadata.env"; then
+    echo "Error: archive is missing valid Tuesday backup-v2 metadata"
+    exit 1
+fi
+
+VERIFY_CONTAINER_ID=$(docker run -d --rm \
     --name "$VERIFY_CONTAINER" \
     -e POSTGRES_USER=tuesday \
     -e POSTGRES_PASSWORD=tuesday \
     -e POSTGRES_DB=tuesday \
-    "$POSTGRES_IMAGE" >/dev/null
+    "$POSTGRES_IMAGE")
 
 echo "Waiting for temporary PostgreSQL instance..."
 for _ in $(seq 1 30); do
-    if docker exec "$VERIFY_CONTAINER" pg_isready -U tuesday -d tuesday >/dev/null 2>&1; then
+    if docker exec "$VERIFY_CONTAINER_ID" pg_isready -h 127.0.0.1 -U tuesday -d tuesday >/dev/null 2>&1; then
         break
     fi
     sleep 1
 done
 
-if ! docker exec "$VERIFY_CONTAINER" pg_isready -U tuesday -d tuesday >/dev/null 2>&1; then
+if ! docker exec "$VERIFY_CONTAINER_ID" pg_isready -h 127.0.0.1 -U tuesday -d tuesday >/dev/null 2>&1; then
     echo "Error: verification database did not become ready"
     exit 1
 fi
 
-docker exec -i "$VERIFY_CONTAINER" psql -U tuesday -d tuesday -v ON_ERROR_STOP=1 -q < "$TMP_DIR/database.sql" >/dev/null
+docker exec -i "$VERIFY_CONTAINER_ID" psql -U tuesday -d tuesday -v ON_ERROR_STOP=1 --single-transaction -q < "$TMP_DIR/database.sql" >/dev/null
 
-MIGRATION_COUNT=$(docker exec "$VERIFY_CONTAINER" psql -U tuesday -d tuesday -t -A -c "SELECT count(*) FROM drizzle_migrations;")
-TABLE_COUNT=$(docker exec "$VERIFY_CONTAINER" psql -U tuesday -d tuesday -t -A -c "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public';")
+MIGRATION_COUNT=$(docker exec "$VERIFY_CONTAINER_ID" psql -U tuesday -d tuesday -t -A -c "SELECT count(*) FROM drizzle_migrations;")
+TABLE_COUNT=$(docker exec "$VERIFY_CONTAINER_ID" psql -U tuesday -d tuesday -t -A -c "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public';")
 UPLOAD_FILE_COUNT=$(find "$TMP_DIR/uploads" -type f | wc -l | tr -d ' ')
 
 echo "Backup verified successfully"

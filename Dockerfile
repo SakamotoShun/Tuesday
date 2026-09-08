@@ -65,7 +65,7 @@ EXPOSE 8080
 VOLUME /app/data
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD curl -f http://127.0.0.1:8080/health || exit 1
+  CMD curl -f http://127.0.0.1:8080/ready || exit 1
 
 ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["supervisord", "-n", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

@@ -1,10 +1,19 @@
-import { and, desc, eq, sql } from 'drizzle-orm';
-import { db } from '../db/client';
-import { notifications, type Notification, type NewNotification } from '../db/schema';
+import { and, desc, eq, lt, or, sql } from 'drizzle-orm';
+import { db, type DbExecutor } from '../db/client';
+import {
+  emailNotificationDeliveries,
+  notificationEmailPreferences,
+  notifications,
+  users,
+  workspaceEmailControl,
+  type Notification,
+  type NewNotification,
+} from '../db/schema';
 
 export interface NotificationQueryOptions {
   unreadOnly?: boolean;
   limit?: number;
+  cursor?: { createdAt: Date; id: string };
 }
 
 export class NotificationRepository {
@@ -15,30 +24,85 @@ export class NotificationRepository {
     return result || null;
   }
 
-  async findByUserId(userId: string, options?: NotificationQueryOptions): Promise<Notification[]> {
+  async findByUserId(
+    userId: string,
+    options?: NotificationQueryOptions,
+    executor: DbExecutor = db,
+  ): Promise<Notification[]> {
     const conditions = [eq(notifications.userId, userId)];
 
     if (options?.unreadOnly) {
       conditions.push(eq(notifications.read, false));
     }
 
-    return db.query.notifications.findMany({
+    if (options?.cursor) {
+      conditions.push(or(
+        lt(notifications.createdAt, options.cursor.createdAt),
+        and(
+          eq(notifications.createdAt, options.cursor.createdAt),
+          lt(notifications.id, options.cursor.id),
+        ),
+      )!);
+    }
+
+    return executor.query.notifications.findMany({
       where: and(...conditions),
-      orderBy: [desc(notifications.createdAt)],
+      orderBy: [desc(notifications.createdAt), desc(notifications.id)],
       limit: options?.limit ?? 50,
     });
   }
 
-  async create(data: NewNotification): Promise<Notification> {
-    const [notification] = await db.insert(notifications).values(data).returning();
-    return notification;
+  async create(data: NewNotification, executor: DbExecutor = db): Promise<Notification | null> {
+    const [notification] = await executor
+      .insert(notifications)
+      .values(data)
+      .onConflictDoNothing()
+      .returning();
+    return notification ?? null;
   }
 
-  async markAsRead(id: string): Promise<Notification | null> {
+  async createDeliveryIfEnabled(notification: Notification, executor: DbExecutor = db): Promise<void> {
+    const [eligibility] = await executor
+      .select({
+        userGeneration: notificationEmailPreferences.generation,
+        workspaceGeneration: workspaceEmailControl.generation,
+      })
+      .from(notificationEmailPreferences)
+      .innerJoin(users, and(
+        eq(users.id, notificationEmailPreferences.userId),
+        eq(users.isDisabled, false),
+      ))
+      .innerJoin(workspaceEmailControl, eq(workspaceEmailControl.id, 1))
+      .where(and(
+        eq(notificationEmailPreferences.userId, notification.userId),
+        eq(notificationEmailPreferences.type, notification.type),
+        eq(notificationEmailPreferences.enabled, true),
+        eq(workspaceEmailControl.enabled, true),
+      ))
+      .limit(1);
+
+    if (!eligibility) return;
+
+    await executor
+      .insert(emailNotificationDeliveries)
+      .values({
+        notificationId: notification.id,
+        userId: notification.userId,
+        type: notification.type,
+        userGeneration: eligibility.userGeneration,
+        workspaceGeneration: eligibility.workspaceGeneration,
+        messageId: `<notification-${notification.id}@tuesday.local>`,
+      })
+      .onConflictDoNothing();
+  }
+
+  async markAsRead(id: string, userId?: string): Promise<Notification | null> {
     const [notification] = await db
       .update(notifications)
       .set({ read: true })
-      .where(eq(notifications.id, id))
+      .where(userId
+        ? and(eq(notifications.id, id), eq(notifications.userId, userId))
+        : eq(notifications.id, id))
       .returning();
     return notification || null;
   }
@@ -47,13 +111,13 @@ export class NotificationRepository {
     const result = await db
       .update(notifications)
       .set({ read: true })
-      .where(eq(notifications.userId, userId))
-      .returning();
+      .where(and(eq(notifications.userId, userId), eq(notifications.read, false)))
+      .returning({ id: notifications.id });
     return result.length;
   }
 
-  async countUnreadByUser(userId: string): Promise<number> {
-    const [result] = await db
+  async countUnreadByUser(userId: string, executor: DbExecutor = db): Promise<number> {
+    const [result] = await executor
       .select({ count: sql<number>`count(*)` })
       .from(notifications)
       .where(and(eq(notifications.userId, userId), eq(notifications.read, false)));

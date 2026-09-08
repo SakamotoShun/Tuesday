@@ -36,6 +36,13 @@ const SCOPE_LABELS: Record<McpScope, string> = {
   "search:read": "Search workspace",
 }
 
+const READ_SCOPE_FOR_WRITE: Partial<Record<McpScope, McpScope>> = {
+  "tasks:write": "tasks:read",
+  "docs:write": "docs:read",
+  "meetings:write": "meetings:read",
+  "time:write": "time:read",
+}
+
 function CreatedTokenDisplay({
   rawToken,
   onClose,
@@ -109,8 +116,16 @@ export function McpTokenSection() {
 
   const toggleScope = (scope: McpScope) => {
     const next = new Set(selectedScopes)
-    if (next.has(scope)) next.delete(scope)
-    else next.add(scope)
+    if (next.has(scope)) {
+      next.delete(scope)
+      for (const [writeScope, readScope] of Object.entries(READ_SCOPE_FOR_WRITE) as [McpScope, McpScope][]) {
+        if (readScope === scope) next.delete(writeScope)
+      }
+    } else {
+      next.add(scope)
+      const readScope = READ_SCOPE_FOR_WRITE[scope]
+      if (readScope) next.add(readScope)
+    }
     setSelectedScopes(next)
   }
 

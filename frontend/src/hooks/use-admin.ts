@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as adminApi from "@/api/admin"
 import type {
   AdminCreateUserInput,
@@ -64,6 +64,40 @@ export function useAdminSettings() {
     error: settingsQuery.error,
     updateSettings,
     sendTestEmail,
+  }
+}
+
+export function useEmailDeliveryStatus() {
+  const queryClient = useQueryClient()
+  const statusQuery = useInfiniteQuery({
+    queryKey: ["admin", "email-deliveries"],
+    queryFn: ({ pageParam }) => adminApi.getEmailDeliveryStatus(pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.dead.nextCursor ?? undefined,
+    refetchInterval: 10_000,
+  })
+
+  const retryDelivery = useMutation({
+    mutationFn: (id: string) => adminApi.retryEmailDelivery(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "email-deliveries"] }),
+  })
+
+  const pages = statusQuery.data?.pages ?? []
+  const firstPage = pages[0]
+
+  return {
+    status: firstPage ? {
+      queue: firstPage.queue,
+      worker: firstPage.worker,
+      dead: pages.flatMap((page) => page.dead.items),
+    } : undefined,
+    isLoading: statusQuery.isLoading,
+    error: statusQuery.error,
+    refetch: statusQuery.refetch,
+    hasNextPage: statusQuery.hasNextPage,
+    fetchNextPage: statusQuery.fetchNextPage,
+    isFetchingNextPage: statusQuery.isFetchingNextPage,
+    retryDelivery,
   }
 }
 

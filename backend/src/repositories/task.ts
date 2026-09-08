@@ -1,5 +1,5 @@
-import { eq, and, inArray, asc, desc } from 'drizzle-orm';
-import { db } from '../db/client';
+import { eq, and, inArray, asc, desc, sql } from 'drizzle-orm';
+import { db, type DbExecutor } from '../db/client';
 import { tasks, type Task, type NewTask } from '../db/schema';
 
 export interface TaskFilters {
@@ -8,8 +8,8 @@ export interface TaskFilters {
 }
 
 export class TaskRepository {
-  async findById(id: string): Promise<Task | null> {
-    const result = await db.query.tasks.findFirst({
+  async findById(id: string, executor: DbExecutor = db): Promise<Task | null> {
+    const result = await executor.query.tasks.findFirst({
       where: eq(tasks.id, id),
       with: {
         status: true,
@@ -119,26 +119,40 @@ export class TaskRepository {
     return result;
   }
 
-  async create(data: NewTask): Promise<Task> {
-    const [task] = await db.insert(tasks).values(data).returning();
+  async create(data: NewTask, executor: DbExecutor = db): Promise<Task> {
+    const [task] = await executor.insert(tasks).values(data).returning();
     return task;
   }
 
-  async update(id: string, data: Partial<NewTask>): Promise<Task | null> {
-    const [task] = await db
+  async update(id: string, data: Partial<NewTask>, executor: DbExecutor = db): Promise<Task | null> {
+    const [task] = await executor
       .update(tasks)
-      .set({ ...data, updatedAt: new Date() })
+      .set({ ...data, updatedAt: new Date(), version: sql`${tasks.version} + 1` })
       .where(eq(tasks.id, id))
       .returning();
     return task || null;
   }
 
-  async updateStatus(id: string, statusId: string): Promise<Task | null> {
-    return this.update(id, { statusId });
+  async updateIfVersion(
+    id: string,
+    expectedVersion: number,
+    data: Partial<NewTask>,
+    executor: DbExecutor = db,
+  ): Promise<Task | null> {
+    const [task] = await executor
+      .update(tasks)
+      .set({ ...data, updatedAt: new Date(), version: sql`${tasks.version} + 1` })
+      .where(and(eq(tasks.id, id), eq(tasks.version, expectedVersion)))
+      .returning();
+    return task || null;
   }
 
-  async updateSortOrder(id: string, sortOrder: number): Promise<Task | null> {
-    return this.update(id, { sortOrder });
+  async updateStatus(id: string, statusId: string, executor: DbExecutor = db): Promise<Task | null> {
+    return this.update(id, { statusId }, executor);
+  }
+
+  async updateSortOrder(id: string, sortOrder: number, executor: DbExecutor = db): Promise<Task | null> {
+    return this.update(id, { sortOrder }, executor);
   }
 
   async delete(id: string): Promise<boolean> {

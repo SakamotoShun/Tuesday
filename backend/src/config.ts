@@ -22,6 +22,59 @@ const configSchema = z.object({
   deletedMessageFileRetentionDays: z.number().int().min(1).max(365),
   staticDir: z.string().optional(),
   logLevel: z.enum(['debug', 'info', 'warn', 'error']),
+  emailWorkerPollIntervalMs: z.number().int().min(250).max(60_000),
+  emailWorkerBatchSize: z.number().int().min(1).max(100),
+  emailWorkerLeaseMs: z.number().int().min(60_000).max(900_000),
+  emailWorkerDrainTimeoutMs: z.number().int().min(1_000).max(60_000),
+  smtpConnectionTimeoutMs: z.number().int().min(1_000).max(60_000),
+  smtpGreetingTimeoutMs: z.number().int().min(1_000).max(60_000),
+  smtpSocketTimeoutMs: z.number().int().min(1_000).max(120_000),
+}).superRefine((value, context) => {
+  const smtpTimeoutBudgetMs = value.smtpConnectionTimeoutMs + value.smtpGreetingTimeoutMs +
+    value.smtpSocketTimeoutMs;
+  const minimumLeaseMs = smtpTimeoutBudgetMs + 10_000;
+  if (smtpTimeoutBudgetMs > 50_000) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['smtpSocketTimeoutMs'],
+      message: 'combined SMTP timeouts must not exceed 50000ms',
+    });
+  }
+  if (value.emailWorkerLeaseMs < minimumLeaseMs) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['emailWorkerLeaseMs'],
+      message: `must be at least ${minimumLeaseMs}ms for the configured SMTP timeouts`,
+    });
+  }
+  if (value.emailWorkerDrainTimeoutMs < minimumLeaseMs) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['emailWorkerDrainTimeoutMs'],
+      message: `must be at least ${minimumLeaseMs}ms for the configured SMTP timeouts`,
+    });
+  }
+
+  if (value.publicBaseUrl) {
+    const url = new URL(value.publicBaseUrl);
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['publicBaseUrl'],
+        message: 'must be an HTTP(S) origin without credentials, query, or fragment',
+      });
+    } else if (
+      value.nodeEnv === 'production' &&
+      url.protocol !== 'https:' &&
+      !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['publicBaseUrl'],
+        message: 'must use HTTPS in production',
+      });
+    }
+  }
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -61,6 +114,13 @@ function loadConfig(): Config {
     deletedMessageFileRetentionDays: parseInt(process.env.DELETED_MESSAGE_FILE_RETENTION_DAYS || '30', 10),
     staticDir: process.env.STATIC_DIR || (nodeEnv === 'production' ? getDefaultStaticDir() : undefined),
     logLevel: (process.env.LOG_LEVEL as 'debug' | 'info' | 'warn' | 'error') || 'info',
+    emailWorkerPollIntervalMs: parseInt(process.env.EMAIL_WORKER_POLL_INTERVAL_MS || '1000', 10),
+    emailWorkerBatchSize: parseInt(process.env.EMAIL_WORKER_BATCH_SIZE || '10', 10),
+    emailWorkerLeaseMs: parseInt(process.env.EMAIL_WORKER_LEASE_MS || '60000', 10),
+    emailWorkerDrainTimeoutMs: parseInt(process.env.EMAIL_WORKER_DRAIN_TIMEOUT_MS || '60000', 10),
+    smtpConnectionTimeoutMs: parseInt(process.env.SMTP_CONNECTION_TIMEOUT_MS || '10000', 10),
+    smtpGreetingTimeoutMs: parseInt(process.env.SMTP_GREETING_TIMEOUT_MS || '10000', 10),
+    smtpSocketTimeoutMs: parseInt(process.env.SMTP_SOCKET_TIMEOUT_MS || '30000', 10),
   };
 
   const result = configSchema.safeParse(config);

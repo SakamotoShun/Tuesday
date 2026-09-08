@@ -42,6 +42,8 @@ jobs:
               - 'entrypoint.sh'
               - 'supervisord.conf'
               - 'docker-compose.yml'
+              - 'scripts/**'
+              - '.github/workflows/release.yml'
               - 'backend/**'
               - 'frontend/**'
 
@@ -96,6 +98,9 @@ jobs:
       - name: Backend tests
         run: bun run test
         working-directory: backend
+
+      - name: Backup and restore regression tests
+        run: bun test scripts/backup.test.ts
 
       - name: Backend coverage (warn-only)
         continue-on-error: true
@@ -224,7 +229,11 @@ jobs:
           trap cleanup EXIT
 
           docker volume create tuesday_smoke_data >/dev/null
-          docker run -d --name tuesday-smoke -p 7002:8080 -v tuesday_smoke_data:/app/data tuesday-smoke:ci >/dev/null
+          docker run -d --name tuesday-smoke -p 7002:8080 -v tuesday_smoke_data:/app/data \
+            --stop-timeout 120 \
+            -e TUESDAY_BASE_URL=http://localhost:7002 \
+            -e CORS_ORIGIN=http://localhost:7002 \
+            tuesday-smoke:ci >/dev/null
 
           wait_for_ready() {
             for _ in $(seq 1 60); do
@@ -243,6 +252,11 @@ jobs:
           curl -fsS http://127.0.0.1:7002/ready >/dev/null
           curl -fsS http://127.0.0.1:7002/api/v1/setup/status >/dev/null
           curl -fsS http://127.0.0.1:7002/ >/dev/null
+
+          CONTAINER_NAME=tuesday-smoke BACKUP_DIR="$RUNNER_TEMP/tuesday-backups" ./scripts/backup.sh
+          BACKUP_DIR="$RUNNER_TEMP/tuesday-backups" ./scripts/backup-verify.sh
+          backups=("$RUNNER_TEMP/tuesday-backups"/*.tar.gz)
+          CONTAINER_NAME=tuesday-smoke ./scripts/restore.sh --yes "${backups[0]}"
 
           docker restart tuesday-smoke >/dev/null
           wait_for_ready

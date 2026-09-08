@@ -17,8 +17,11 @@ docker run -d \
   --name tuesday \
   -p 7002:8080 \
   -v tuesday_data:/app/data \
+  -e TUESDAY_BASE_URL=http://localhost:7002 \
+  -e CORS_ORIGIN=http://localhost:7002 \
+  --stop-timeout 120 \
   --restart unless-stopped \
-  ghcr.io/sakamotoshun/tuesday:latest
+  ghcr.io/sakamotoshun/tuesday:1.2.0
 ```
 
 ### Option 2: Build from source
@@ -42,7 +45,7 @@ Tuesday will be available at `http://localhost:7002`. On first visit you will se
 
 Pre-built images are available on GHCR:
 
-- `ghcr.io/sakamotoshun/tuesday:latest` — Latest release
+- `ghcr.io/sakamotoshun/tuesday:latest` — Mutable development head; do not use for controlled deployments
 - `ghcr.io/sakamotoshun/tuesday:1.2.0` — Pinned version
 
 ```bash
@@ -82,8 +85,11 @@ docker run -d \
   --name tuesday \
   -p 7002:8080 \
   -v tuesday_data:/app/data \
+  -e TUESDAY_BASE_URL=http://localhost:7002 \
+  -e CORS_ORIGIN=http://localhost:7002 \
+  --stop-timeout 120 \
   --restart unless-stopped \
-  ghcr.io/sakamotoshun/tuesday:latest
+  ghcr.io/sakamotoshun/tuesday:1.2.0
 ```
 
 ### Environment Variables
@@ -98,41 +104,9 @@ docker compose up -d
 
 See [Configuration Reference](./configuration.md) for all available options.
 
-## Automatic Updates (Watchtower)
+## Updates
 
-[Watchtower](https://github.com/nicholas-fedor/watchtower) can automatically pull new Tuesday images and restart the container when updates are available.
-
-### Docker CLI
-
-```bash
-docker run -d \
-  --name watchtower \
-  --restart unless-stopped \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  nickfedor/watchtower tuesday
-```
-
-By default, Watchtower checks for updates every 24 hours. To check more frequently, set an interval in seconds:
-
-```bash
-docker run -d \
-  --name watchtower \
-  --restart unless-stopped \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  nickfedor/watchtower --interval 300 tuesday
-```
-
-### Docker Compose
-
-The included `docker-compose.yml` already defines a `watchtower` service that monitors only the `tuesday` container.
-
-```bash
-docker compose up -d
-```
-
-### Port Safety
-
-Watchtower does not publish any host ports in this setup. Even though the Watchtower container exposes `8080/tcp` internally, it does not conflict with Tuesday's `7002:8080` mapping.
+Do not use Watchtower or another unattended image updater. Back up and verify the embedded database, then deploy an immutable image explicitly before Tuesday runs forward-only migrations. See [Upgrading Tuesday](./upgrade.md).
 
 ## Data Persistence
 
@@ -149,7 +123,7 @@ All persistent data is stored in the `/app/data` Docker volume:
 
 ## Health Check
 
-The container includes a built-in liveness health check on `/health`. Use `/ready` for deeper operational checks (database connectivity, uploads directory, and migration state):
+The container health check uses `/ready`, which verifies database connectivity, the uploads directory, and migration state. `/health` remains available as a lightweight liveness endpoint:
 
 ```bash
 # Check container health

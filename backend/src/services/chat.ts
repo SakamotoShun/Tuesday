@@ -15,6 +15,8 @@ import type { ChannelWithProject } from '../repositories/channel';
 import type { MessageWithUser as RepositoryMessage } from '../repositories/message';
 import type { User } from '../types';
 import { assertNotFreelancer, isFreelancer } from '../utils/permissions';
+import { db } from '../db/client';
+import { notificationService } from './notification';
 
 export interface CreateChannelInput {
   name: string;
@@ -529,44 +531,41 @@ export class ChatService {
     const attachments = await this.validateAttachments(attachmentIds, user);
     const mentions = trimmedContent ? await this.parseMentions(channel, trimmedContent) : [];
 
-    const message = await messageRepository.create({
-      channelId,
-      userId: user.id,
-      content: trimmedContent,
-      mentions,
+    const mentionTargets = mentions.filter((mentionId) => mentionId !== user.id);
+    const committed = await db.transaction(async (tx) => {
+      const message = await messageRepository.create({
+        channelId,
+        userId: user.id,
+        content: trimmedContent,
+        mentions,
+      }, tx);
+      if (attachments.length > 0) {
+        const ids = attachments.map((attachment) => attachment.id);
+        await messageRepository.addAttachments(message.id, ids, tx);
+        await fileService.markAttached(ids, tx);
+      }
+      await channelMemberRepository.updateLastRead(channelId, user.id, new Date(), tx);
+      const notifications = mentionTargets.length > 0 && trimmedContent
+        ? await notificationService.enqueueMentions({
+            channelId,
+            channelName: channel.name,
+            authorName: user.name,
+            mentions: mentionTargets,
+            content: trimmedContent,
+          }, tx)
+        : [];
+      const messageRecord = await messageRepository.findById(message.id, tx);
+      if (!messageRecord) throw new Error('Failed to load message');
+      return { messageWithUser: this.mapMessage(messageRecord), notifications };
     });
-
-    if (attachments.length > 0) {
-      await messageRepository.addAttachments(message.id, attachments.map((attachment) => attachment.id));
-      await fileService.markAttached(attachments.map((attachment) => attachment.id));
-    }
-
-    await channelMemberRepository.updateLastRead(channelId, user.id, new Date());
-
-    const messageRecord = await messageRepository.findById(message.id);
-    if (!messageRecord) {
-      throw new Error('Failed to load message');
-    }
-
-    const messageWithUser = this.mapMessage(messageRecord);
+    const messageWithUser = committed.messageWithUser;
 
     await this.emitChannelEvent(channel, {
       type: 'message',
       channelId,
       message: messageWithUser,
     });
-
-    const mentionTargets = mentions.filter((mentionId) => mentionId !== user.id);
-    if (mentionTargets.length > 0 && trimmedContent) {
-      const { notificationService } = await import('./notification');
-      await notificationService.notifyMentions({
-        channelId,
-        channelName: channel.name,
-        authorName: user.name,
-        mentions: mentionTargets,
-        content: trimmedContent,
-      });
-    }
+    notificationService.publishMany(committed.notifications);
 
     // Check for AI bot mentions (fire-and-forget, don't block message send)
     if (trimmedContent) {

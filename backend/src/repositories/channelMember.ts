@@ -1,5 +1,5 @@
 import { and, eq, sql } from 'drizzle-orm';
-import { db } from '../db/client';
+import { db, type DbExecutor } from '../db/client';
 import { channelMembers, type ChannelMember, type NewChannelMember } from '../db/schema';
 
 export type ChannelMemberWithUser = ChannelMember & {
@@ -107,8 +107,8 @@ export class ChannelMemberRepository {
     return result?.role === 'owner';
   }
 
-  async updateLastRead(channelId: string, userId: string, lastReadAt: Date): Promise<ChannelMember | null> {
-    const [member] = await db
+  async updateLastRead(channelId: string, userId: string, lastReadAt: Date, executor: DbExecutor = db): Promise<ChannelMember | null> {
+    const [member] = await executor
       .update(channelMembers)
       .set({ lastReadAt })
       .where(and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, userId)))

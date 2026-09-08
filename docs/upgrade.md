@@ -2,10 +2,18 @@
 
 ## Standard Upgrade
 
+This section is for source builds with `TUESDAY_IMAGE` unset. Keep a maintenance window in place until the new version passes verification. If this deployment previously used the bundled Watchtower container, stop and remove it **before** taking the backup; removing its Compose definition does not stop an existing updater:
+
+```bash
+docker stop watchtower
+docker rm watchtower
+```
+
 1. **Back up your data** before upgrading:
 
    ```bash
    ./scripts/backup.sh
+   ./scripts/backup-verify.sh
    ```
 
 2. **Pull the latest code** (or image):
@@ -30,6 +38,19 @@
 
 Database migrations run automatically on startup. The application will not start until all migrations have been applied.
 
+### Published Compose images
+
+For a deployment with `TUESDAY_IMAGE` set to a release digest, take and verify the backup as above, update that variable to the target digest, then run:
+
+```bash
+docker compose pull tuesday
+docker compose up -d --no-build --pull never tuesday
+docker compose ps
+docker compose logs --tail 20 tuesday
+```
+
+Do not run `docker compose build` with a digest-valued `TUESDAY_IMAGE`; a digest is not a valid build tag. Retain the previous image digest with the verified pre-upgrade snapshot for rollback.
+
 ## Post-Upgrade Maintenance
 
 If you are upgrading from a version before global doc-content search was introduced, run the search index backfill once after upgrade:
@@ -48,18 +69,19 @@ If you deployed with `docker run`, follow the same upgrade flow but replace the 
 
    ```bash
    ./scripts/backup.sh
+   ./scripts/backup-verify.sh
    ```
 
-2. **Pull the latest image** (or a specific version tag):
+2. **Pull the target immutable version**:
 
    ```bash
-   docker pull ghcr.io/sakamotoshun/tuesday:latest
+   docker pull ghcr.io/sakamotoshun/tuesday:1.2.0
    ```
 
 3. **Stop and remove the old container**:
 
    ```bash
-   docker stop tuesday
+   docker stop -t 120 tuesday
    docker rm tuesday
    ```
 
@@ -70,8 +92,11 @@ If you deployed with `docker run`, follow the same upgrade flow but replace the 
      --name tuesday \
      -p 7002:8080 \
      -v tuesday_data:/app/data \
+     -e TUESDAY_BASE_URL=http://localhost:7002 \
+     -e CORS_ORIGIN=http://localhost:7002 \
+     --stop-timeout 120 \
      --restart unless-stopped \
-     ghcr.io/sakamotoshun/tuesday:latest
+     ghcr.io/sakamotoshun/tuesday:1.2.0
    ```
 
 5. **Verify** the container is healthy:
@@ -82,37 +107,22 @@ If you deployed with `docker run`, follow the same upgrade flow but replace the 
 
 Database migrations run automatically on startup. The application will not start until all migrations have been applied.
 
-## Automatic Upgrades with Watchtower
+## Automatic Upgrades
 
-If you want Tuesday to auto-update without manual `docker pull` and restart steps, run Watchtower:
-
-```bash
-docker run -d \
-  --name watchtower \
-  --restart unless-stopped \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  nickfedor/watchtower tuesday
-```
-
-This monitors the `tuesday` container, pulls new images when available, and restarts the container with the same configuration.
-
-By default, Watchtower checks every 24 hours. To check every 5 minutes:
-
-```bash
-docker run -d \
-  --name watchtower \
-  --restart unless-stopped \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  nickfedor/watchtower --interval 300 tuesday
-```
+Do not use Watchtower for Tuesday. Automatic replacement can run forward-only migrations without a verified backup or a compatible rollback image. Follow the explicit upgrade procedure above with an immutable image reference.
 
 ## Rollback
 
 If something goes wrong after an upgrade:
 
-1. **Stop the container**:
+Keep user traffic blocked throughout rollback. Restoring a pre-upgrade backup discards changes made after that backup. Preserve any newer data needed for reconciliation before proceeding. The commands below apply to source builds; published-image deployments must use their retained previous image digest instead of rebuilding.
+
+1. **Preserve the restore tool and Supervisor configuration, then stop the container**:
 
    ```bash
+   cp ./scripts/restore.sh /tmp/tuesday-restore.sh
+   cp ./supervisord.conf /tmp/tuesday-supervisord.conf
+   chmod +x /tmp/tuesday-restore.sh
    docker compose down
    ```
 
@@ -125,12 +135,13 @@ If something goes wrong after an upgrade:
 3. **Rebuild and restore**:
 
    ```bash
+   cp /tmp/tuesday-supervisord.conf ./supervisord.conf
    docker compose build
-   docker compose up -d
-   ./scripts/restore.sh backups/tuesday_backup_<timestamp>.sql.gz
+   docker compose up -d tuesday
+   /tmp/tuesday-restore.sh backups/tuesday_backup_<timestamp>.tar.gz
    ```
 
-**Note:** Rolling back after a database migration may require restoring from backup, since migrations are forward-only.
+Copying the restore tool before checkout keeps the current staging, rollback, and readiness safeguards. The current Supervisor configuration supplies the control socket required by that tool. Start only the Tuesday service so an older Compose file does not re-enable Watchtower. The standard `.tar.gz` backup contains both the database and uploads; use it to restore them together. Rolling back after a database migration requires restoring a pre-upgrade backup because migrations are forward-only.
 
 ## Version Compatibility
 

@@ -26,6 +26,23 @@ export const VALID_MCP_SCOPES: ReadonlySet<McpScope> = new Set<McpScope>([
   'search:read',
 ]);
 
+const READ_SCOPE_BY_WRITE_SCOPE: Partial<Record<McpScope, McpScope>> = {
+  'tasks:write': 'tasks:read',
+  'docs:write': 'docs:read',
+  'meetings:write': 'meetings:read',
+  'time:write': 'time:read',
+};
+
+export function expandMcpScopes(scopes: Iterable<McpScope>): McpScope[] {
+  const expanded = new Set<McpScope>();
+  for (const scope of scopes) {
+    expanded.add(scope);
+    const readScope = READ_SCOPE_BY_WRITE_SCOPE[scope];
+    if (readScope) expanded.add(readScope);
+  }
+  return Array.from(expanded);
+}
+
 export interface CreateTokenResult {
   token: {
     id: string;
@@ -82,6 +99,7 @@ export class McpTokenService {
       throw new Error('Invalid expiration date');
     }
 
+    const expandedScopes = expandMcpScopes(scopes as McpScope[]);
     const rawToken = generateMcpToken();
     const tokenHash = hashMcpToken(rawToken);
 
@@ -89,7 +107,7 @@ export class McpTokenService {
       userId,
       name: name.trim(),
       tokenHash,
-      scopes: scopes as any,
+      scopes: expandedScopes as any,
       expiresAt: parsedExpiresAt,
     });
 
@@ -153,7 +171,7 @@ export class McpTokenService {
       userEmail: token.user.email,
       userRole: token.user.role,
       tokenId: token.id,
-      scopes: new Set(token.scopes as string[]),
+      scopes: new Set(expandMcpScopes(token.scopes as McpScope[])),
       authType: 'pat',
     };
   }

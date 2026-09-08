@@ -7,6 +7,8 @@ import { buildJaasJoinUrl, buildJaasMeetingUrl, getJaasSettings } from './jaas';
 import { type Meeting, type NewMeeting } from '../db/schema';
 import type { User } from '../types';
 import { assertNotFreelancer } from '../utils/permissions';
+import { db } from '../db/client';
+import { notificationService } from './notification';
 
 export interface CreateMeetingInput {
   title: string;
@@ -135,42 +137,40 @@ export class MeetingService {
       link = input.link?.trim() || null;
     }
 
-    const meeting = await meetingRepository.create({
-      projectId: projectId ?? null,
-      title: input.title.trim(),
-      startTime,
-      endTime,
-      location: input.location?.trim() || null,
-      link,
-      notesMd: input.notesMd ?? '',
-      createdBy: user.id,
-    } as NewMeeting);
-
-    let resolvedStoredMeeting = meeting;
-    if (videoProvider === 'jaas') {
-      const jaasUrl = buildJaasMeetingUrl(jaasSettings!, meeting.id, meeting.title);
-      resolvedStoredMeeting = await meetingRepository.update(meeting.id, { link: jaasUrl } as Partial<NewMeeting>) ?? meeting;
-    }
-
     const resolvedAttendeeIds = await this.resolveAttendeeIds(input.attendeeIds ?? [], input.teamIds ?? [], user);
     const attendeeIds = new Set(resolvedAttendeeIds);
     attendeeIds.add(user.id);
-
-    await meetingAttendeeRepository.setAttendees(meeting.id, Array.from(attendeeIds));
-
-    const { notificationService } = await import('./notification');
     const invitees = Array.from(attendeeIds).filter((id) => id !== user.id);
-    if (invitees.length > 0) {
-      await notificationService.notifyMeetingInvite({
-        meetingId: meeting.id,
-        meetingTitle: meeting.title,
-        attendeeIds: invitees,
-        projectId,
-      });
-    }
-
-    const completeMeeting = await meetingRepository.findById(meeting.id);
-    const resolvedMeeting = completeMeeting ?? resolvedStoredMeeting;
+    const committed = await db.transaction(async (tx) => {
+      const meeting = await meetingRepository.create({
+        projectId: projectId ?? null,
+        title: input.title.trim(),
+        startTime,
+        endTime,
+        location: input.location?.trim() || null,
+        link,
+        notesMd: input.notesMd ?? '',
+        createdBy: user.id,
+      } as NewMeeting, tx);
+      let storedMeeting = meeting;
+      if (videoProvider === 'jaas') {
+        const jaasUrl = buildJaasMeetingUrl(jaasSettings!, meeting.id, meeting.title);
+        storedMeeting = await meetingRepository.update(meeting.id, { link: jaasUrl }, tx) ?? meeting;
+      }
+      await meetingAttendeeRepository.setAttendees(meeting.id, Array.from(attendeeIds), tx);
+      const notifications = invitees.length > 0
+        ? await notificationService.enqueueMeetingInvite({
+            meetingId: meeting.id,
+            meetingTitle: meeting.title,
+            attendeeIds: invitees,
+            projectId,
+          }, tx)
+        : [];
+      const completeMeeting = await meetingRepository.findById(meeting.id, tx);
+      return { meeting: completeMeeting ?? storedMeeting, notifications };
+    });
+    notificationService.publishMany(committed.notifications);
+    const resolvedMeeting = committed.meeting;
 
     await activityService.record({
       actorId: user.id,
@@ -266,30 +266,34 @@ export class MeetingService {
       throw new Error('Meeting end time must be after start time');
     }
 
-    const updated = await meetingRepository.update(meetingId, updateData);
-
-    if (input.attendeeIds !== undefined || input.teamIds !== undefined) {
-      const existingAttendees = await meetingAttendeeRepository.findByMeetingId(meetingId);
-      const existingIds = existingAttendees.map((attendee) => attendee.userId);
-
-      const baseAttendeeIds = input.attendeeIds ?? existingIds;
-      const resolvedAttendeeIds = await this.resolveAttendeeIds(baseAttendeeIds, input.teamIds ?? [], user);
-      const attendeeIds = new Set(resolvedAttendeeIds);
-      attendeeIds.add(meeting.createdBy);
-      const nextIds = Array.from(attendeeIds);
-      await meetingAttendeeRepository.setAttendees(meetingId, nextIds);
-
-      const newInvitees = nextIds.filter((id) => !existingIds.includes(id));
-      if (newInvitees.length > 0) {
-        const { notificationService } = await import('./notification');
-        await notificationService.notifyMeetingInvite({
-          meetingId,
-          meetingTitle: updateData.title ?? meeting.title,
-          attendeeIds: newInvitees,
-          projectId: meeting.projectId,
-        });
+    const committed = await db.transaction(async (tx) => {
+      const updated = await meetingRepository.update(meetingId, updateData, tx);
+      if (!updated) return null;
+      let notifications = [] as Awaited<ReturnType<typeof notificationService.enqueueMeetingInvite>>;
+      if (input.attendeeIds !== undefined || input.teamIds !== undefined) {
+        const existingAttendees = await meetingAttendeeRepository.findByMeetingId(meetingId, tx);
+        const existingIds = existingAttendees.map((attendee) => attendee.userId);
+        const baseAttendeeIds = input.attendeeIds ?? existingIds;
+        const resolvedAttendeeIds = await this.resolveAttendeeIds(baseAttendeeIds, input.teamIds ?? [], user);
+        const attendeeIds = new Set(resolvedAttendeeIds);
+        attendeeIds.add(meeting.createdBy);
+        const nextIds = Array.from(attendeeIds);
+        await meetingAttendeeRepository.setAttendees(meetingId, nextIds, tx);
+        const newInvitees = nextIds.filter((id) => !existingIds.includes(id));
+        if (newInvitees.length > 0) {
+          notifications = await notificationService.enqueueMeetingInvite({
+            meetingId,
+            meetingTitle: updateData.title ?? meeting.title,
+            attendeeIds: newInvitees,
+            projectId: meeting.projectId,
+          }, tx);
+        }
       }
-    }
+      return { updated, complete: await meetingRepository.findById(meetingId, tx), notifications };
+    });
+    if (!committed) return null;
+    notificationService.publishMany(committed.notifications);
+    const updated = committed.updated;
 
     if (updated) {
       await activityService.record({
@@ -305,7 +309,7 @@ export class MeetingService {
       });
     }
 
-    return updated ? meetingRepository.findById(meetingId) : null;
+    return committed.complete;
   }
 
   async deleteMeeting(meetingId: string, user: User): Promise<boolean> {

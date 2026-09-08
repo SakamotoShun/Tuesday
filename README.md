@@ -23,7 +23,11 @@ Run your team's work hub without per-seat SaaS pricing.
 ## Quick Start
 
 ```bash
-docker run -d --name tuesday -p 7002:8080 -v tuesday_data:/app/data ghcr.io/sakamotoshun/tuesday:latest
+docker run -d --name tuesday -p 7002:8080 -v tuesday_data:/app/data \
+  -e TUESDAY_BASE_URL=http://localhost:7002 \
+  -e CORS_ORIGIN=http://localhost:7002 \
+  --stop-timeout 120 \
+  ghcr.io/sakamotoshun/tuesday:1.2.0
 ```
 
 Visit **http://localhost:7002** and complete the setup wizard. That's it.
@@ -95,8 +99,11 @@ docker run -d \
   --name tuesday \
   -p 7002:8080 \
   -v tuesday_data:/app/data \
+  -e TUESDAY_BASE_URL=http://localhost:7002 \
+  -e CORS_ORIGIN=http://localhost:7002 \
+  --stop-timeout 120 \
   --restart unless-stopped \
-  ghcr.io/sakamotoshun/tuesday:latest
+  ghcr.io/sakamotoshun/tuesday:1.2.0
 ```
 
 ### Build from Source
@@ -220,17 +227,17 @@ docker compose build        # Rebuild image
 <details>
 <summary>Configuration</summary>
 
-All settings are optional with sensible defaults.
+Development has sensible defaults. Production requires `TUESDAY_BASE_URL` and `CORS_ORIGIN`; use the public HTTPS origin for both unless the frontend is hosted separately.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `TUESDAY_PORT` | `7002` | Host port mapping |
-| `TUESDAY_BASE_URL` | `http://localhost:7002` | Public URL for links and proxied same-origin checks |
+| `TUESDAY_BASE_URL` | `http://localhost:7002` | Public URL for links and proxied same-origin checks (required in production) |
 | `SESSION_SECRET` | Auto-generated | Session signing key (min 32 chars) |
 | `SESSION_DURATION_HOURS` | `24` | Session expiry |
 | `UPLOAD_MAX_SIZE_MB` | `10` | Max upload size |
 | `RATE_LIMIT_ENABLED` | `true` | Enable rate limiting |
-| `CORS_ORIGIN` | `http://localhost:5173` | CORS origin (dev only) |
+| `CORS_ORIGIN` | Local development origins | Allowed browser origins (required in production) |
 
 See the [Configuration Reference wiki page](https://github.com/SakamotoShun/Tuesday/wiki/Configuration-Reference) for the full reference.
 

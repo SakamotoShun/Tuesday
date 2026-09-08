@@ -1,6 +1,6 @@
 import { eq, and, isNull, desc, exists, max, or, sql } from 'drizzle-orm';
 import { assertDocBlocksCanonicalizable } from '../collab/docContent';
-import { db } from '../db/client';
+import { db, type DbExecutor } from '../db/client';
 import { docs, docCollabSnapshots, docCollabUpdates, docShares, type Doc, type NewDoc } from '../db/schema';
 
 export class DocCollabPendingError extends Error {
@@ -13,8 +13,8 @@ export class DocCollabPendingError extends Error {
 }
 
 export class DocRepository {
-  async findById(id: string): Promise<Doc | null> {
-    const result = await db.query.docs.findFirst({
+  async findById(id: string, executor: DbExecutor = db): Promise<Doc | null> {
+    const result = await executor.query.docs.findFirst({
       where: eq(docs.id, id),
       with: {
         createdBy: {
@@ -115,11 +115,11 @@ export class DocRepository {
     });
   }
 
-  async create(data: NewDoc): Promise<Doc> {
+  async create(data: NewDoc, executor: DbExecutor = db): Promise<Doc> {
     if (data.content !== undefined) {
       assertDocBlocksCanonicalizable(data.content);
     }
-    const [doc] = await db.insert(docs).values(data).returning();
+    const [doc] = await executor.insert(docs).values(data).returning();
     return doc;
   }
 

@@ -7,12 +7,12 @@ import {
   docService,
 } from '../services';
 import { taskStatusRepository } from '../repositories/taskStatus';
+import { projectStatusRepository } from '../repositories/projectStatus';
+import { projectMemberRepository } from '../repositories/projectMember';
 import { runIdempotentOperation } from './idempotency';
-import { db } from '../db/client';
-import { tasks, taskAssignees } from '../db/schema';
-import { eq, and, sql } from 'drizzle-orm';
 import { timeEntryService } from '../services/timeEntry';
-import { assertNotFreelancer, isFreelancer } from '../utils/permissions';
+import { assertNotFreelancer } from '../utils/permissions';
+import { McpToolError } from './errors';
 import {
   MAX_DOC_BLOCK_DEPTH,
   MAX_DOC_BLOCKS,
@@ -34,6 +34,33 @@ const RAW_DOC_BLOCK_SCHEMA = {
 } as const;
 
 const RAW_DOC_BLOCK_LIMITS = `Maximum ${MAX_DOC_BLOCKS} total blocks, depth ${MAX_DOC_BLOCK_DEPTH}, and ${MAX_DOC_CONTENT_BYTES} UTF-8 JSON bytes.`;
+const UUID_SCHEMA = { type: 'string', format: 'uuid' } as const;
+const DATE_SCHEMA = { type: 'string', format: 'date' } as const;
+const VERSION_SCHEMA = { type: 'integer', minimum: 1 } as const;
+
+function projectTask(task: any) {
+  return {
+    id: task.id,
+    projectId: task.projectId,
+    title: task.title,
+    statusId: task.statusId,
+    startDate: task.startDate,
+    dueDate: task.dueDate,
+    version: task.version,
+    sortOrder: task.sortOrder,
+    updatedAt: task.updatedAt,
+    status: task.status ? {
+      id: task.status.id,
+      name: task.status.name,
+      color: task.status.color,
+    } : null,
+    assignees: (task.assignees ?? []).map((assignee: any) => ({
+      id: assignee.user.id,
+      name: assignee.user.name,
+      avatarUrl: assignee.user.avatarUrl,
+    })),
+  };
+}
 
 function parseToolInput(input: unknown, toolName: string, allowedKeys: string[]): Record<string, unknown> {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
@@ -53,14 +80,79 @@ function parseToolInput(input: unknown, toolName: string, allowedKeys: string[])
 registerTool({
   name: 'ping',
   description: 'Test connectivity. Returns pong with server info.',
-  requiredScope: 'search:read',
   inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   handler: async (_input: unknown, ctx: McpContext) => ({
     message: 'pong',
     user: ctx.user.name,
     role: ctx.user.role,
-    scopes: Array.from(ctx.token.scopes),
+    scopes: Array.from(ctx.token.scopes).sort(),
   }),
+});
+
+registerTool({
+  name: 'whoami',
+  description: 'Return the authenticated Tuesday identity and granted MCP scopes.',
+  inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+  handler: async (_input: unknown, ctx: McpContext) => ({
+    id: ctx.user.id,
+    name: ctx.user.name,
+    role: ctx.user.role,
+    authType: ctx.token.authType ?? 'pat',
+    scopes: Array.from(ctx.token.scopes).sort(),
+  }),
+});
+
+registerTool({
+  name: 'list_task_statuses',
+  description: 'List the workspace task statuses so status IDs do not need to be guessed.',
+  requiredScope: 'tasks:read',
+  inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+  handler: async () => (await taskStatusRepository.findAll()).map((status) => ({
+    id: status.id,
+    name: status.name,
+    color: status.color,
+    sortOrder: status.sortOrder,
+    isDefault: status.isDefault,
+  })),
+});
+
+registerTool({
+  name: 'list_project_statuses',
+  description: 'List the workspace project statuses so status IDs do not need to be guessed.',
+  requiredScope: 'projects:read',
+  inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+  handler: async () => (await projectStatusRepository.findAll()).map((status) => ({
+    id: status.id,
+    name: status.name,
+    color: status.color,
+    sortOrder: status.sortOrder,
+    isDefault: status.isDefault,
+  })),
+});
+
+registerTool({
+  name: 'list_project_members',
+  description: 'List active project members who can be assigned to project tasks.',
+  requiredScope: 'tasks:read',
+  inputSchema: {
+    type: 'object',
+    properties: { projectId: UUID_SCHEMA },
+    required: ['projectId'],
+    additionalProperties: false,
+  },
+  handler: async (input: unknown, ctx: McpContext) => {
+    const { projectId } = input as { projectId: string };
+    const project = await projectService.getProject(projectId, ctx.user);
+    if (!project) throw new Error('Project not found or access denied');
+    const members = await projectMemberRepository.findActiveByProjectId(projectId);
+    return members.map((member) => ({
+      userId: member.userId,
+      name: member.user.name,
+      avatarUrl: member.user.avatarUrl,
+      workspaceRole: member.user.role,
+      projectRole: member.role,
+    }));
+  },
 });
 
 // ============ search_workspace ============
@@ -72,8 +164,8 @@ registerTool({
   inputSchema: {
     type: 'object',
     properties: {
-      query: { type: 'string', description: 'Search query' },
-      limit: { type: 'number', description: 'Max results per category (1-20, default 6)' },
+      query: { type: 'string', minLength: 1, description: 'Search query' },
+      limit: { type: 'integer', minimum: 1, maximum: 20, description: 'Max results per category (1-20, default 6)' },
     },
     required: ['query'],
     additionalProperties: false,
@@ -109,7 +201,7 @@ registerTool({
   requiredScope: 'projects:read',
   inputSchema: {
     type: 'object',
-    properties: { projectId: { type: 'string', description: 'Project UUID' } },
+    properties: { projectId: { ...UUID_SCHEMA, description: 'Project UUID' } },
     required: ['projectId'],
     additionalProperties: false,
   },
@@ -125,20 +217,89 @@ registerTool({
 
 registerTool({
   name: 'list_project_tasks',
-  description: 'List tasks in a project.',
+  description: 'List up to 100 tasks in a project using grounded status, assignee, and date filters.',
   requiredScope: 'tasks:read',
   inputSchema: {
     type: 'object',
     properties: {
-      projectId: { type: 'string', description: 'Project UUID' },
-      statusId: { type: 'string', description: 'Optional: filter by status' },
+      projectId: UUID_SCHEMA,
+      statusId: { ...UUID_SCHEMA, description: 'Optional: filter by status' },
+      assigneeId: { ...UUID_SCHEMA, description: 'Optional: filter by assignee' },
+      dueOn: { ...DATE_SCHEMA, description: 'Optional exact due date' },
+      dueBefore: { ...DATE_SCHEMA, description: 'Optional inclusive upper due-date bound' },
+      dueAfter: { ...DATE_SCHEMA, description: 'Optional inclusive lower due-date bound' },
+      hasDueDate: { type: 'boolean' },
+      limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
+      offset: { type: 'integer', minimum: 0, default: 0 },
     },
     required: ['projectId'],
     additionalProperties: false,
   },
   handler: async (input: unknown, ctx: McpContext) => {
-    const { projectId, statusId } = input as { projectId: string; statusId?: string };
-    return taskService.getProjectTasks(projectId, ctx.user, { statusId });
+    const { projectId, statusId, assigneeId, dueOn, dueBefore, dueAfter, hasDueDate, limit = 50, offset = 0 } = input as {
+      projectId: string;
+      statusId?: string;
+      assigneeId?: string;
+      dueOn?: string;
+      dueBefore?: string;
+      dueAfter?: string;
+      hasDueDate?: boolean;
+      limit?: number;
+      offset?: number;
+    };
+    let tasks = await taskService.getProjectTasks(projectId, ctx.user, { statusId, assigneeId });
+    tasks = tasks.filter((task) => {
+      if (hasDueDate === true && !task.dueDate) return false;
+      if (hasDueDate === false && task.dueDate) return false;
+      if (dueOn && task.dueDate !== dueOn) return false;
+      if (dueBefore && (!task.dueDate || task.dueDate > dueBefore)) return false;
+      if (dueAfter && (!task.dueDate || task.dueDate < dueAfter)) return false;
+      return true;
+    });
+    return {
+      items: tasks.slice(offset, offset + limit).map(projectTask),
+      total: tasks.length,
+      offset,
+      limit,
+      hasMore: offset + limit < tasks.length,
+    };
+  },
+});
+
+registerTool({
+  name: 'list_my_tasks',
+  description: 'List up to 100 tasks assigned to the authenticated user across accessible projects.',
+  requiredScope: 'tasks:read',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      projectId: UUID_SCHEMA,
+      statusId: UUID_SCHEMA,
+      limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
+      offset: { type: 'integer', minimum: 0, default: 0 },
+    },
+    additionalProperties: false,
+  },
+  handler: async (input: unknown, ctx: McpContext) => {
+    const { projectId, statusId, limit = 50, offset = 0 } = input as {
+      projectId?: string;
+      statusId?: string;
+      limit?: number;
+      offset?: number;
+    };
+    let tasks = await taskService.getMyTasks(ctx.user.id, ctx.user) as any[];
+    if (projectId) tasks = tasks.filter((task) => task.projectId === projectId);
+    if (statusId) tasks = tasks.filter((task) => task.statusId === statusId);
+    return {
+      items: tasks.slice(offset, offset + limit).map((task) => ({
+        ...projectTask(task),
+        project: task.project ? { id: task.project.id, name: task.project.name } : null,
+      })),
+      total: tasks.length,
+      offset,
+      limit,
+      hasMore: offset + limit < tasks.length,
+    };
   },
 });
 
@@ -150,7 +311,7 @@ registerTool({
   requiredScope: 'tasks:read',
   inputSchema: {
     type: 'object',
-    properties: { taskId: { type: 'string', description: 'Task UUID' } },
+    properties: { taskId: { ...UUID_SCHEMA, description: 'Task UUID' } },
     required: ['taskId'],
     additionalProperties: false,
   },
@@ -170,7 +331,7 @@ registerTool({
   requiredScope: 'docs:read',
   inputSchema: {
     type: 'object',
-    properties: { projectId: { type: 'string', description: 'Project UUID' } },
+    properties: { projectId: { ...UUID_SCHEMA, description: 'Project UUID' } },
     required: ['projectId'],
     additionalProperties: false,
   },
@@ -193,7 +354,7 @@ registerTool({
   requiredScope: 'docs:read',
   inputSchema: {
     type: 'object',
-    properties: { docId: { type: 'string', description: 'Doc UUID' } },
+    properties: { docId: { ...UUID_SCHEMA, description: 'Doc UUID' } },
     required: ['docId'],
     additionalProperties: false,
   },
@@ -219,18 +380,19 @@ registerTool({
         description: 'Project parent for a root project doc, or doc parent for a child doc',
         properties: {
           type: { type: 'string', enum: ['project', 'doc'] },
-          id: { type: 'string' },
+          id: UUID_SCHEMA,
         },
         required: ['type', 'id'],
         additionalProperties: false,
       },
-      title: { type: 'string', description: 'Doc title' },
-      blocks: { type: 'array', items: { type: 'object' }, description: 'Optional raw BlockNote blocks. Use instead of source for rendered tables or precise structure.' },
+      title: { type: 'string', minLength: 1, maxLength: 500, description: 'Doc title' },
+      blocks: { type: 'array', maxItems: MAX_DOC_BLOCKS, items: { type: 'object' }, description: 'Optional raw BlockNote blocks. Use instead of source for rendered tables or precise structure.' },
       source: { type: 'string', description: 'Optional source content to convert into blocks. Do not combine with blocks; Markdown/HTML tables become paragraphs.' },
       sourceFormat: { type: 'string', enum: ['auto', 'markdown', 'html', 'text'], description: 'Source format. Prefer an explicit value; defaults to auto.' },
-      idempotencyKey: { type: 'string', description: 'Optional creation deduplication key (max 200 characters). Reuse returns the first response even if the payload changes.' },
+      idempotencyKey: { type: 'string', minLength: 1, maxLength: 200, description: 'Optional creation deduplication key. Reuse with changed input is rejected.' },
     },
     required: ['parent', 'title'],
+    not: { required: ['blocks', 'source'] },
     additionalProperties: false,
   },
   handler: async (input: unknown, ctx: McpContext) => {
@@ -243,8 +405,14 @@ registerTool({
       idempotencyKey?: string;
     };
 
-    const createDoc = async () => {
-      const doc = await docService.createDocFromParent(parent, { title, blocks, source, sourceFormat }, ctx.user);
+    const createDoc = async (transaction?: import('../db/client').DbTransaction) => {
+      const doc = await docService.createDocFromParent(
+        parent,
+        { title, blocks, source, sourceFormat },
+        ctx.user,
+        transaction,
+        !transaction,
+      );
       return {
         response: {
           id: doc.id,
@@ -257,6 +425,7 @@ registerTool({
         },
         resultEntityType: 'doc',
         resultEntityId: doc.id,
+        afterCommit: transaction ? () => docService.publishDocCreated(doc, ctx.user) : undefined,
       };
     };
 
@@ -264,7 +433,20 @@ registerTool({
       return (await createDoc()).response;
     }
 
-    return runIdempotentOperation(ctx.token.tokenId, idempotencyKey, 'create_doc', createDoc);
+    // Replays skip the service mutation, so recheck current permissions first.
+    assertNotFreelancer(ctx.user, 'Freelancers cannot create docs');
+    if (parent.type === 'project') {
+      if (!await projectService.hasAccess(parent.id, ctx.user)) {
+        throw new Error('Access denied to this project');
+      }
+    } else if (!await docService.getDoc(parent.id, ctx.user)) {
+      throw new Error('Parent doc not found');
+    }
+    return runIdempotentOperation(ctx.token, idempotencyKey, 'create_doc', input, createDoc, async (response) => {
+      if (!await docService.getDoc(response.id, ctx.user)) {
+        throw new Error('Doc not found');
+      }
+    });
   },
 });
 
@@ -277,9 +459,9 @@ registerTool({
   inputSchema: {
     type: 'object',
     properties: {
-      docId: { type: 'string' },
-      title: { type: 'string' },
-      expectedVersion: { type: 'number', description: 'Exact current version from get_doc. Re-read on conflict.' },
+      docId: UUID_SCHEMA,
+      title: { type: 'string', minLength: 1, maxLength: 500 },
+      expectedVersion: { ...VERSION_SCHEMA, description: 'Exact current version from get_doc. Re-read on conflict.' },
     },
     required: ['docId', 'title', 'expectedVersion'],
     additionalProperties: false,
@@ -301,22 +483,25 @@ registerTool({
   inputSchema: {
     type: 'object',
     properties: {
-      docId: { type: 'string' },
-      blocks: { type: 'array', items: { type: 'object' }, description: 'Raw BlockNote blocks (maximum 100). Do not combine with source.' },
-      source: { type: 'string', description: 'Source content to convert into blocks. Do not combine with blocks; Markdown/HTML tables become paragraphs.' },
+      docId: UUID_SCHEMA,
+      blocks: { type: 'array', minItems: 1, maxItems: 100, items: { type: 'object' }, description: 'Raw BlockNote blocks (maximum 100). Do not combine with source.' },
+      source: { type: 'string', minLength: 1, description: 'Source content to convert into blocks. Do not combine with blocks; Markdown/HTML tables become paragraphs.' },
       sourceFormat: { type: 'string', enum: ['auto', 'markdown', 'html', 'text'], description: 'Source format. Prefer an explicit value; defaults to auto.' },
-      expectedVersion: { type: 'number', description: 'Exact current version from get_doc. Re-read on conflict.' },
+      expectedVersion: { ...VERSION_SCHEMA, description: 'Exact current version from get_doc. Re-read on conflict.' },
       position: {
         type: 'object',
         description: 'Defaults to end. after_block only matches a root-level block ID.',
         properties: {
           type: { type: 'string', enum: ['end', 'start', 'after_block'] },
-          afterBlockId: { type: 'string', description: 'Existing root-level block ID, required when type is after_block' },
+          afterBlockId: { type: 'string', minLength: 1, description: 'Existing root-level block ID, required when type is after_block' },
         },
+        if: { properties: { type: { const: 'after_block' } }, required: ['type'] },
+        then: { required: ['afterBlockId'] },
         additionalProperties: false,
       },
     },
     required: ['docId', 'expectedVersion'],
+    oneOf: [{ required: ['blocks'] }, { required: ['source'] }],
     additionalProperties: false,
   },
   handler: async (input: unknown, ctx: McpContext) => {
@@ -359,7 +544,7 @@ registerTool({
   inputSchema: {
     type: 'object',
     properties: {
-      docId: { type: 'string', description: 'Doc UUID' },
+      docId: { ...UUID_SCHEMA, description: 'Doc UUID' },
       expectedVersion: { type: 'integer', minimum: 1, description: 'Exact current version from get_doc. Re-read on conflict.' },
       operations: {
         type: 'array',
@@ -424,7 +609,7 @@ registerTool({
   inputSchema: {
     type: 'object',
     properties: {
-      docId: { type: 'string', description: 'Doc UUID' },
+      docId: { ...UUID_SCHEMA, description: 'Doc UUID' },
       expectedVersion: { type: 'integer', minimum: 1, description: 'Exact current version from get_doc. Re-read on conflict.' },
       blocks: { type: 'array', maxItems: MAX_DOC_BLOCKS, items: { $ref: '#/$defs/rawDocBlock' }, description: 'Complete raw BlockNote document body. An empty array clears the body.' },
     },
@@ -450,58 +635,41 @@ registerTool({
   },
 });
 
-// ============ WRITE TOOLS ============
-
-// Helper: compare-and-swap version check, returns updated row or throws conflict.
-// Always authorize by loading the task through taskService before mutating.
-async function casUpdate(
-  taskId: string,
-  expectedVersion: number,
-  setData: Record<string, unknown>,
-  ctx: McpContext
-): Promise<{ id: string; version: number }> {
-  const task = await taskService.getTask(taskId, ctx.user);
-  if (!task) throw new Error('Task not found or access denied');
-
-  const [updated] = await db
-    .update(tasks)
-    .set({ ...setData, updatedAt: new Date(), version: sql`${tasks.version} + 1` })
-    .where(and(eq(tasks.id, taskId), eq(tasks.version, expectedVersion)))
-    .returning({ id: tasks.id, version: tasks.version });
-  if (updated) return updated;
-
-  const exists = await db.query.tasks.findFirst({ where: eq(tasks.id, taskId) });
-  if (!exists) throw new Error('Task not found');
-  throw new Error('Conflict: task version changed. Re-read and retry with new expectedVersion.');
-}
-
 // ============ create_task ============
 
 registerTool({
   name: 'create_task',
-  description: 'Create a new task in a project. Supports idempotencyKey.',
+  description: 'Create a new task in a project. Requires idempotencyKey when assigneeIds is non-empty.',
   requiredScope: 'tasks:write',
   inputSchema: {
     type: 'object',
     properties: {
-      projectId: { type: 'string', description: 'Project UUID' },
-      title: { type: 'string', description: 'Task title' },
+      projectId: { ...UUID_SCHEMA, description: 'Project UUID' },
+      title: { type: 'string', minLength: 1, maxLength: 255, description: 'Task title' },
       description: { type: 'string', description: 'Optional markdown description' },
-      statusId: { type: 'string', description: 'Optional status UUID' },
-      dueDate: { type: 'string', description: 'Optional due date (YYYY-MM-DD)' },
-      assigneeIds: { type: 'array', items: { type: 'string' } },
-      idempotencyKey: { type: 'string', description: 'Optional deduplication key' },
+      statusId: { ...UUID_SCHEMA, description: 'Optional status UUID' },
+      startDate: { ...DATE_SCHEMA, description: 'Optional start date (YYYY-MM-DD)' },
+      dueDate: { ...DATE_SCHEMA, description: 'Optional due date (YYYY-MM-DD)' },
+      assigneeIds: { type: 'array', maxItems: 100, uniqueItems: true, items: UUID_SCHEMA },
+      idempotencyKey: { type: 'string', minLength: 1, maxLength: 200, description: 'Optional deduplication key' },
     },
     required: ['projectId', 'title'],
+    if: { properties: { assigneeIds: { minItems: 1 } }, required: ['assigneeIds'] },
+    then: { required: ['idempotencyKey'] },
     additionalProperties: false,
   },
   handler: async (input: unknown, ctx: McpContext) => {
-    const { projectId, title, description, statusId, dueDate, assigneeIds, idempotencyKey } =
-      input as { projectId: string; title: string; description?: string; statusId?: string; dueDate?: string; assigneeIds?: string[]; idempotencyKey?: string };
-    const createTask = async () => {
-      const task = await taskService.createTask(projectId, {
-        title, descriptionMd: description, statusId, dueDate, assigneeIds,
-      }, ctx.user);
+    const { projectId, title, description, statusId, startDate, dueDate, assigneeIds, idempotencyKey } =
+      input as { projectId: string; title: string; description?: string; statusId?: string; startDate?: string; dueDate?: string; assigneeIds?: string[]; idempotencyKey?: string };
+    if ((assigneeIds?.length ?? 0) > 0 && !idempotencyKey) {
+      throw new McpToolError('VALIDATION_ERROR', 'idempotencyKey is required when creating a task with assignees');
+    }
+    const createTask = async (transaction?: import('../db/client').DbTransaction) => {
+      const input = { title, descriptionMd: description, statusId, startDate, dueDate, assigneeIds };
+      const committed = transaction
+        ? await taskService.createTaskInTransaction(projectId, input, ctx.user, transaction)
+        : null;
+      const task = committed?.task ?? await taskService.createTask(projectId, input, ctx.user);
       return {
         response: {
           id: task.id,
@@ -513,6 +681,13 @@ registerTool({
         },
         resultEntityType: 'task',
         resultEntityId: task.id,
+        afterCommit: committed
+          ? async () => {
+              const { notificationService } = await import('../services/notification');
+              notificationService.publishMany(committed.notifications);
+              await taskService.publishTaskCreated(task as any, committed.assigneeIds, ctx.user);
+            }
+          : undefined,
       };
     };
 
@@ -520,7 +695,15 @@ registerTool({
       return (await createTask()).response;
     }
 
-    return runIdempotentOperation(ctx.token.tokenId, idempotencyKey, 'create_task', createTask);
+    assertNotFreelancer(ctx.user, 'Freelancers cannot create tasks');
+    if (!await projectService.hasAccess(projectId, ctx.user)) {
+      throw new Error('Access denied to this project');
+    }
+    return runIdempotentOperation(ctx.token, idempotencyKey, 'create_task', input, createTask, async (response) => {
+      if (!await taskService.getTask(response.id, ctx.user)) {
+        throw new Error('Task not found');
+      }
+    });
   },
 });
 
@@ -533,9 +716,9 @@ registerTool({
   inputSchema: {
     type: 'object',
     properties: {
-      taskId: { type: 'string' },
-      statusId: { type: 'string' },
-      expectedVersion: { type: 'number' },
+      taskId: UUID_SCHEMA,
+      statusId: UUID_SCHEMA,
+      expectedVersion: VERSION_SCHEMA,
     },
     required: ['taskId', 'statusId', 'expectedVersion'],
     additionalProperties: false,
@@ -543,20 +726,9 @@ registerTool({
   handler: async (input: unknown, ctx: McpContext) => {
     const { taskId, statusId, expectedVersion } = input as { taskId: string; statusId: string; expectedVersion: number };
 
-    const task = await taskService.getTask(taskId, ctx.user);
+    const task = await taskService.updateTaskStatusIfVersion(taskId, statusId, expectedVersion, ctx.user);
     if (!task) throw new Error('Task not found or access denied');
-
-    if (isFreelancer(ctx.user)) {
-      const isAssigned = task.assignees?.some((assignee) => assignee.userId === ctx.user.id) ?? false;
-      if (!isAssigned) {
-        throw new Error('Freelancers cannot update tasks they are not assigned to');
-      }
-    }
-
-    const status = await taskStatusRepository.findById(statusId);
-    if (!status) throw new Error('Invalid status ID');
-
-    return casUpdate(taskId, expectedVersion, { statusId }, ctx);
+    return { id: task.id, version: task.version };
   },
 });
 
@@ -568,15 +740,15 @@ registerTool({
   requiredScope: 'tasks:write',
   inputSchema: {
     type: 'object',
-    properties: { taskId: { type: 'string' }, title: { type: 'string' }, expectedVersion: { type: 'number' } },
+    properties: { taskId: UUID_SCHEMA, title: { type: 'string', minLength: 1, maxLength: 255 }, expectedVersion: VERSION_SCHEMA },
     required: ['taskId', 'title', 'expectedVersion'],
     additionalProperties: false,
   },
   handler: async (input: unknown, ctx: McpContext) => {
     const { taskId, title, expectedVersion } = input as { taskId: string; title: string; expectedVersion: number };
-    assertNotFreelancer(ctx.user, 'Freelancers cannot edit tasks (status only)');
-    if (!title.trim()) throw new Error('Task title cannot be empty');
-    return casUpdate(taskId, expectedVersion, { title: title.trim() }, ctx);
+    const task = await taskService.updateTaskIfVersion(taskId, { title }, expectedVersion, ctx.user);
+    if (!task) throw new Error('Task not found or access denied');
+    return { id: task.id, version: task.version };
   },
 });
 
@@ -588,41 +760,89 @@ registerTool({
   requiredScope: 'tasks:write',
   inputSchema: {
     type: 'object',
-    properties: { taskId: { type: 'string' }, description: { type: 'string' }, expectedVersion: { type: 'number' } },
+    properties: { taskId: UUID_SCHEMA, description: { type: 'string' }, expectedVersion: VERSION_SCHEMA },
     required: ['taskId', 'description', 'expectedVersion'],
     additionalProperties: false,
   },
   handler: async (input: unknown, ctx: McpContext) => {
     const { taskId, description, expectedVersion } = input as { taskId: string; description: string; expectedVersion: number };
-    assertNotFreelancer(ctx.user, 'Freelancers cannot edit tasks (status only)');
-    return casUpdate(taskId, expectedVersion, { descriptionMd: description }, ctx);
+    const task = await taskService.updateTaskIfVersion(taskId, { descriptionMd: description }, expectedVersion, ctx.user);
+    if (!task) throw new Error('Task not found or access denied');
+    return { id: task.id, version: task.version };
   },
 });
 
-// ============ assign_task ============
+// ============ update_task_dates ============
 
 registerTool({
-  name: 'assign_task',
-  description: 'Update task assignees. Requires expectedVersion.',
+  name: 'update_task_dates',
+  description: 'Set or clear task start and due dates using optimistic concurrency. Omit a field to leave it unchanged; pass null to clear it.',
   requiredScope: 'tasks:write',
   inputSchema: {
     type: 'object',
-    properties: { taskId: { type: 'string' }, assigneeIds: { type: 'array', items: { type: 'string' } }, expectedVersion: { type: 'number' } },
-    required: ['taskId', 'assigneeIds', 'expectedVersion'],
+    properties: {
+      taskId: UUID_SCHEMA,
+      startDate: { anyOf: [DATE_SCHEMA, { type: 'null' }] },
+      dueDate: { anyOf: [DATE_SCHEMA, { type: 'null' }] },
+      expectedVersion: VERSION_SCHEMA,
+    },
+    required: ['taskId', 'expectedVersion'],
+    anyOf: [{ required: ['startDate'] }, { required: ['dueDate'] }],
     additionalProperties: false,
   },
   handler: async (input: unknown, ctx: McpContext) => {
-    const { taskId, assigneeIds, expectedVersion } = input as { taskId: string; assigneeIds: string[]; expectedVersion: number };
-    assertNotFreelancer(ctx.user, 'Freelancers cannot update task assignees');
-    const task = await taskService.getTask(taskId, ctx.user);
+    const { taskId, startDate, dueDate, expectedVersion } = input as {
+      taskId: string;
+      startDate?: string | null;
+      dueDate?: string | null;
+      expectedVersion: number;
+    };
+    const task = await taskService.updateTaskIfVersion(taskId, { startDate, dueDate }, expectedVersion, ctx.user);
     if (!task) throw new Error('Task not found or access denied');
-    const updated = await casUpdate(taskId, expectedVersion, {}, ctx);
-    await db.delete(taskAssignees).where(eq(taskAssignees.taskId, taskId));
-    if (assigneeIds.length > 0) {
-      await db.insert(taskAssignees).values(assigneeIds.map((userId) => ({ taskId, userId })));
-    }
-    return { id: taskId, version: updated.version, assigneeIds };
+    return { id: task.id, version: task.version, startDate: task.startDate, dueDate: task.dueDate };
   },
+});
+
+const UPDATE_TASK_ASSIGNEES_SCHEMA = {
+  type: 'object',
+  properties: {
+    taskId: UUID_SCHEMA,
+    assigneeIds: { type: 'array', maxItems: 100, uniqueItems: true, items: UUID_SCHEMA },
+    expectedVersion: VERSION_SCHEMA,
+  },
+  required: ['taskId', 'assigneeIds', 'expectedVersion'],
+  additionalProperties: false,
+} as const;
+
+async function updateTaskAssignees(input: unknown, ctx: McpContext) {
+  const { taskId, assigneeIds, expectedVersion } = input as {
+    taskId: string;
+    assigneeIds: string[];
+    expectedVersion: number;
+  };
+  const task = await taskService.updateTaskAssigneesIfVersion(taskId, assigneeIds, expectedVersion, ctx.user);
+  if (!task) throw new Error('Task not found or access denied');
+  return {
+    id: task.id,
+    version: task.version,
+    assigneeIds: task.assignees?.map((assignee) => assignee.userId) ?? [],
+  };
+}
+
+registerTool({
+  name: 'update_task_assignees',
+  description: 'Replace the complete task assignee set atomically using optimistic concurrency.',
+  requiredScope: 'tasks:write',
+  inputSchema: UPDATE_TASK_ASSIGNEES_SCHEMA,
+  handler: updateTaskAssignees,
+});
+
+registerTool({
+  name: 'assign_task',
+  description: 'Compatibility alias for update_task_assignees. Replaces the complete assignee set atomically.',
+  requiredScope: 'tasks:write',
+  inputSchema: UPDATE_TASK_ASSIGNEES_SCHEMA,
+  handler: updateTaskAssignees,
 });
 
 // ============ create_time_entry ============
@@ -634,19 +854,24 @@ registerTool({
   inputSchema: {
     type: 'object',
     properties: {
-      projectId: { type: 'string', description: 'Project UUID (optional for misc time)' },
-      date: { type: 'string', description: 'Date (YYYY-MM-DD)' },
-      hours: { type: 'number', description: 'Hours (0-24)' },
-      note: { type: 'string', description: 'Optional note' },
-      idempotencyKey: { type: 'string', description: 'Optional deduplication key' },
+      projectId: { anyOf: [UUID_SCHEMA, { type: 'null' }], description: 'Project UUID (optional for misc time)' },
+      date: { ...DATE_SCHEMA, description: 'Date (YYYY-MM-DD)' },
+      hours: { type: 'number', minimum: 0, maximum: 24, description: 'Hours (0-24)' },
+      note: { type: 'string', maxLength: 500, description: 'Optional note' },
+      idempotencyKey: { type: 'string', minLength: 1, maxLength: 200, description: 'Optional deduplication key' },
     },
     required: ['date', 'hours'],
     additionalProperties: false,
   },
   handler: async (input: unknown, ctx: McpContext) => {
     const { projectId, date, hours, note, idempotencyKey } = input as { projectId?: string | null; date: string; hours: number; note?: string; idempotencyKey?: string };
-    const createTimeEntry = async () => {
-      const entry = await timeEntryService.upsertEntry(ctx.user.id, { projectId: projectId ?? null, date, hours, note }, ctx.user);
+    const createTimeEntry = async (transaction?: import('../db/client').DbTransaction) => {
+      const entry = await timeEntryService.upsertEntry(
+        ctx.user.id,
+        { projectId: projectId ?? null, date, hours, note },
+        ctx.user,
+        transaction,
+      );
       return {
         response: {
           id: entry.id,
@@ -665,6 +890,17 @@ registerTool({
       return (await createTimeEntry()).response;
     }
 
-    return runIdempotentOperation(ctx.token.tokenId, idempotencyKey, 'create_time_entry', createTimeEntry);
+    if (!projectId) {
+      assertNotFreelancer(ctx.user, 'Freelancers cannot log unassigned time');
+    } else if (!await projectService.hasAccess(projectId, ctx.user)) {
+      throw new Error('Access denied to this project');
+    }
+    return runIdempotentOperation(ctx.token, idempotencyKey, 'create_time_entry', input, createTimeEntry, async (response) => {
+      if (!response.projectId) {
+        assertNotFreelancer(ctx.user, 'Freelancers cannot log unassigned time');
+      } else if (!await projectService.hasAccess(response.projectId, ctx.user)) {
+        throw new Error('Access denied to this project');
+      }
+    });
   },
 });

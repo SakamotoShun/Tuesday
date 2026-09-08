@@ -1,70 +1,114 @@
-import { eq, and, sql } from 'drizzle-orm';
-import { db } from '../db/client';
+import { createHash } from 'node:crypto';
+import { and, eq, sql } from 'drizzle-orm';
+import { db, type DbTransaction } from '../db/client';
 import { mcpIdempotencyKeys } from '../db/schema';
-
-/**
- * Check if an idempotency key has already been used by this token.
- * If so, return the saved response.
- * Otherwise, return null (proceed with the operation).
- */
-export async function checkIdempotencyKey(
-  tokenId: string,
-  key: string,
-  toolName: string
-): Promise<Record<string, unknown> | null> {
-  const existing = await db.query.mcpIdempotencyKeys.findFirst({
-    where: and(
-      eq(mcpIdempotencyKeys.tokenId, tokenId),
-      eq(mcpIdempotencyKeys.key, key),
-      eq(mcpIdempotencyKeys.toolName, toolName)
-    ),
-  });
-  return existing ? (existing.responseJson as Record<string, unknown>) : null;
-}
+import type { AuthenticatedMcpUser } from '../services/mcpToken';
+import { log } from '../utils/logger';
+import { McpToolError } from './errors';
 
 export interface IdempotentOperationResult<T extends Record<string, unknown>> {
   response: T;
   resultEntityType?: string | null;
   resultEntityId?: string | null;
+  afterCommit?: () => Promise<void>;
+}
+
+function canonicalize(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+      .map(([key, child]) => [key, canonicalize(child)]),
+  );
+}
+
+export function hashIdempotencyRequest(input: unknown): string {
+  const request = input && typeof input === 'object' && !Array.isArray(input)
+    ? Object.fromEntries(Object.entries(input as Record<string, unknown>).filter(([key]) => key !== 'idempotencyKey'))
+    : input;
+  return createHash('sha256').update(JSON.stringify(canonicalize(request))).digest('hex');
+}
+
+function principalFor(token: AuthenticatedMcpUser) {
+  if (token.authType === 'oauth') {
+    if (!token.clientId) throw new McpToolError('INTERNAL_ERROR', 'OAuth credential identity is incomplete.');
+    return { type: 'oauth', id: `${token.userId}:${token.clientId}`, tokenId: null, userId: token.userId };
+  }
+  return { type: 'pat', id: token.tokenId, tokenId: token.tokenId, userId: null };
 }
 
 export async function runIdempotentOperation<T extends Record<string, unknown>>(
-  tokenId: string,
+  token: AuthenticatedMcpUser,
   key: string,
   toolName: string,
-  operation: () => Promise<IdempotentOperationResult<T>>
+  input: unknown,
+  operation: (transaction: DbTransaction) => Promise<IdempotentOperationResult<T>>,
+  authorizeReplay: (response: T) => Promise<void>,
+  toolVersion = 1,
 ): Promise<T> {
-  return db.transaction(async (tx) => {
-    // Serialize concurrent retries for the same token/tool/key triplet.
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${tokenId}), hashtext(${`${toolName}:${key}`}))`);
+  const principal = principalFor(token);
+  const requestHash = hashIdempotencyRequest(input);
+
+  const committed = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(
+      hashtext(${`${principal.type}:${principal.id}`}),
+      hashtext(${`${toolName}:${key}`})
+    )`);
 
     const [existing] = await tx
-      .select({ responseJson: mcpIdempotencyKeys.responseJson })
+      .select({
+        responseJson: mcpIdempotencyKeys.responseJson,
+        requestHash: mcpIdempotencyKeys.requestHash,
+        toolVersion: mcpIdempotencyKeys.toolVersion,
+      })
       .from(mcpIdempotencyKeys)
       .where(and(
-        eq(mcpIdempotencyKeys.tokenId, tokenId),
+        eq(mcpIdempotencyKeys.principalType, principal.type),
+        eq(mcpIdempotencyKeys.principalId, principal.id),
         eq(mcpIdempotencyKeys.key, key),
-        eq(mcpIdempotencyKeys.toolName, toolName)
+        eq(mcpIdempotencyKeys.toolName, toolName),
       ))
       .limit(1);
 
     if (existing) {
-      return existing.responseJson as T;
+      if (existing.requestHash !== 'legacy'
+        && (existing.requestHash !== requestHash || existing.toolVersion !== toolVersion)) {
+        throw new McpToolError(
+          'IDEMPOTENCY_KEY_REUSED',
+          'This idempotency key was already used with a different request.',
+          { toolName, idempotencyKey: key },
+        );
+      }
+      return { response: existing.responseJson as T, replayed: true as const };
     }
 
-    const result = await operation();
-
+    const result = await operation(tx);
     await tx.insert(mcpIdempotencyKeys).values({
-      tokenId,
+      tokenId: principal.tokenId,
+      userId: principal.userId,
+      principalType: principal.type,
+      principalId: principal.id,
       key,
       toolName,
+      toolVersion,
+      requestHash,
       resultEntityType: result.resultEntityType ?? null,
       resultEntityId: result.resultEntityId ?? null,
       responseJson: result.response as any,
-    }).onConflictDoNothing({
-      target: [mcpIdempotencyKeys.tokenId, mcpIdempotencyKeys.key, mcpIdempotencyKeys.toolName],
     });
 
-    return result.response;
+    return { response: result.response, replayed: false as const, afterCommit: result.afterCommit };
   });
+
+  if (committed.replayed) {
+    await authorizeReplay(committed.response);
+  } else if (committed.afterCommit) {
+    try {
+      await committed.afterCommit();
+    } catch (error) {
+      log('warn', 'mcp.idempotent_after_commit_failed', { toolName, error });
+    }
+  }
+  return committed.response;
 }

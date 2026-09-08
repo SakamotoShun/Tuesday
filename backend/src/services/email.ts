@@ -1,5 +1,8 @@
 import nodemailer from 'nodemailer';
 import { settingsRepository } from '../repositories';
+import { config } from '../config';
+import { log } from '../utils/logger';
+import { resolvePublicBaseUrl } from '../utils/publicBaseUrl';
 
 interface SmtpSettings {
   host: string;
@@ -15,6 +18,7 @@ interface SendEmailInput {
   subject: string;
   html: string;
   text: string;
+  messageId?: string;
 }
 
 interface PasswordResetEmailInput {
@@ -70,6 +74,16 @@ function parseBoolean(value: unknown, defaultValue: boolean): boolean {
   return defaultValue;
 }
 
+export function escapeHtml(value: string): string {
+  return value.replace(/[&<>'"]/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    "'": '&#39;',
+    '"': '&quot;',
+  })[character]!);
+}
+
 export class EmailService {
   private async getSmtpSettings(): Promise<SmtpSettings> {
     const [host, port, user, pass, from, secure] = await Promise.all([
@@ -85,15 +99,13 @@ export class EmailService {
       host: normalizeString(host),
       port: parsePort(port),
       user: normalizeString(user),
-      pass: normalizeString(pass),
+      pass: typeof pass === 'string' ? pass : '',
       from: normalizeString(from),
       secure: parseBoolean(secure, false),
     };
   }
 
-  private async createTransporter() {
-    const smtp = await this.getSmtpSettings();
-
+  private createTransporter(smtp: SmtpSettings) {
     if (!this.isConfigured(smtp)) {
       return null;
     }
@@ -109,12 +121,17 @@ export class EmailService {
       host: smtp.host,
       port: smtp.port,
       secure: smtp.secure,
+      requireTLS: !smtp.secure,
+      connectionTimeout: config.smtpConnectionTimeoutMs,
+      greetingTimeout: config.smtpGreetingTimeoutMs,
+      socketTimeout: config.smtpSocketTimeoutMs,
+      tls: { rejectUnauthorized: true, minVersion: 'TLSv1.2' },
       auth,
     });
   }
 
   private isConfigured(smtp: SmtpSettings): boolean {
-    return smtp.host.length > 0 && smtp.from.length > 0;
+    return smtp.host.length > 0 && smtp.from.length > 0 && Boolean(smtp.user) === Boolean(smtp.pass);
   }
 
   async hasConfiguration(): Promise<boolean> {
@@ -122,8 +139,19 @@ export class EmailService {
     return this.isConfigured(smtp);
   }
 
+  async isPasswordResetAvailable(): Promise<boolean> {
+    if (!(await this.hasConfiguration())) return false;
+    const legacyBaseUrl = await settingsRepository.get<string>('site_url');
+    return resolvePublicBaseUrl(legacyBaseUrl) !== null;
+  }
+
+  async hasNotificationConfiguration(): Promise<boolean> {
+    return this.isPasswordResetAvailable();
+  }
+
   async verifyConnection(): Promise<void> {
-    const transporter = await this.createTransporter();
+    const smtp = await this.getSmtpSettings();
+    const transporter = this.createTransporter(smtp);
 
     if (!transporter) {
       throw new Error('SMTP is not configured');
@@ -140,7 +168,7 @@ export class EmailService {
     }
 
     try {
-      const transporter = await this.createTransporter();
+      const transporter = this.createTransporter(smtp);
       if (!transporter) {
         return false;
       }
@@ -151,23 +179,30 @@ export class EmailService {
         subject: input.subject,
         html: input.html,
         text: input.text,
+        messageId: input.messageId,
       });
       return true;
     } catch (error) {
-      console.error('Failed to send email:', error);
+      log('error', 'email.send_failed', {
+        error_name: error instanceof Error ? error.name : 'UnknownError',
+        error_message: error instanceof Error ? error.message.slice(0, 200) : 'Unknown SMTP error',
+      });
       return false;
     }
   }
 
   async sendPasswordResetEmail(input: PasswordResetEmailInput): Promise<boolean> {
+    const workspaceName = escapeHtml(input.workspaceName);
+    const name = escapeHtml(input.name);
+    const resetUrl = escapeHtml(input.resetUrl);
     const subject = `${input.workspaceName}: Reset your password`;
     const html = `
       <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #111827;">
         <h2 style="margin: 0 0 16px;">Reset your password</h2>
-        <p style="margin: 0 0 12px;">Hi ${input.name},</p>
-        <p style="margin: 0 0 12px;">We received a request to reset your password for ${input.workspaceName}.</p>
+        <p style="margin: 0 0 12px;">Hi ${name},</p>
+        <p style="margin: 0 0 12px;">We received a request to reset your password for ${workspaceName}.</p>
         <p style="margin: 0 0 20px;">
-          <a href="${input.resetUrl}" style="display: inline-block; background: #111827; color: #ffffff; padding: 10px 14px; text-decoration: none; border-radius: 6px;">Reset password</a>
+          <a href="${resetUrl}" style="display: inline-block; background: #111827; color: #ffffff; padding: 10px 14px; text-decoration: none; border-radius: 6px;">Reset password</a>
         </p>
         <p style="margin: 0 0 12px;">This link expires in 1 hour and can only be used once.</p>
         <p style="margin: 0; color: #6b7280; font-size: 13px;">If you did not request this, you can safely ignore this email.</p>
@@ -192,12 +227,14 @@ export class EmailService {
   }
 
   async sendPasswordChangedEmail(input: PasswordChangedEmailInput): Promise<boolean> {
+    const workspaceName = escapeHtml(input.workspaceName);
+    const name = escapeHtml(input.name);
     const subject = `${input.workspaceName}: Password changed`;
     const html = `
       <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #111827;">
         <h2 style="margin: 0 0 16px;">Password changed</h2>
-        <p style="margin: 0 0 12px;">Hi ${input.name},</p>
-        <p style="margin: 0 0 12px;">Your password for ${input.workspaceName} has been updated.</p>
+        <p style="margin: 0 0 12px;">Hi ${name},</p>
+        <p style="margin: 0 0 12px;">Your password for ${workspaceName} has been updated.</p>
         <p style="margin: 0; color: #6b7280; font-size: 13px;">If this was not you, contact your administrator immediately.</p>
       </div>
     `.trim();
@@ -221,7 +258,7 @@ export class EmailService {
     const html = `
       <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #111827;">
         <h2 style="margin: 0 0 16px;">SMTP test successful</h2>
-        <p style="margin: 0 0 12px;">This email confirms that SMTP is configured correctly for ${workspaceName}.</p>
+        <p style="margin: 0 0 12px;">This email confirms that SMTP is configured correctly for ${escapeHtml(workspaceName)}.</p>
       </div>
     `.trim();
 
@@ -230,6 +267,32 @@ export class EmailService {
       subject,
       html,
       text: `This email confirms that SMTP is configured correctly for ${workspaceName}.`,
+    });
+  }
+
+  async sendNotificationEmail(input: {
+    to: string;
+    recipientName: string;
+    notificationTitle: string;
+    relativeLink: string | null;
+    workspaceName: string;
+    messageId: string;
+  }): Promise<boolean> {
+    const legacyBaseUrl = await settingsRepository.get<string>('site_url');
+    const baseUrl = resolvePublicBaseUrl(legacyBaseUrl);
+    if (!baseUrl) return false;
+    const relativeLink = input.relativeLink?.startsWith('/') ? input.relativeLink : '/notifications';
+    const actionUrl = `${baseUrl.replace(/\/+$/, '')}${relativeLink}`;
+    const title = escapeHtml(input.notificationTitle);
+    const recipientName = escapeHtml(input.recipientName);
+    const workspaceName = escapeHtml(input.workspaceName);
+    const escapedActionUrl = escapeHtml(actionUrl);
+    return this.sendEmail({
+      to: input.to,
+      subject: `${input.workspaceName}: ${input.notificationTitle}`,
+      messageId: input.messageId,
+      html: `<div style="font-family: Arial, sans-serif; line-height: 1.5; color: #111827;"><p>Hi ${recipientName},</p><p>${title}</p><p><a href="${escapedActionUrl}">Open ${workspaceName}</a></p></div>`,
+      text: `Hi ${input.recipientName},\n\n${input.notificationTitle}\n\nOpen ${input.workspaceName}: ${actionUrl}`,
     });
   }
 }

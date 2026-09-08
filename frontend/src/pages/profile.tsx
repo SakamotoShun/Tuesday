@@ -6,6 +6,7 @@ import { ChangeEmailForm } from "@/components/profile/change-email-form"
 import { ChangePasswordForm } from "@/components/profile/change-password-form"
 import { Separator } from "@/components/ui/separator"
 import { McpTokenSection } from "@/components/profile/mcp-token-section"
+import { NotificationEmailPreferences } from "@/components/profile/notification-email-preferences"
 
 export function ProfilePage() {
   const { user, isLoading } = useAuth()
@@ -26,6 +27,15 @@ export function ProfilePage() {
           Update your personal details, avatar, and security preferences.
         </p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Email Notifications</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <NotificationEmailPreferences />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

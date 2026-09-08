@@ -13,7 +13,7 @@ const setupRouter = new Hono();
  */
 setupRouter.get('/status', async (c) => {
   const initialized = await setupService.isInitialized();
-  const passwordResetEnabled = await emailService.hasConfiguration();
+  const passwordResetEnabled = await emailService.isPasswordResetAvailable();
   return success(c, { initialized, passwordResetEnabled });
 });
 

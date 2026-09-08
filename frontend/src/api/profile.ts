@@ -1,5 +1,11 @@
 import { api, ApiErrorResponse, RequestError, captureRequestId } from "./client"
-import type { ApiError, ApiResponse, User } from "./types"
+import type {
+  ApiError,
+  ApiResponse,
+  NotificationEmailPreferences,
+  NotificationEmailPreferencesResponse,
+  User,
+} from "./types"
 
 const API_BASE = "/api/v1"
 
@@ -81,4 +87,14 @@ export async function changePassword(data: ChangePasswordInput): Promise<{ chang
 export async function changeEmail(data: ChangeEmailInput): Promise<User> {
   const response = await api.post<{ user: BackendUser }>("/profile/email", data)
   return normalizeUser(response.user)
+}
+
+export function getNotificationEmailPreferences(): Promise<NotificationEmailPreferencesResponse> {
+  return api.get<NotificationEmailPreferencesResponse>("/profile/notification-preferences")
+}
+
+export function updateNotificationEmailPreferences(
+  data: Partial<NotificationEmailPreferences>
+): Promise<NotificationEmailPreferencesResponse> {
+  return api.patch<NotificationEmailPreferencesResponse>("/profile/notification-preferences", data)
 }

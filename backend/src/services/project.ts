@@ -13,6 +13,7 @@ import type { Project, ProjectMember, ProjectStatus, NewProject, NewProjectMembe
 import type { ProjectWithRelations } from '../repositories/project';
 import type { User } from '../types';
 import { assertNotFreelancer } from '../utils/permissions';
+import { notificationService } from './notification';
 
 export interface CreateProjectInput {
   name: string;
@@ -540,42 +541,49 @@ export class ProjectService {
       throw new Error('Only project owners can add members');
     }
 
-    // Check if user is already a member
-    const existing = await projectMemberRepository.findMembership(projectId, userId);
-    if (existing) {
-      if (existing.source === ProjectMemberSource.TEAM) {
-        const updated = await projectMemberRepository.updateMembership(projectId, userId, {
-          role,
-          source: ProjectMemberSource.DIRECT,
-          sourceTeamId: null,
-        });
-        if (!updated) {
-          throw new Error('Failed to update membership');
-        }
-        return updated;
-      }
-      throw new Error('User is already a member of this project');
-    }
-
     // Validate role
     if (role !== ProjectMemberRole.OWNER && role !== ProjectMemberRole.MEMBER) {
       throw new Error('Invalid role');
     }
 
     await this.assertAssignableProjectRole(userId, role);
-
-    const member = await projectMemberRepository.addMember(projectId, userId, role, ProjectMemberSource.DIRECT, null);
-
     const project = await projectRepository.findById(projectId);
-    if (project) {
-      const { notificationService } = await import('./notification');
-      await notificationService.notifyProjectInvite({
+    if (!project) throw new Error('Project not found');
+
+    const committed = await db.transaction(async (tx) => {
+      const existing = await projectMemberRepository.findMembership(projectId, userId, tx);
+      if (existing) {
+        if (existing.source !== ProjectMemberSource.TEAM) {
+          throw new Error('User is already a member of this project');
+        }
+        const member = await projectMemberRepository.updateMembership(projectId, userId, {
+          role,
+          source: ProjectMemberSource.DIRECT,
+          sourceTeamId: null,
+        }, tx);
+        if (!member) throw new Error('Failed to update membership');
+        return { member, notifications: [], converted: true };
+      }
+
+      const member = await projectMemberRepository.addMember(
+        projectId,
+        userId,
+        role,
+        ProjectMemberSource.DIRECT,
+        null,
+        tx,
+      );
+      const notifications = await notificationService.enqueueProjectInvite({
         projectId: project.id,
         projectName: project.name,
         userId,
         invitedBy: currentUser.name,
-      });
+      }, tx);
+      return { member, notifications, converted: false };
+    });
 
+    notificationService.publishMany(committed.notifications);
+    if (!committed.converted) {
       await activityService.record({
         actorId: currentUser.id,
         action: 'project.member_added',
@@ -589,8 +597,7 @@ export class ProjectService {
         },
       });
     }
-
-    return member;
+    return committed.member;
   }
 
   /**

@@ -1,5 +1,5 @@
 import { eq, and } from 'drizzle-orm';
-import { db } from '../db/client';
+import { db, type DbTransaction } from '../db/client';
 import { taskAssignees, type TaskAssignee, type NewTaskAssignee } from '../db/schema';
 
 export class TaskAssigneeRepository {
@@ -42,21 +42,28 @@ export class TaskAssigneeRepository {
     return result.length > 0;
   }
 
-  async setAssignees(taskId: string, userIds: string[]): Promise<void> {
-    await db.transaction(async (tx) => {
+  async setAssignees(taskId: string, userIds: string[], transaction?: DbTransaction): Promise<void> {
+    const replace = async (tx: DbTransaction) => {
       // Delete existing assignees
       await tx.delete(taskAssignees).where(eq(taskAssignees.taskId, taskId));
-      
+
       // Insert new assignees
-      if (userIds.length > 0) {
+      const uniqueUserIds = Array.from(new Set(userIds));
+      if (uniqueUserIds.length > 0) {
         await tx.insert(taskAssignees).values(
-          userIds.map(userId => ({
+          uniqueUserIds.map(userId => ({
             taskId,
             userId,
           }))
         );
       }
-    });
+    };
+
+    if (transaction) {
+      await replace(transaction);
+      return;
+    }
+    await db.transaction(replace);
   }
 
   async isAssignee(taskId: string, userId: string): Promise<boolean> {

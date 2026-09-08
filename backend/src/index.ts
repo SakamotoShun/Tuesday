@@ -10,10 +10,12 @@ import { client } from './db/client';
 import { chatHub } from './collab/chatHub';
 import { docCollabHub } from './collab/hub';
 import { whiteboardCollabHub } from './collab/whiteboardHub';
+import { emailNotificationWorker } from './services/emailNotificationWorker';
 
 const app = new Hono();
 const cleanupHandles: Array<ReturnType<typeof setInterval>> = [];
-const SHUTDOWN_TIMEOUT_MS = 25_000;
+const cleanupPromises = new Set<Promise<void>>();
+const SHUTDOWN_TIMEOUT_MS = 70_000;
 const FATAL_EXIT_TIMEOUT_MS = 5_000;
 const WEBSOCKET_MAINTENANCE_INTERVAL_MS = 30_000;
 
@@ -50,21 +52,30 @@ async function startServer() {
     await reconcileCanonicalDocCollabHistory();
 
     const scheduleCleanupJob = (name: CleanupJobName, intervalMs: number, task: () => Promise<number>) => {
-      const handle = setInterval(async () => {
-        try {
-          const deleted = await runTrackedCleanupJob(name, task);
-          if (deleted > 0) {
-            log('info', 'cleanup.completed', {
+      let active = false;
+      const handle = setInterval(() => {
+        if (active) return;
+        active = true;
+        const promise = (async () => {
+          try {
+            const deleted = await runTrackedCleanupJob(name, task);
+            if (deleted > 0) {
+              log('info', 'cleanup.completed', {
+                job: name,
+                deleted_count: deleted,
+              });
+            }
+          } catch (error) {
+            log('error', 'cleanup.failed', {
               job: name,
-              deleted_count: deleted,
+              error,
             });
           }
-        } catch (error) {
-          log('error', 'cleanup.failed', {
-            job: name,
-            error,
-          });
-        }
+        })().finally(() => {
+          active = false;
+          cleanupPromises.delete(promise);
+        });
+        cleanupPromises.add(promise);
       }, intervalMs);
       cleanupHandles.push(handle);
     };
@@ -107,6 +118,8 @@ async function startServer() {
       whiteboardCollabHub.reapStaleClients(now);
     }, WEBSOCKET_MAINTENANCE_INTERVAL_MS));
 
+    emailNotificationWorker.start();
+
     const server = Bun.serve({
       port: config.port,
       fetch: (request, server) => app.fetch(request, { server }),
@@ -134,16 +147,22 @@ async function startServer() {
         forceCloseTimer.unref?.();
 
         try {
-          await server.stop(false);
-          log('info', 'server.network_stopped', { signal });
+          for (const handle of cleanupHandles) {
+            clearInterval(handle);
+          }
 
           chatHub.shutdown();
           docCollabHub.shutdown();
           whiteboardCollabHub.shutdown();
 
-          for (const handle of cleanupHandles) {
-            clearInterval(handle);
-          }
+          await Promise.all([
+            server.stop(false),
+            emailNotificationWorker.stopAndDrain(
+              signal === 'uncaughtException' ? FATAL_EXIT_TIMEOUT_MS : config.emailWorkerDrainTimeoutMs,
+            ),
+            Promise.allSettled([...cleanupPromises]),
+          ]);
+          log('info', 'server.network_stopped', { signal });
 
           await client.end({ timeout: 5 });
           log('info', 'server.shutdown_completed', { signal });

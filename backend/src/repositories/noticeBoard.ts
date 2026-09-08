@@ -1,5 +1,5 @@
 import { asc, desc, eq } from 'drizzle-orm';
-import { db } from '../db/client';
+import { db, type DbExecutor } from '../db/client';
 import { noticeBoardItems, type NoticeBoardItem, type NewNoticeBoardItem } from '../db/schema';
 
 export interface NoticeBoardItemWithUsers extends NoticeBoardItem {
@@ -24,8 +24,8 @@ export interface NoticeBoardItemWithUsers extends NoticeBoardItem {
 }
 
 export class NoticeBoardRepository {
-  async findAll(): Promise<NoticeBoardItemWithUsers[]> {
-    return db.query.noticeBoardItems.findMany({
+  async findAll(executor: DbExecutor = db): Promise<NoticeBoardItemWithUsers[]> {
+    return executor.query.noticeBoardItems.findMany({
       with: {
         createdByUser: {
           columns: {
@@ -56,8 +56,8 @@ export class NoticeBoardRepository {
     }) as Promise<NoticeBoardItemWithUsers[]>;
   }
 
-  async findById(id: string): Promise<NoticeBoardItemWithUsers | null> {
-    const item = await db.query.noticeBoardItems.findFirst({
+  async findById(id: string, executor: DbExecutor = db): Promise<NoticeBoardItemWithUsers | null> {
+    const item = await executor.query.noticeBoardItems.findFirst({
       where: eq(noticeBoardItems.id, id),
       with: {
         createdByUser: {
@@ -90,13 +90,13 @@ export class NoticeBoardRepository {
     return (item ?? null) as NoticeBoardItemWithUsers | null;
   }
 
-  async create(data: NewNoticeBoardItem): Promise<NoticeBoardItem> {
-    const [item] = await db.insert(noticeBoardItems).values(data).returning();
+  async create(data: NewNoticeBoardItem, executor: DbExecutor = db): Promise<NoticeBoardItem> {
+    const [item] = await executor.insert(noticeBoardItems).values(data).returning();
     return item;
   }
 
-  async update(id: string, data: Partial<NewNoticeBoardItem>): Promise<NoticeBoardItem | null> {
-    const [item] = await db
+  async update(id: string, data: Partial<NewNoticeBoardItem>, executor: DbExecutor = db): Promise<NoticeBoardItem | null> {
+    const [item] = await executor
       .update(noticeBoardItems)
       .set({ ...data, updatedAt: new Date() })
       .where(eq(noticeBoardItems.id, id))

@@ -105,6 +105,28 @@ export const JobPositionStatus = {
 
 export type JobPositionStatus = typeof JobPositionStatus[keyof typeof JobPositionStatus];
 
+export const NotificationType = {
+  MENTION: 'mention',
+  TASK_ASSIGNMENT: 'task_assignment',
+  NOTICE_ASSIGNMENT: 'notice_assignment',
+  MEETING_INVITE: 'meeting_invite',
+  PROJECT_INVITE: 'project_invite',
+} as const;
+
+export type NotificationType = typeof NotificationType[keyof typeof NotificationType];
+
+export const EmailDeliveryState = {
+  QUEUED: 'queued',
+  LEASED: 'leased',
+  RETRY_WAIT: 'retry_wait',
+  SENDING: 'sending',
+  SENT: 'sent',
+  DEAD: 'dead',
+  CANCELLED: 'cancelled',
+} as const;
+
+export type EmailDeliveryState = typeof EmailDeliveryState[keyof typeof EmailDeliveryState];
+
 const bytea = customType<{ data: Buffer }>({
   dataType() {
     return 'bytea';
@@ -890,17 +912,82 @@ export const whiteboardCollabUpdatesRelations = relations(whiteboardCollabUpdate
 export const notifications = pgTable('notifications', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  sourceEventId: uuid('source_event_id'),
   type: varchar('type', { length: 50 }).notNull(),
   title: varchar('title', { length: 255 }).notNull(),
   body: text('body'),
   link: varchar('link', { length: 500 }),
+  templateVersion: integer('template_version').notNull().default(1),
+  templateData: jsonb('template_data').notNull().default({}),
   read: boolean('read').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => ({
+  userCreatedIdx: index('notifications_user_created_id_idx').on(table.userId, table.createdAt, table.id),
+  sourceUserUnique: uniqueIndex('notifications_source_event_user_unique')
+    .on(table.sourceEventId, table.userId)
+    .where(sql`${table.sourceEventId} IS NOT NULL`),
+}));
+
+export const notificationEmailPreferences = pgTable('notification_email_preferences', {
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  type: varchar('type', { length: 50 }).notNull(),
+  enabled: boolean('enabled').notNull().default(false),
+  generation: integer('generation').notNull().default(0),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  primaryKey: primaryKey({ columns: [table.userId, table.type] }),
+  userIdx: index('notification_email_preferences_user_idx').on(table.userId),
+}));
+
+export const workspaceEmailControl = pgTable('workspace_email_control', {
+  id: integer('id').primaryKey().default(1),
+  enabled: boolean('enabled').notNull().default(false),
+  generation: integer('generation').notNull().default(0),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  singleton: check('workspace_email_control_singleton', sql`${table.id} = 1`),
+}));
+
+export const emailNotificationDeliveries = pgTable('email_notification_deliveries', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  notificationId: uuid('notification_id').notNull().references(() => notifications.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  type: varchar('type', { length: 50 }).notNull(),
+  state: varchar('state', { length: 20 }).notNull().default(EmailDeliveryState.QUEUED),
+  userGeneration: integer('user_generation').notNull(),
+  workspaceGeneration: integer('workspace_generation').notNull(),
+  attemptCount: integer('attempt_count').notNull().default(0),
+  retryCycle: integer('retry_cycle').notNull().default(0),
+  nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+  leaseToken: uuid('lease_token'),
+  leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
+  authorisedEmail: varchar('authorised_email', { length: 255 }),
+  messageId: varchar('message_id', { length: 255 }).notNull(),
+  lastError: varchar('last_error', { length: 500 }),
+  sentAt: timestamp('sent_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  notificationUnique: uniqueIndex('email_notification_deliveries_notification_unique').on(table.notificationId),
+  dueIdx: index('email_notification_deliveries_due_idx').on(table.state, table.nextAttemptAt, table.createdAt),
+  leaseIdx: index('email_notification_deliveries_lease_idx').on(table.leaseExpiresAt),
+  userIdx: index('email_notification_deliveries_user_idx').on(table.userId),
+}));
 
 export const notificationsRelations = relations(notifications, ({ one }) => ({
   user: one(users, {
     fields: [notifications.userId],
+    references: [users.id],
+  }),
+}));
+
+export const emailNotificationDeliveriesRelations = relations(emailNotificationDeliveries, ({ one }) => ({
+  notification: one(notifications, {
+    fields: [emailNotificationDeliveries.notificationId],
+    references: [notifications.id],
+  }),
+  user: one(users, {
+    fields: [emailNotificationDeliveries.userId],
     references: [users.id],
   }),
 }));
@@ -1092,15 +1179,27 @@ export const mcpTokens = pgTable('mcp_tokens', {
 // MCP idempotency keys (prevents duplicate create operations from retries)
 export const mcpIdempotencyKeys = pgTable('mcp_idempotency_keys', {
   id: uuid('id').primaryKey().defaultRandom(),
-  tokenId: uuid('token_id').notNull().references(() => mcpTokens.id, { onDelete: 'cascade' }),
+  tokenId: uuid('token_id').references(() => mcpTokens.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  principalType: varchar('principal_type', { length: 20 }).notNull(),
+  principalId: varchar('principal_id', { length: 200 }).notNull(),
   key: varchar('key', { length: 200 }).notNull(),
   toolName: varchar('tool_name', { length: 100 }).notNull(),
+  toolVersion: integer('tool_version').notNull().default(1),
+  requestHash: varchar('request_hash', { length: 64 }).notNull(),
   resultEntityType: varchar('result_entity_type', { length: 50 }),
   resultEntityId: uuid('result_entity_id'),
   responseJson: jsonb('response_json').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
-  tokenKeyToolUnique: uniqueIndex('mcp_idempotency_token_key_tool_unique').on(table.tokenId, table.key, table.toolName),
+  principalKeyToolUnique: uniqueIndex('mcp_idempotency_principal_key_tool_unique').on(
+    table.principalType,
+    table.principalId,
+    table.key,
+    table.toolName,
+  ),
+  tokenIdx: index('mcp_idempotency_token_id_idx').on(table.tokenId),
+  userIdx: index('mcp_idempotency_user_id_idx').on(table.userId),
 }));
 
 // OAuth clients for MCP authorization-code flows
@@ -1311,6 +1410,10 @@ export const mcpIdempotencyKeysRelations = relations(mcpIdempotencyKeys, ({ one 
     fields: [mcpIdempotencyKeys.tokenId],
     references: [mcpTokens.id],
   }),
+  user: one(users, {
+    fields: [mcpIdempotencyKeys.userId],
+    references: [users.id],
+  }),
 }));
 
 export const oauthClientsRelations = relations(oauthClients, ({ many }) => ({
@@ -1423,6 +1526,11 @@ export type Whiteboard = typeof whiteboards.$inferSelect;
 export type NewWhiteboard = typeof whiteboards.$inferInsert;
 export type Notification = typeof notifications.$inferSelect;
 export type NewNotification = typeof notifications.$inferInsert;
+export type NotificationEmailPreference = typeof notificationEmailPreferences.$inferSelect;
+export type NewNotificationEmailPreference = typeof notificationEmailPreferences.$inferInsert;
+export type WorkspaceEmailControl = typeof workspaceEmailControl.$inferSelect;
+export type EmailNotificationDelivery = typeof emailNotificationDeliveries.$inferSelect;
+export type NewEmailNotificationDelivery = typeof emailNotificationDeliveries.$inferInsert;
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type NewActivityLog = typeof activityLogs.$inferInsert;
 export type Favorite = typeof favorites.$inferSelect;

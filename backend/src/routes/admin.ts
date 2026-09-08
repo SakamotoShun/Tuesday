@@ -1,5 +1,13 @@
 import { Hono } from 'hono';
-import { projectStatusRepository, taskStatusRepository, settingsRepository, sessionRepository, userRepository } from '../repositories';
+import {
+  emailNotificationDeliveryRepository,
+  notificationEmailPreferenceRepository,
+  projectStatusRepository,
+  taskStatusRepository,
+  settingsRepository,
+  sessionRepository,
+  userRepository,
+} from '../repositories';
 import { db } from '../db/client';
 import {
   EmploymentType,
@@ -33,11 +41,12 @@ import {
   uuidSchema,
 } from '../utils/validation';
 import { projectService } from '../services/project';
-import { timeEntryService } from '../services';
+import { emailNotificationWorker, timeEntryService } from '../services';
 import { emailService } from '../services/email';
 import { z } from 'zod';
 import { hashPassword } from '../utils/password';
 import { getDiagnosticsSnapshot } from '../runtime';
+import { resolvePublicBaseUrl } from '../utils/publicBaseUrl';
 import { chatHub } from '../collab/chatHub';
 import { docCollabHub } from '../collab/hub';
 import { whiteboardCollabHub } from '../collab/whiteboardHub';
@@ -61,7 +70,32 @@ const updateSettingsSchema = z.object({
   smtpPass: z.union([z.string().max(500), z.literal('')]).optional(),
   smtpFrom: z.union([z.string().max(500), z.literal('')]).optional(),
   smtpSecure: z.boolean().optional(),
+  notificationEmailsEnabled: z.boolean().optional(),
 });
+
+const deadDeliveryCursorSchema = z.object({
+  updatedAt: z.string().datetime(),
+  id: z.string().uuid(),
+});
+
+function decodeDeadDeliveryCursor(value: string) {
+  try {
+    const parsed = deadDeliveryCursorSchema.safeParse(
+      JSON.parse(Buffer.from(value, 'base64url').toString('utf8')),
+    );
+    if (!parsed.success) return null;
+    return { updatedAt: new Date(parsed.data.updatedAt), id: parsed.data.id };
+  } catch {
+    return null;
+  }
+}
+
+function encodeDeadDeliveryCursor(cursor: { updatedAt: Date; id: string }): string {
+  return Buffer.from(JSON.stringify({
+    updatedAt: cursor.updatedAt.toISOString(),
+    id: cursor.id,
+  })).toString('base64url');
+}
 
 interface OpenRouterModel {
   id: string;
@@ -205,7 +239,11 @@ admin.get('/settings', async (c) => {
     const smtpUser = await settingsRepository.get<string>('smtp_user');
     const smtpPass = await settingsRepository.get<string>('smtp_pass');
     const smtpFrom = await settingsRepository.get<string>('smtp_from');
-    const smtpSecure = await settingsRepository.get<boolean>('smtp_secure');
+    const [smtpSecure, emailControl, smtpConfigured] = await Promise.all([
+      settingsRepository.get<boolean>('smtp_secure'),
+      notificationEmailPreferenceRepository.getWorkspaceControl(),
+      emailService.hasConfiguration(),
+    ]);
 
     return success(c, {
       allowRegistration: allowRegistration ?? false,
@@ -225,6 +263,8 @@ admin.get('/settings', async (c) => {
       smtpPass: maskSecret(smtpPass),
       smtpFrom: smtpFrom ?? '',
       smtpSecure: smtpSecure ?? false,
+      notificationEmailsEnabled: emailControl.enabled,
+      smtpConfigured,
     });
   } catch (error) {
     console.error('Error fetching admin settings:', error);
@@ -235,9 +275,12 @@ admin.get('/settings', async (c) => {
 // GET /api/v1/admin/diagnostics - Runtime diagnostics
 admin.get('/diagnostics', async (c) => {
   try {
-    const [workspaceName, sessionCount] = await Promise.all([
+    const [workspaceName, sessionCount, emailQueue, emailControl, smtpConfigured] = await Promise.all([
       settingsRepository.get<string>('workspace_name'),
       sessionRepository.count(),
+      emailNotificationDeliveryRepository.getQueueStats(),
+      notificationEmailPreferenceRepository.getWorkspaceControl(),
+      emailService.hasConfiguration(),
     ]);
 
     return success(c, {
@@ -249,6 +292,12 @@ admin.get('/diagnostics', async (c) => {
         whiteboards: whiteboardCollabHub.getStats(),
       },
       runtime: getDiagnosticsSnapshot(),
+      email: {
+        notificationEmailsEnabled: emailControl.enabled,
+        smtpConfigured,
+        queue: emailQueue,
+        worker: emailNotificationWorker.getStats(),
+      },
     });
   } catch (error) {
     console.error('Error fetching diagnostics:', error);
@@ -266,7 +315,68 @@ admin.patch('/settings', async (c) => {
       return errors.validation(c, formatValidationErrors(validation.error));
     }
 
+    const smtpFieldsChanged = [
+      'smtpHost', 'smtpPort', 'smtpUser', 'smtpPass', 'smtpFrom', 'smtpSecure',
+    ].some((key) => key in validation.data);
+    let smtpChanges: Record<string, unknown | null> | null = null;
+    let smtpWillBeConfigured = await emailService.hasConfiguration();
+    if (smtpFieldsChanged) {
+      const [currentHost, currentPort, currentUser, currentPass, currentFrom, currentSecure] = await Promise.all([
+        settingsRepository.get<string>('smtp_host'),
+        settingsRepository.get<number>('smtp_port'),
+        settingsRepository.get<string>('smtp_user'),
+        settingsRepository.get<string>('smtp_pass'),
+        settingsRepository.get<string>('smtp_from'),
+        settingsRepository.get<boolean>('smtp_secure'),
+      ]);
+      const input = validation.data;
+      const host = input.smtpHost === undefined ? (currentHost ?? '') : input.smtpHost.trim();
+      const port = input.smtpPort ?? currentPort ?? 587;
+      const user = input.smtpUser === undefined ? (currentUser ?? '') : input.smtpUser.trim();
+      const pass = input.smtpPass === undefined || input.smtpPass === '********'
+        ? (currentPass ?? '')
+        : input.smtpPass;
+      const from = input.smtpFrom === undefined ? (currentFrom ?? '') : input.smtpFrom.trim();
+      const secure = input.smtpSecure ?? currentSecure ?? false;
+      const fromMailbox = from.match(/<([^<>]+)>$/)?.[1] ?? from;
+
+      if (host && (!/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/i.test(host) || host.includes('..'))) {
+        return errors.badRequest(c, 'SMTP host must be a hostname');
+      }
+      if (Boolean(host) !== Boolean(from)) {
+        return errors.badRequest(c, 'SMTP host and from address must be configured together');
+      }
+      if (Boolean(user) !== Boolean(pass)) {
+        return errors.badRequest(c, 'SMTP username and password must be configured together');
+      }
+      if (!host && (user || pass)) {
+        return errors.badRequest(c, 'SMTP credentials require an SMTP host');
+      }
+      if (from && !/^[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+$/.test(fromMailbox)) {
+        return errors.badRequest(c, 'SMTP from address must contain a valid email address');
+      }
+
+      smtpChanges = {
+        smtp_host: host || null,
+        smtp_port: port,
+        smtp_user: user || null,
+        smtp_pass: pass || null,
+        smtp_from: from || null,
+        smtp_secure: secure,
+      };
+      smtpWillBeConfigured = Boolean(host && from && Boolean(user) === Boolean(pass));
+    }
+
     const { allowRegistration, workspaceName, siteUrl } = validation.data;
+    const currentSiteUrl = siteUrl === undefined
+      ? await settingsRepository.get<string>('site_url')
+      : siteUrl;
+    if (
+      validation.data.notificationEmailsEnabled === true &&
+      (!smtpWillBeConfigured || !resolvePublicBaseUrl(currentSiteUrl))
+    ) {
+      return errors.badRequest(c, 'Configure SMTP and a valid public base URL before enabling notification emails');
+    }
 
     if (allowRegistration !== undefined) {
       await settingsRepository.set('allow_registration', allowRegistration);
@@ -349,48 +459,15 @@ admin.patch('/settings', async (c) => {
       }
     }
 
-    if (validation.data.smtpHost !== undefined) {
-      const trimmedHost = validation.data.smtpHost.trim();
-      if (trimmedHost.length === 0) {
-        await settingsRepository.delete('smtp_host');
-      } else {
-        await settingsRepository.set('smtp_host', trimmedHost);
-      }
-    }
+    if (smtpChanges) await settingsRepository.setMany(smtpChanges);
 
-    if (validation.data.smtpPort !== undefined) {
-      await settingsRepository.set('smtp_port', validation.data.smtpPort);
-    }
-
-    if (validation.data.smtpUser !== undefined) {
-      const trimmedUser = validation.data.smtpUser.trim();
-      if (trimmedUser.length === 0) {
-        await settingsRepository.delete('smtp_user');
-      } else {
-        await settingsRepository.set('smtp_user', trimmedUser);
-      }
-    }
-
-    if (validation.data.smtpPass !== undefined) {
-      const trimmedPass = validation.data.smtpPass.trim();
-      if (trimmedPass.length === 0) {
-        await settingsRepository.delete('smtp_pass');
-      } else {
-        await settingsRepository.set('smtp_pass', trimmedPass);
-      }
-    }
-
-    if (validation.data.smtpFrom !== undefined) {
-      const trimmedFrom = validation.data.smtpFrom.trim();
-      if (trimmedFrom.length === 0) {
-        await settingsRepository.delete('smtp_from');
-      } else {
-        await settingsRepository.set('smtp_from', trimmedFrom);
-      }
-    }
-
-    if (validation.data.smtpSecure !== undefined) {
-      await settingsRepository.set('smtp_secure', validation.data.smtpSecure);
+    if (validation.data.notificationEmailsEnabled !== undefined) {
+      await notificationEmailPreferenceRepository.setWorkspaceEnabled(
+        validation.data.notificationEmailsEnabled,
+      );
+      if (validation.data.notificationEmailsEnabled) emailNotificationWorker.wake();
+    } else if ((smtpFieldsChanged || siteUrl !== undefined) && !(await emailService.hasNotificationConfiguration())) {
+      await notificationEmailPreferenceRepository.setWorkspaceEnabled(false);
     }
 
     // Return updated settings
@@ -410,7 +487,11 @@ admin.patch('/settings', async (c) => {
     const updatedSmtpUser = await settingsRepository.get<string>('smtp_user');
     const updatedSmtpPass = await settingsRepository.get<string>('smtp_pass');
     const updatedSmtpFrom = await settingsRepository.get<string>('smtp_from');
-    const updatedSmtpSecure = await settingsRepository.get<boolean>('smtp_secure');
+    const [updatedSmtpSecure, emailControl, smtpConfigured] = await Promise.all([
+      settingsRepository.get<boolean>('smtp_secure'),
+      notificationEmailPreferenceRepository.getWorkspaceControl(),
+      emailService.hasConfiguration(),
+    ]);
 
     return success(c, {
       allowRegistration: updatedAllowRegistration ?? false,
@@ -430,11 +511,52 @@ admin.patch('/settings', async (c) => {
       smtpPass: maskSecret(updatedSmtpPass),
       smtpFrom: updatedSmtpFrom ?? '',
       smtpSecure: updatedSmtpSecure ?? false,
+      notificationEmailsEnabled: emailControl.enabled,
+      smtpConfigured,
     });
   } catch (error) {
     console.error('Error updating admin settings:', error);
     return errors.internal(c, 'Failed to update settings');
   }
+});
+
+admin.get('/email/deliveries', async (c) => {
+  try {
+    const cursorValue = c.req.query('cursor');
+    const cursor = cursorValue ? decodeDeadDeliveryCursor(cursorValue) : undefined;
+    if (cursorValue && !cursor) return errors.badRequest(c, 'Invalid delivery cursor');
+
+    const [queue, rows] = await db.transaction(async (tx) => Promise.all([
+      emailNotificationDeliveryRepository.getQueueStats(tx),
+      emailNotificationDeliveryRepository.listDead(51, cursor ?? undefined, tx),
+    ]), { isolationLevel: 'repeatable read', accessMode: 'read only' });
+    const dead = rows.slice(0, 50);
+    const last = dead.at(-1);
+    return success(c, {
+      queue,
+      worker: emailNotificationWorker.getStats(),
+      dead: {
+        items: dead,
+        nextCursor: rows.length > 50 && last
+          ? encodeDeadDeliveryCursor({ updatedAt: last.updatedAt, id: last.id })
+          : null,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching email delivery status:', error);
+    return errors.internal(c, 'Failed to fetch email delivery status');
+  }
+});
+
+admin.post('/email/deliveries/:id/retry', async (c) => {
+  const id = c.req.param('id');
+  const validation = uuidSchema.safeParse(id);
+  if (!validation.success) return errors.badRequest(c, 'Invalid delivery ID');
+
+  const retried = await emailNotificationDeliveryRepository.retryDead(id);
+  if (!retried) return errors.badRequest(c, 'Delivery is not retryable');
+  emailNotificationWorker.wake();
+  return success(c, { retried: true });
 });
 
 // POST /api/v1/admin/email/test - Send a test email to current admin
@@ -443,7 +565,6 @@ admin.post('/email/test', async (c) => {
     const currentUser = c.get('user');
     const workspaceName = (await settingsRepository.get<string>('workspace_name'))?.trim() || 'Tuesday';
 
-    await emailService.verifyConnection();
     const sent = await emailService.sendTestEmail(currentUser.email, workspaceName);
 
     if (!sent) {

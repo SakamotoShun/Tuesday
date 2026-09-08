@@ -25,6 +25,13 @@ export { botChannelMemberRepository, BotChannelMemberRepository } from './botCha
 export { fileRepository, FileRepository } from './file';
 export { reactionRepository, ReactionRepository } from './reaction';
 export { notificationRepository, NotificationRepository } from './notification';
+export { emailNotificationDeliveryRepository, EmailNotificationDeliveryRepository } from './emailNotificationDelivery';
+export {
+  notificationEmailPreferenceRepository,
+  NotificationEmailPreferenceRepository,
+  NOTIFICATION_EMAIL_TYPES,
+  type NotificationEmailPreferences,
+} from './notificationEmailPreference';
 export { activityRepository, ActivityRepository } from './activity';
 export { favoriteRepository, FavoriteRepository } from './favorite';
 export { noticeBoardRepository, NoticeBoardRepository, type NoticeBoardItemWithUsers } from './noticeBoard';

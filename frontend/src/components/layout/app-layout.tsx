@@ -3,6 +3,7 @@ import { TopBar } from "./top-bar"
 import { LeftRail } from "./left-rail"
 import { ErrorBoundary } from "@/components/common/error-boundary"
 import { cn } from "@/lib/utils"
+import { RealtimeQuerySync } from "./realtime-query-sync"
 
 export function AppLayout() {
   const { pathname } = useLocation()
@@ -11,6 +12,7 @@ export function AppLayout() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      <RealtimeQuerySync />
       <TopBar />
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <LeftRail />

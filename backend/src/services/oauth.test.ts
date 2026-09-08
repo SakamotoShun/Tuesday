@@ -77,7 +77,7 @@ describe('OauthService', () => {
     config.publicBaseUrl = originalPublicBaseUrl;
   });
 
-  it('registers a client requesting only claudeai with the full valid scope set', async () => {
+  it('preserves the claudeai compatibility scope without persisting it', async () => {
     const service = new OauthService();
 
     const client = await service.registerClient({
@@ -98,7 +98,7 @@ describe('OauthService', () => {
     expect(client.scope.split(' ')).toEqual(validScopes);
   });
 
-  it('keeps only valid scopes from a mixed registration request', async () => {
+  it('ignores the claudeai compatibility alias when explicit scopes are requested', async () => {
     const service = new OauthService();
 
     const client = await service.registerClient({
@@ -109,22 +109,29 @@ describe('OauthService', () => {
     expect(client.scope).toBe('projects:read');
   });
 
-  it('falls back to the full client grant for an unknown-only authorization scope', async () => {
+  it('maps the claudeai authorization alias to the registered client grant', async () => {
     findClient = async () => oauthClient(['projects:read', 'tasks:read']);
     const service = new OauthService();
 
     const details = await service.getAuthorizeDetails({ ...authorizeInput, scope: 'claudeai' });
-
     expect(details.scopes).toEqual(['projects:read', 'tasks:read']);
   });
 
-  it('preserves a read-only client grant when it requests a write scope', async () => {
+  it('rejects genuinely unknown registration scopes instead of broadening the grant', async () => {
+    const service = new OauthService();
+
+    await expect(service.registerClient({
+      redirect_uris: ['https://client.example/callback'],
+      scope: 'unknown:scope',
+    })).rejects.toThrow('Invalid scope: unknown:scope');
+  });
+
+  it('rejects scopes outside the registered client grant', async () => {
     findClient = async () => oauthClient(['projects:read']);
     const service = new OauthService();
 
-    const details = await service.getAuthorizeDetails({ ...authorizeInput, scope: 'tasks:write' });
-
-    expect(details.scopes).toEqual(['projects:read']);
+    await expect(service.getAuthorizeDetails({ ...authorizeInput, scope: 'tasks:write' }))
+      .rejects.toThrow('Scope not allowed');
   });
 
   it('rejects authorization requests for a different protected resource', async () => {

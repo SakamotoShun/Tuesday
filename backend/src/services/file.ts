@@ -2,6 +2,7 @@ import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { config } from '../config';
+import { db, type DbExecutor } from '../db/client';
 import { fileRepository } from '../repositories';
 import { projectService } from './project';
 import type { File as FileRecord } from '../db/schema';
@@ -130,8 +131,8 @@ export class FileService {
     return true;
   }
 
-  async markAttached(fileIds: string[]): Promise<void> {
-    await fileRepository.updateStatus(fileIds, 'attached');
+  async markAttached(fileIds: string[], executor: DbExecutor = db): Promise<void> {
+    await fileRepository.updateStatus(fileIds, 'attached', executor);
   }
 
   async markAsAvatar(fileId: string): Promise<void> {

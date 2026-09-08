@@ -1,13 +1,25 @@
 import { Hono } from 'hono';
 import { auth } from '../middleware';
-import { userRepository } from '../repositories';
+import { notificationEmailPreferenceRepository, settingsRepository, userRepository } from '../repositories';
 import { fileService } from '../services/file';
 import { success, errors } from '../utils/response';
 import { validateBody, formatValidationErrors, updateProfileSchema, changePasswordSchema, changeEmailSchema } from '../utils/validation';
 import { hashPassword, verifyPassword } from '../utils/password';
 import type { User as DbUser } from '../db/schema';
+import { NotificationType } from '../db/schema';
+import { z } from 'zod';
+import { emailService } from '../services/email';
+import { log } from '../utils/logger';
 
 const profile = new Hono();
+
+const notificationPreferencesSchema = z.object({
+  mention: z.boolean().optional(),
+  task_assignment: z.boolean().optional(),
+  notice_assignment: z.boolean().optional(),
+  meeting_invite: z.boolean().optional(),
+  project_invite: z.boolean().optional(),
+}).strict().refine((value) => Object.keys(value).length > 0, 'At least one preference is required');
 
 profile.use('*', auth);
 
@@ -29,6 +41,35 @@ const toPublicUser = (user: DbUser) => ({
 profile.get('/', (c) => {
   const user = c.get('user');
   return success(c, { user });
+});
+
+profile.get('/notification-preferences', async (c) => {
+  const preferences = await notificationEmailPreferenceRepository.getForUser(c.get('user').id);
+  return success(c, {
+    preferences,
+    types: Object.values(NotificationType),
+  });
+});
+
+profile.patch('/notification-preferences', async (c) => {
+  try {
+    const validation = notificationPreferencesSchema.safeParse(await c.req.json());
+    if (!validation.success) {
+      return errors.validation(c, formatValidationErrors(validation.error));
+    }
+
+    const preferences = await notificationEmailPreferenceRepository.updateForUser(
+      c.get('user').id,
+      validation.data,
+    );
+    return success(c, {
+      preferences,
+      types: Object.values(NotificationType),
+    });
+  } catch (error) {
+    console.error('Error updating notification email preferences:', error);
+    return errors.internal(c, 'Failed to update notification email preferences');
+  }
 });
 
 // PATCH /api/v1/profile - Update profile (name)
@@ -165,6 +206,18 @@ profile.post('/password', async (c) => {
 
     const passwordHash = await hashPassword(newPassword);
     await userRepository.update(currentUser.id, { passwordHash });
+
+    void (async () => {
+      const workspaceName = (await settingsRepository.get<string>('workspace_name'))?.trim() || 'Tuesday';
+      const sent = await emailService.sendPasswordChangedEmail({
+        to: userRecord.email,
+        name: userRecord.name,
+        workspaceName,
+      });
+      if (!sent) log('warn', 'email_send_failed', { kind: 'password_changed', userId: userRecord.id });
+    })().catch((error) => {
+      log('error', 'email_send_failed', { kind: 'password_changed', userId: userRecord.id, error });
+    });
 
     return success(c, { changed: true });
   } catch (error) {

@@ -7,6 +7,8 @@ import '../mcp/tool-definitions'; // registers tools at import time
 import type { McpContext } from '../mcp/types';
 import { log } from '../utils/logger';
 import { MAX_MCP_REQUEST_BYTES } from '../utils/doc-blocks';
+import { McpToolError, serializeMcpToolError, toMcpToolError } from '../mcp/errors';
+import { validateToolInput } from '../mcp/validation';
 
 const TUESDAY_VERSION = '1.2.0';
 const SUPPORTED_PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26'] as const;
@@ -145,7 +147,7 @@ mcp.post('/', async (c) => {
         const allTools = getAllTools();
 
         // Filter tools by token scopes
-        const allowedTools = allTools.filter((t) => auth.token.scopes.has(t.requiredScope));
+        const allowedTools = allTools.filter((t) => !t.requiredScope || auth.token.scopes.has(t.requiredScope));
 
         const toolList = allowedTools.map((t) => ({
           name: t.name,
@@ -174,22 +176,26 @@ mcp.post('/', async (c) => {
           return c.json(jsonRpcError(body.id, -32601, `Tool not found: ${toolName}`));
         }
 
-        // Check scope
-        if (!auth.token.scopes.has(tool.requiredScope)) {
-          log('warn', 'mcp.scope_denied', {
-            tokenId: auth.token.tokenId,
-            userId: auth.user.id,
-            toolName,
-            requiredScope: tool.requiredScope,
-          });
-          return c.json(jsonRpcError(body.id, -32002, `Scope '${tool.requiredScope}' required for tool '${toolName}'`));
-        }
-
         const ctx: McpContext = { user: auth.user, token: auth.token };
         const startedAt = Date.now();
 
         try {
-          const result = await tool.handler(params?.arguments ?? {}, ctx);
+          if (tool.requiredScope && !auth.token.scopes.has(tool.requiredScope)) {
+            log('warn', 'mcp.scope_denied', {
+              tokenId: auth.token.tokenId,
+              userId: auth.user.id,
+              toolName,
+              requiredScope: tool.requiredScope,
+            });
+            throw new McpToolError(
+              'SCOPE_REQUIRED',
+              `Scope '${tool.requiredScope}' is required for tool '${toolName}'.`,
+              { requiredScope: tool.requiredScope, toolName },
+            );
+          }
+          const input = params?.arguments === undefined ? {} : params.arguments;
+          validateToolInput(tool, input);
+          const result = await tool.handler(input, ctx);
           const durationMs = Date.now() - startedAt;
 
           log('info', 'mcp.tool_call', {
@@ -203,11 +209,12 @@ mcp.post('/', async (c) => {
           return c.json(
             jsonRpcResult(body.id, {
               content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+              structuredContent: { data: result },
             })
           );
         } catch (error) {
           const durationMs = Date.now() - startedAt;
-          const message = error instanceof Error ? error.message : 'Unknown error';
+          const toolError = toMcpToolError(error);
 
           log('warn', 'mcp.tool_call_failed', {
             tokenId: auth.token.tokenId,
@@ -215,13 +222,15 @@ mcp.post('/', async (c) => {
             toolName,
             ok: false,
             durationMs,
-            error: message,
+            errorCode: toolError.code,
           });
 
+          const structuredError = serializeMcpToolError(toolError);
           return c.json(
             jsonRpcResult(body.id, {
               isError: true,
-              content: [{ type: 'text', text: message }],
+              content: [{ type: 'text', text: JSON.stringify(structuredError, null, 2) }],
+              structuredContent: structuredError,
             })
           );
         }

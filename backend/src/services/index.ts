@@ -1,5 +1,6 @@
 export { authService, AuthService } from './auth';
 export { emailService, EmailService } from './email';
+export { emailNotificationWorker, EmailNotificationWorker } from './emailNotificationWorker';
 export { projectService, ProjectService } from './project';
 export { docService, DocService } from './doc';
 export { taskService, TaskService } from './task';

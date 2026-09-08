@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { useAuth } from "@/hooks/use-auth"
-import { useAdminSettings } from "@/hooks/use-admin"
+import { useAdminSettings, useEmailDeliveryStatus } from "@/hooks/use-admin"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -14,6 +14,7 @@ import { ApiErrorResponse } from "@/api/client"
 export function AdminDeveloperPage() {
   const { user } = useAuth()
   const { settings, isLoading, updateSettings, sendTestEmail } = useAdminSettings()
+  const emailDelivery = useEmailDeliveryStatus()
 
   const [openaiApiKey, setOpenaiApiKey] = useState("")
   const [openrouterApiKey, setOpenrouterApiKey] = useState("")
@@ -34,6 +35,8 @@ export function AdminDeveloperPage() {
   const [smtpSecure, setSmtpSecure] = useState(false)
   const [smtpMessage, setSmtpMessage] = useState<string | null>(null)
   const [smtpError, setSmtpError] = useState<string | null>(null)
+  const [deliveryMessage, setDeliveryMessage] = useState<string | null>(null)
+  const [deliveryError, setDeliveryError] = useState<string | null>(null)
 
   useEffect(() => {
     setSiteUrl(settings?.siteUrl ?? "")
@@ -108,7 +111,7 @@ export function AdminDeveloperPage() {
         smtpHost: smtpHost.trim(),
         smtpPort: parsedPort,
         smtpUser: smtpUser.trim(),
-        smtpPass: smtpPass.trim() || undefined,
+        smtpPass: smtpUser.trim().length === 0 ? "" : (smtpPass.length > 0 ? smtpPass : undefined),
         smtpFrom: smtpFrom.trim(),
         smtpSecure,
       },
@@ -210,8 +213,38 @@ export function AdminDeveloperPage() {
           <CardTitle>SMTP Email</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {smtpError && <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{smtpError}</div>}
-          {smtpMessage && <div className="rounded-md bg-emerald-500/10 p-3 text-sm text-emerald-700">{smtpMessage}</div>}
+          {smtpError && <div role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{smtpError}</div>}
+          {smtpMessage && <div role="status" className="rounded-md bg-emerald-500/10 p-3 text-sm text-emerald-700">{smtpMessage}</div>}
+
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-3">
+            <Label htmlFor="notification-emails-enabled" className="flex flex-col gap-1">
+              <span>Notification emails</span>
+              <span className="font-normal text-sm text-muted-foreground">
+                Enables opted-in mention, assignment, meeting, and project emails workspace-wide.
+                Password security and test emails are unaffected.
+              </span>
+              <span className="font-normal text-xs text-muted-foreground">
+                SMTP: {settings?.smtpConfigured ? "Configured" : "Incomplete"}
+              </span>
+            </Label>
+            <Switch
+              id="notification-emails-enabled"
+              checked={settings?.notificationEmailsEnabled ?? false}
+              disabled={updateSettings.isPending || (!settings?.smtpConfigured && !settings?.notificationEmailsEnabled)}
+              onCheckedChange={(enabled) => {
+                setSmtpError(null)
+                setSmtpMessage(null)
+                updateSettings.mutate({ notificationEmailsEnabled: enabled }, {
+                  onSuccess: () => setSmtpMessage(
+                    enabled ? "Notification emails enabled" : "Notification emails disabled; queued deliveries were cancelled",
+                  ),
+                  onError: (error) => setSmtpError(
+                    error instanceof ApiErrorResponse ? error.message : "Failed to update notification email delivery",
+                  ),
+                })
+              }}
+            />
+          </div>
 
           <div className="space-y-2">
             <Label htmlFor="site-url">Site URL</Label>
@@ -283,8 +316,10 @@ export function AdminDeveloperPage() {
 
           <div className="flex items-center justify-between rounded-lg border border-border p-3">
             <Label htmlFor="smtp-secure" className="flex flex-col gap-1">
-              <span>Use secure SMTP (TLS/SSL)</span>
-              <span className="font-normal text-sm text-muted-foreground">Enable for providers that require port 465 TLS.</span>
+              <span>Use implicit TLS</span>
+              <span className="font-normal text-sm text-muted-foreground">
+                Enable for port 465. When off, STARTTLS is still required before authentication or delivery.
+              </span>
             </Label>
             <Switch id="smtp-secure" checked={smtpSecure} onCheckedChange={setSmtpSecure} />
           </div>
@@ -297,15 +332,115 @@ export function AdminDeveloperPage() {
               <Button
                 variant="outline"
                 disabled={updateSettings.isPending || sendTestEmail.isPending}
-                onClick={() => updateSettings.mutate({ smtpPass: "" })}
+                onClick={() => updateSettings.mutate({ smtpUser: "", smtpPass: "" })}
               >
-                Remove SMTP Password
+                Remove SMTP Credentials
               </Button>
             )}
             <Button variant="outline" onClick={handleSendTestEmail} disabled={updateSettings.isPending || sendTestEmail.isPending}>
               {sendTestEmail.isPending ? "Sending test email..." : "Send Test Email"}
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Email Delivery</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Queue health and failed notification emails. Recipient addresses and message content are never shown here.
+          </p>
+
+          {deliveryError && <div role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{deliveryError}</div>}
+          {deliveryMessage && <div role="status" className="rounded-md bg-emerald-500/10 p-3 text-sm text-emerald-700">{deliveryMessage}</div>}
+
+          {emailDelivery.error ? (
+            <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+              <span>Failed to load email delivery status.</span>
+              <Button variant="outline" size="sm" onClick={() => emailDelivery.refetch()}>Retry</Button>
+            </div>
+          ) : emailDelivery.isLoading ? (
+            <div className="text-sm text-muted-foreground">Loading email delivery status...</div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                {[
+                  ["Queued", emailDelivery.status?.queue.queued ?? 0],
+                  ["Retrying", emailDelivery.status?.queue.retry_wait ?? 0],
+                  ["Sending", (emailDelivery.status?.queue.leased ?? 0) + (emailDelivery.status?.queue.sending ?? 0)],
+                  ["Dead", emailDelivery.status?.queue.dead ?? 0],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-lg border border-border p-3">
+                    <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+                    <div className="mt-1 text-2xl font-semibold">{value}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <span>
+                  Worker: <span className="font-medium capitalize">{emailDelivery.status?.worker.state ?? "unknown"}</span>
+                </span>
+                <span className="text-muted-foreground">
+                  Sent {emailDelivery.status?.worker.sent ?? 0} since startup
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold">Dead deliveries</h3>
+                {emailDelivery.status?.dead.length ? emailDelivery.status.dead.map((delivery) => (
+                  <div key={delivery.id} className="space-y-2 rounded-lg border border-border p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-medium">{delivery.type.replaceAll("_", " ")}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {delivery.attemptCount}/40 attempts, retry cycle {delivery.retryCycle}/3 · Updated {new Date(delivery.updatedAt).toLocaleString()}
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!delivery.retryable || emailDelivery.retryDelivery.isPending}
+                        onClick={() => {
+                          setDeliveryError(null)
+                          setDeliveryMessage(null)
+                          emailDelivery.retryDelivery.mutate(delivery.id, {
+                            onSuccess: () => setDeliveryMessage("Delivery queued for another retry cycle"),
+                            onError: (error) => setDeliveryError(
+                              error instanceof ApiErrorResponse ? error.message : "Failed to retry delivery",
+                            ),
+                          })
+                        }}
+                      >
+                        {delivery.retryable ? "Retry" : "Retry limit reached"}
+                      </Button>
+                    </div>
+                    {delivery.lastError && (
+                      <div className="break-words rounded bg-muted px-2 py-1 text-xs text-muted-foreground">
+                        {delivery.lastError}
+                      </div>
+                    )}
+                  </div>
+                )) : (
+                  <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                    No dead deliveries.
+                  </div>
+                )}
+                {emailDelivery.hasNextPage && (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    disabled={emailDelivery.isFetchingNextPage}
+                    onClick={() => emailDelivery.fetchNextPage()}
+                  >
+                    {emailDelivery.isFetchingNextPage ? "Loading..." : "Load older deliveries"}
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 

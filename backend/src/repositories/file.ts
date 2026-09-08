@@ -1,5 +1,5 @@
 import { and, eq, inArray, isNotNull, isNull, lt, notExists } from 'drizzle-orm';
-import { db } from '../db/client';
+import { db, type DbExecutor } from '../db/client';
 import { files, messageAttachments, messages, channels, type File, type NewFile } from '../db/schema';
 
 export type FileAttachmentContext = {
@@ -77,9 +77,9 @@ export class FileRepository {
     return result[0] ?? null;
   }
 
-  async updateStatus(ids: string[], status: string): Promise<void> {
+  async updateStatus(ids: string[], status: string, executor: DbExecutor = db): Promise<void> {
     if (ids.length === 0) return;
-    await db.update(files)
+    await executor.update(files)
       .set({ status, expiresAt: null })
       .where(inArray(files.id, ids));
   }

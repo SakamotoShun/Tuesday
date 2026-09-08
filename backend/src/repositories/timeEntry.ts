@@ -1,5 +1,5 @@
 import { eq, and, gte, lte, sql, isNull } from 'drizzle-orm';
-import { db } from '../db/client';
+import { db, type DbExecutor } from '../db/client';
 import { timeEntries, type TimeEntry, type NewTimeEntry } from '../db/schema';
 
 export class TimeEntryRepository {
@@ -106,7 +106,8 @@ export class TimeEntryRepository {
   async findByUserProjectAndDate(
     userId: string,
     projectId: string | null,
-    date: string
+    date: string,
+    executor: DbExecutor = db,
   ): Promise<TimeEntry | null> {
     const whereClause = projectId
       ? and(
@@ -120,22 +121,23 @@ export class TimeEntryRepository {
           eq(timeEntries.date, date)
         );
 
-    const result = await db.query.timeEntries.findFirst({
+    const result = await executor.query.timeEntries.findFirst({
       where: whereClause,
     });
     return result || null;
   }
 
-  async upsert(data: NewTimeEntry): Promise<TimeEntry> {
+  async upsert(data: NewTimeEntry, executor: DbExecutor = db): Promise<TimeEntry> {
     const projectId = data.projectId ?? null;
     const existing = await this.findByUserProjectAndDate(
       data.userId,
       projectId,
-      data.date as string
+      data.date as string,
+      executor,
     );
 
     if (existing) {
-      const [updated] = await db
+      const [updated] = await executor
         .update(timeEntries)
         .set({
           hours: data.hours,
@@ -147,7 +149,7 @@ export class TimeEntryRepository {
       return updated;
     }
 
-    const [created] = await db.insert(timeEntries).values(data).returning();
+    const [created] = await executor.insert(timeEntries).values(data).returning();
     return created;
   }
 

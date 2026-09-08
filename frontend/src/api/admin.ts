@@ -22,6 +22,7 @@ import type {
   PayrollSummaryMeta,
   PayrollBreakdownUser,
   OpenRouterModel,
+  EmailDeliveryStatus,
 } from "./types"
 
 type BackendTimeEntry = Omit<TimeEntry, "hours"> & { hours: string }
@@ -43,6 +44,15 @@ export async function updateSettings(data: UpdateAdminSettingsInput): Promise<Ad
 
 export async function sendTestEmail(): Promise<{ sent: boolean }> {
   return api.post<{ sent: boolean }>("/admin/email/test", {})
+}
+
+export async function getEmailDeliveryStatus(cursor?: string | null): Promise<EmailDeliveryStatus> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""
+  return api.get<EmailDeliveryStatus>(`/admin/email/deliveries${query}`)
+}
+
+export async function retryEmailDelivery(id: string): Promise<{ retried: boolean }> {
+  return api.post<{ retried: boolean }>(`/admin/email/deliveries/${id}/retry`, {})
 }
 
 export async function getOpenRouterModels(): Promise<OpenRouterModel[]> {

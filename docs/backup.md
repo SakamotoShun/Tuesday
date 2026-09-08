@@ -9,7 +9,9 @@ Tuesday stores all data in two locations within the `/app/data` Docker volume:
 
 A complete backup requires both the database dump and the uploads directory.
 
-Backups are created as a single archive containing both the PostgreSQL dump and the current uploads snapshot. This is a best-effort hot backup: the database dump is captured first, then the uploads directory is copied. That ordering favors consistency for referenced files and may leave behind harmless orphaned uploads created during the backup window.
+Backups are created as a single archive containing both the PostgreSQL dump and uploads snapshot. The script stops the Tuesday application while PostgreSQL remains available, preventing application mutations while both parts are captured. Tuesday is restarted and checked through `/ready` before compression or off-site upload. An application that was already stopped remains stopped. The maintenance lock is released when the script finishes.
+
+These scripts support the packaged embedded PostgreSQL and `/app/data/uploads` layout, not external databases or custom upload paths. Do not restart the container, start Tuesday manually, or write directly to the database or uploads during backup or restore. The maintenance lock serialises these scripts; it does not prevent manual operations or container restarts.
 
 ## Database Backup
 
@@ -36,11 +38,7 @@ BACKUP_UPLOAD_CMD='rclone copy "$BACKUP_FILE_PATH" remote:tuesday/' ./scripts/ba
 
 ### Manual Backup
 
-```bash
-docker exec tuesday pg_dump --clean --if-exists --no-owner --no-privileges -U tuesday tuesday > database.sql
-docker cp tuesday:/app/data/uploads ./uploads
-tar -czf tuesday_backup_manual.tar.gz database.sql uploads
-```
+Do not assemble backup archives manually. Restore accepts the versioned full-snapshot format produced by `scripts/backup.sh`, including `database.sql`, `uploads/`, and `metadata.env`. Only restore trusted archives: the SQL is executed against PostgreSQL. Older scripts also produced backup-v2 archives but captured them while Tuesday was running; metadata validation alone cannot establish their database/upload consistency.
 
 ### Automated Backups
 
@@ -69,6 +67,8 @@ Test the newest archive (or pass an explicit archive path):
 
 The verification script restores the database into a temporary PostgreSQL container and checks that the uploads snapshot is present.
 
+This checks SQL import and archive structure, not every database file reference or application behaviour. A successful application restore and representative file checks are still required before treating a backup as recovery-tested.
+
 ## Restore
 
 ### Using the Restore Script
@@ -86,22 +86,16 @@ Skip the confirmation prompt when running in automation:
 The script will:
 1. Validate the backup file exists
 2. Ask for confirmation before overwriting
-3. Restore the database from the backup
-4. Replace `/app/data/uploads` with the archived uploads snapshot when restoring from `.tar.gz`
+3. Restore into a staging database and stage archived uploads
+4. Swap the staged snapshot into place while retaining the previous state
+5. Start Tuesday and require `/ready` to pass before discarding the previous state
+6. Roll back both database and uploads if validation fails
+
+If Tuesday cannot be stopped during rollback, the script leaves both snapshots and the maintenance lock in place instead of replacing live data. Do not delete the lock or rerun restore until an operator has stopped Tuesday and reconciled the retained databases and upload directories. Container termination, host failure, and forced process kills require manual recovery; the shell trap cannot recover from those events.
 
 ### Manual Restore
 
-```bash
-# Extract the archive first
-tar -xzf tuesday_backup_manual.tar.gz
-
-# Restore the database
-cat database.sql | docker exec -i tuesday psql -U tuesday tuesday
-
-# Restore uploads
-docker exec tuesday sh -c 'rm -rf /app/data/uploads && mkdir -p /app/data/uploads'
-docker cp ./uploads/. tuesday:/app/data/uploads/
-```
+Do not apply `database.sql` or replace `/app/data/uploads` manually. Direct restoration can leave the database and files at different snapshot points or make rollback impossible after a partial failure. Use `scripts/restore.sh` for both routine restore and disaster recovery.
 
 ## Disaster Recovery
 

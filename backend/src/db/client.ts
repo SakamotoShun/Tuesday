@@ -19,5 +19,8 @@ const client = postgres(config.databaseUrl, {
 // Create Drizzle database instance
 export const db = drizzle(client, { schema });
 
+export type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type DbExecutor = typeof db | DbTransaction;
+
 // Export the postgres client for migrations
 export { client };

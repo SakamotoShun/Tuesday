@@ -590,10 +590,13 @@ Server -> Client:
 ```bash
 # Run WorkHub
 docker run -d \
+  --stop-timeout 120 \
   -p 3000:8080 \
   -v workhub:/app/data \
+  -e TUESDAY_BASE_URL=http://localhost:3000 \
+  -e CORS_ORIGIN=http://localhost:3000 \
   --name workhub \
-  ghcr.io/sakamotoshun/tuesday:latest
+  ghcr.io/sakamotoshun/tuesday:1.2.0
 
 # Open in browser
 open http://localhost:3000
@@ -624,9 +627,9 @@ RUN bun build --compile --minify src/index.ts --outfile workhub
 FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install PostgreSQL and supervisord
+# Install PostgreSQL, supervisord, and health-check tooling
 RUN apt-get update && \
-    apt-get install -y postgresql-16 supervisor && \
+    apt-get install -y postgresql-16 supervisor curl && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy compiled backend and frontend
@@ -641,6 +644,9 @@ RUN chmod +x /app/entrypoint.sh /app/workhub
 
 EXPOSE 8080
 VOLUME /app/data
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD curl -f http://127.0.0.1:8080/ready || exit 1
 
 ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["supervisord", "-n", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
@@ -675,13 +681,15 @@ stderr_logfile=/var/log/supervisor/workhub.err
 
 ### 7.4 Environment Variables
 
-All optional - sensible defaults provided:
+Development has sensible defaults. Production requires an explicit public URL and browser origin:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| WORKHUB_PORT | 8080 | HTTP server port |
-| WORKHUB_BASE_URL | http://localhost:8080 | Public URL (for links) |
-| WORKHUB_DATA_DIR | /app/data | Data directory path |
+| `PORT` | `8080` | Internal HTTP server port |
+| `TUESDAY_BASE_URL` | Development localhost | Public URL for generated links; required in production |
+| `CORS_ORIGIN` | Development localhost origins | Allowed browser origins; required in production |
+| `DATABASE_URL` | Embedded PostgreSQL | Database connection string |
+| `UPLOAD_STORAGE_PATH` | `/app/data/uploads` | Upload storage directory |
 
 **Session Secret:** Auto-generated on first run and saved to `/app/data/.session_secret`
 
@@ -738,16 +746,17 @@ docker start workhub
 # Remove container (keeps data volume)
 docker rm workhub
 
-# Backup database
-docker exec workhub pg_dump -U workhub workhub > backup.sql
+# Back up and restore the complete database/uploads snapshot
+CONTAINER_NAME=workhub ./scripts/backup.sh
+CONTAINER_NAME=workhub ./scripts/restore.sh backups/tuesday_backup_<timestamp>.tar.gz
 
-# Restore database
-cat backup.sql | docker exec -i workhub psql -U workhub workhub
-
-# Update to new version
-docker pull ghcr.io/sakamotoshun/tuesday:latest
-docker stop workhub && docker rm workhub
-docker run -d -p 3000:8080 -v workhub:/app/data --name workhub ghcr.io/sakamotoshun/tuesday:latest
+# Update to an explicitly selected version after taking a backup
+docker pull ghcr.io/sakamotoshun/tuesday:1.2.0
+docker stop -t 120 workhub && docker rm workhub
+docker run -d --stop-timeout 120 -p 3000:8080 -v workhub:/app/data \
+  -e TUESDAY_BASE_URL=https://tuesday.example.com \
+  -e CORS_ORIGIN=https://tuesday.example.com \
+  --name workhub ghcr.io/sakamotoshun/tuesday:1.2.0
 ```
 
 ---

@@ -5,6 +5,8 @@ import { cn } from "@/lib/utils"
 const iconMap = {
   mention: MessageCircle,
   assignment: CheckCircle,
+  task_assignment: CheckCircle,
+  notice_assignment: CheckCircle,
   meeting_invite: Calendar,
   project_invite: UserPlus,
 } as const
@@ -31,9 +33,10 @@ export function NotificationItem({ notification, onClick }: NotificationItemProp
       )}
       onClick={onClick}
     >
+      <span className="sr-only">{notification.read ? "Read" : "Unread"}. </span>
       <div className="flex items-start gap-3">
         <div className="mt-1">
-          <Icon className="h-4 w-4 text-muted-foreground" />
+          <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         </div>
         <div className="flex-1">
           <div className="text-sm font-medium">{notification.title}</div>

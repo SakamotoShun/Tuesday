@@ -1,6 +1,8 @@
 import { noticeBoardRepository, userRepository, type NoticeBoardItemWithUsers } from '../repositories';
 import { NoticeBoardItemType, type NewNoticeBoardItem } from '../db/schema';
 import type { User } from '../types';
+import { db } from '../db/client';
+import { notificationService } from './notification';
 
 export interface CreateNoticeBoardItemInput {
   type: 'announcement' | 'todo';
@@ -37,31 +39,34 @@ export class NoticeBoardService {
       assigneeId = await this.validateAssignee(input.assigneeId);
     }
 
-    const existing = await noticeBoardRepository.findAll();
-    const sortOrder = existing.length > 0 ? Math.max(...existing.map((item) => item.sortOrder)) + 1 : 0;
-
-    const created = await noticeBoardRepository.create({
-      type: input.type,
-      title,
-      description: input.description ?? null,
-      createdBy: user.id,
-      assigneeId,
-      isCompleted: false,
-      completedBy: null,
-      completedAt: null,
-      sortOrder,
+    const committed = await db.transaction(async (tx) => {
+      const existing = await noticeBoardRepository.findAll(tx);
+      const sortOrder = existing.length > 0 ? Math.max(...existing.map((item) => item.sortOrder)) + 1 : 0;
+      const created = await noticeBoardRepository.create({
+        type: input.type,
+        title,
+        description: input.description ?? null,
+        createdBy: user.id,
+        assigneeId,
+        isCompleted: false,
+        completedBy: null,
+        completedAt: null,
+        sortOrder,
+      }, tx);
+      const notifications = created.type === NoticeBoardItemType.TODO && created.assigneeId && created.assigneeId !== user.id
+        ? await notificationService.enqueueNoticeAssignment({
+            noticeId: created.id,
+            noticeTitle: created.title,
+            assigneeId: created.assigneeId,
+            assignedBy: user.name,
+          }, tx)
+        : [];
+      const complete = await noticeBoardRepository.findById(created.id, tx);
+      if (!complete) throw new Error('Failed to load notice board item');
+      return { complete, notifications };
     });
-
-    if (created.type === NoticeBoardItemType.TODO && created.assigneeId && created.assigneeId !== user.id) {
-      await this.notifyAssignee(created.assigneeId, created.title, user.name);
-    }
-
-    const complete = await noticeBoardRepository.findById(created.id);
-    if (!complete) {
-      throw new Error('Failed to load notice board item');
-    }
-
-    return complete;
+    notificationService.publishMany(committed.notifications);
+    return committed.complete;
   }
 
   async updateItem(id: string, input: UpdateNoticeBoardItemInput, user: User): Promise<NoticeBoardItemWithUsers | null> {
@@ -110,21 +115,28 @@ export class NoticeBoardService {
       }
     }
 
-    const updated = await noticeBoardRepository.update(id, updateData);
-    if (!updated) {
-      return null;
-    }
-
-    if (
-      updated.type === NoticeBoardItemType.TODO &&
-      updated.assigneeId &&
-      updated.assigneeId !== existing.assigneeId &&
-      updated.assigneeId !== user.id
-    ) {
-      await this.notifyAssignee(updated.assigneeId, updated.title, user.name);
-    }
-
-    return noticeBoardRepository.findById(updated.id);
+    const committed = await db.transaction(async (tx) => {
+      const previous = await noticeBoardRepository.findById(id, tx);
+      if (!previous) return null;
+      const updated = await noticeBoardRepository.update(id, updateData, tx);
+      if (!updated) return null;
+      const notifications = updated.type === NoticeBoardItemType.TODO &&
+        updated.assigneeId &&
+        updated.assigneeId !== previous.assigneeId &&
+        updated.assigneeId !== user.id
+        ? await notificationService.enqueueNoticeAssignment({
+            noticeId: updated.id,
+            noticeTitle: updated.title,
+            assigneeId: updated.assigneeId,
+            assignedBy: user.name,
+          }, tx)
+        : [];
+      const complete = await noticeBoardRepository.findById(updated.id, tx);
+      return complete ? { complete, notifications } : null;
+    });
+    if (!committed) return null;
+    notificationService.publishMany(committed.notifications);
+    return committed.complete;
   }
 
   async deleteItem(id: string): Promise<boolean> {
@@ -166,14 +178,6 @@ export class NoticeBoardService {
     return assigneeId;
   }
 
-  private async notifyAssignee(assigneeId: string, title: string, assignedBy: string) {
-    const { notificationService } = await import('./notification');
-    await notificationService.notify(assigneeId, 'assignment', {
-      title: `Assigned to notice board todo: ${title}`,
-      body: `Assigned by ${assignedBy}`,
-      link: '/',
-    });
-  }
 }
 
 export const noticeBoardService = new NoticeBoardService();

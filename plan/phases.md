@@ -3479,60 +3479,9 @@ scripts/
 └── restore.sh
 ```
 
-**scripts/backup.sh:**
-```bash
-#!/bin/bash
-set -e
+**scripts/backup.sh and scripts/restore.sh:**
 
-BACKUP_DIR="${BACKUP_DIR:-./backups}"
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BACKUP_FILE="$BACKUP_DIR/tuesday_backup_$TIMESTAMP.sql"
-
-mkdir -p "$BACKUP_DIR"
-
-echo "Creating backup: $BACKUP_FILE"
-docker exec tuesday pg_dump -U tuesday tuesday > "$BACKUP_FILE"
-
-echo "Compressing backup..."
-gzip "$BACKUP_FILE"
-
-echo "Backup complete: ${BACKUP_FILE}.gz"
-```
-
-**scripts/restore.sh:**
-```bash
-#!/bin/bash
-set -e
-
-BACKUP_FILE="$1"
-
-if [ -z "$BACKUP_FILE" ]; then
-    echo "Usage: ./restore.sh <backup_file.sql.gz>"
-    exit 1
-fi
-
-if [ ! -f "$BACKUP_FILE" ]; then
-    echo "Backup file not found: $BACKUP_FILE"
-    exit 1
-fi
-
-echo "WARNING: This will overwrite the current database!"
-read -p "Are you sure? (y/N) " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    exit 1
-fi
-
-echo "Restoring from: $BACKUP_FILE"
-
-if [[ "$BACKUP_FILE" == *.gz ]]; then
-    gunzip -c "$BACKUP_FILE" | docker exec -i tuesday psql -U tuesday tuesday
-else
-    cat "$BACKUP_FILE" | docker exec -i tuesday psql -U tuesday tuesday
-fi
-
-echo "Restore complete!"
-```
+Backups are versioned `.tar.gz` full snapshots containing `database.sql`, `uploads/`, and `metadata.env`. Restore stages the database and uploads separately, swaps them under an exclusive lock, validates `/ready`, and rolls both back on failure. Database-only restore is intentionally unsupported because it can leave attachment records and files at different snapshot points. See `docs/backup.md` for the operational procedure.
 
 **Estimated:** 30 min
 
@@ -3863,7 +3812,7 @@ docker compose logs -f
 
 # Backup
 ./scripts/backup.sh
-./scripts/restore.sh backup.sql.gz
+./scripts/restore.sh backups/tuesday_backup_<timestamp>.tar.gz
 ```
 
 ### API Endpoints Summary

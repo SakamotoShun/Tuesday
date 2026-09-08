@@ -1,6 +1,6 @@
 import { oauthRepository } from '../repositories/oauth';
 import { config } from '../config';
-import { VALID_MCP_SCOPES, type McpScope, type AuthenticatedMcpUser } from './mcpToken';
+import { expandMcpScopes, VALID_MCP_SCOPES, type McpScope, type AuthenticatedMcpUser } from './mcpToken';
 import {
   fingerprintOauthToken,
   generateOauthAccessToken,
@@ -60,13 +60,26 @@ interface RevokeTokenInput {
   clientSecret?: string | null;
 }
 
-function resolveScopes(scope: string | null | undefined, allowed: Iterable<string>): McpScope[] {
-  const allowedScopes = new Set(
-    Array.from(allowed).filter((candidate): candidate is McpScope => VALID_MCP_SCOPES.has(candidate as McpScope)),
+const OAUTH_SCOPE_COMPATIBILITY_ALIASES = new Set(['claudeai']);
+
+function normalizePersistedScopes(scopes: Iterable<string>): McpScope[] {
+  return expandMcpScopes(
+    Array.from(scopes).filter((candidate): candidate is McpScope => VALID_MCP_SCOPES.has(candidate as McpScope)),
   );
-  const requestedScopes = Array.from(new Set(scope?.split(/\s+/).filter(Boolean) ?? []))
-    .filter((candidate): candidate is McpScope => VALID_MCP_SCOPES.has(candidate as McpScope))
-    .filter((candidate) => allowedScopes.has(candidate));
+}
+
+function resolveScopes(scope: string | null | undefined, allowed: Iterable<string>): McpScope[] {
+  const allowedScopes = new Set(normalizePersistedScopes(allowed));
+  const requested = Array.from(new Set(scope?.split(/\s+/).filter(Boolean) ?? []));
+  const invalid = requested.filter((candidate) =>
+    !VALID_MCP_SCOPES.has(candidate as McpScope) && !OAUTH_SCOPE_COMPATIBILITY_ALIASES.has(candidate));
+  if (invalid.length > 0) throw new Error(`Invalid scope: ${invalid.join(', ')}`);
+
+  const requestedScopes = expandMcpScopes(
+    requested.filter((candidate): candidate is McpScope => VALID_MCP_SCOPES.has(candidate as McpScope)),
+  );
+  const disallowed = requestedScopes.filter((candidate) => !allowedScopes.has(candidate));
+  if (disallowed.length > 0) throw new Error(`Scope not allowed: ${disallowed.join(', ')}`);
 
   return requestedScopes.length > 0 ? requestedScopes : Array.from(allowedScopes);
 }
@@ -274,6 +287,7 @@ export class OauthService {
       throw new Error('Invalid PKCE verifier');
     }
 
+    const scopes = normalizePersistedScopes(code.scopes as string[]);
     const rawAccessToken = generateOauthAccessToken();
     const rawRefreshToken = generateOauthRefreshToken();
     const accessExpiresAt = new Date(Date.now() + ACCESS_TOKEN_TTL_SECONDS * 1000);
@@ -286,7 +300,7 @@ export class OauthService {
         tokenHash: fingerprintOauthToken(rawAccessToken),
         clientId: code.clientId,
         userId: code.userId,
-        scopes: code.scopes,
+        scopes: scopes as any,
         resource: code.resource,
         expiresAt: accessExpiresAt,
       }, tx);
@@ -295,7 +309,7 @@ export class OauthService {
         tokenHash: fingerprintOauthToken(rawRefreshToken),
         clientId: code.clientId,
         userId: code.userId,
-        scopes: code.scopes,
+        scopes: scopes as any,
         resource: code.resource,
         expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
       }, tx);
@@ -306,7 +320,7 @@ export class OauthService {
       token_type: 'Bearer',
       expires_in: ACCESS_TOKEN_TTL_SECONDS,
       refresh_token: rawRefreshToken,
-      scope: (code.scopes as string[]).join(' '),
+      scope: scopes.join(' '),
     };
   }
 
@@ -323,6 +337,7 @@ export class OauthService {
       throw new Error('Invalid refresh token');
     }
 
+    const scopes = normalizePersistedScopes(refreshToken.scopes as string[]);
     const rawAccessToken = generateOauthAccessToken();
     const rawRefreshToken = generateOauthRefreshToken();
 
@@ -334,7 +349,7 @@ export class OauthService {
         tokenHash: fingerprintOauthToken(rawAccessToken),
         clientId: refreshToken.clientId,
         userId: refreshToken.userId,
-        scopes: refreshToken.scopes,
+        scopes: scopes as any,
         resource: refreshToken.resource,
         expiresAt: new Date(Date.now() + ACCESS_TOKEN_TTL_SECONDS * 1000),
       }, tx);
@@ -343,7 +358,7 @@ export class OauthService {
         tokenHash: fingerprintOauthToken(rawRefreshToken),
         clientId: refreshToken.clientId,
         userId: refreshToken.userId,
-        scopes: refreshToken.scopes,
+        scopes: scopes as any,
         resource: refreshToken.resource,
         expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
         rotatedFromId: refreshToken.id,
@@ -355,7 +370,7 @@ export class OauthService {
       token_type: 'Bearer',
       expires_in: ACCESS_TOKEN_TTL_SECONDS,
       refresh_token: rawRefreshToken,
-      scope: (refreshToken.scopes as string[]).join(' '),
+      scope: scopes.join(' '),
     };
   }
 
@@ -371,7 +386,7 @@ export class OauthService {
       userEmail: token.user.email,
       userRole: token.user.role,
       tokenId: token.id,
-      scopes: new Set(token.scopes as string[]),
+      scopes: new Set(normalizePersistedScopes(token.scopes as string[])),
       authType: 'oauth',
       clientId: token.clientId,
     };

@@ -7,6 +7,7 @@ import { userRepository } from '../repositories/user';
 import { hashPassword, verifyPassword } from '../utils/password';
 import { log } from '../utils/logger';
 import { config } from '../config';
+import { resolvePublicBaseUrl } from '../utils/publicBaseUrl';
 import { emailService } from './email';
 import type { User } from '../types';
 
@@ -70,8 +71,9 @@ export class AuthService {
   }
 
   private getPublicSiteUrl(value: string | null): string {
-    const candidate = value?.trim() || config.corsOrigin;
-    return candidate.replace(/\/+$/, '');
+    const publicBaseUrl = resolvePublicBaseUrl(value);
+    if (!publicBaseUrl) throw new Error('Password reset is not configured');
+    return publicBaseUrl;
   }
 
   private sweepPasswordResetRateLimits(now: number): void {

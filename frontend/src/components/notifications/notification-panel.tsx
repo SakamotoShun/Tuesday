@@ -6,11 +6,12 @@ import { NotificationItem } from "@/components/notifications/notification-item"
 
 interface NotificationPanelProps {
   notifications: Notification[]
+  error?: boolean
   onMarkAllRead: () => void
   onSelect: (notification: Notification) => void
 }
 
-export function NotificationPanel({ notifications, onMarkAllRead, onSelect }: NotificationPanelProps) {
+export function NotificationPanel({ notifications, error = false, onMarkAllRead, onSelect }: NotificationPanelProps) {
   return (
     <div className="w-full">
       <div className="flex items-center justify-between px-3 py-2">
@@ -21,7 +22,9 @@ export function NotificationPanel({ notifications, onMarkAllRead, onSelect }: No
       </div>
       <Separator />
       <div className="max-h-72 overflow-y-auto p-2 space-y-1">
-        {notifications.length === 0 ? (
+        {error ? (
+          <div role="alert" className="text-sm text-destructive px-2 py-4">Unable to load notifications.</div>
+        ) : notifications.length === 0 ? (
           <div className="text-sm text-muted-foreground px-2 py-4">No notifications yet.</div>
         ) : (
           notifications.map((notification) => (

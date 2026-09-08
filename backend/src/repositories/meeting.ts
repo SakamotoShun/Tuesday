@@ -1,10 +1,10 @@
 import { and, eq, desc } from 'drizzle-orm';
-import { db } from '../db/client';
+import { db, type DbExecutor } from '../db/client';
 import { meetings, type Meeting, type NewMeeting, meetingAttendees } from '../db/schema';
 
 export class MeetingRepository {
-  async findById(id: string): Promise<Meeting | null> {
-    const result = await db.query.meetings.findFirst({
+  async findById(id: string, executor: DbExecutor = db): Promise<Meeting | null> {
+    const result = await executor.query.meetings.findFirst({
       where: eq(meetings.id, id),
       with: {
         project: true,
@@ -98,13 +98,13 @@ export class MeetingRepository {
     });
   }
 
-  async create(data: NewMeeting): Promise<Meeting> {
-    const [meeting] = await db.insert(meetings).values(data).returning();
+  async create(data: NewMeeting, executor: DbExecutor = db): Promise<Meeting> {
+    const [meeting] = await executor.insert(meetings).values(data).returning();
     return meeting;
   }
 
-  async update(id: string, data: Partial<NewMeeting>): Promise<Meeting | null> {
-    const [meeting] = await db
+  async update(id: string, data: Partial<NewMeeting>, executor: DbExecutor = db): Promise<Meeting | null> {
+    const [meeting] = await executor
       .update(meetings)
       .set({ ...data, updatedAt: new Date() })
       .where(eq(meetings.id, id))
