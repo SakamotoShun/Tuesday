@@ -208,7 +208,10 @@ export class CompactContinuityJournal {
   markIncomplete(reason: string): void {
     if (this.value.incomplete !== null) return;
     // Reserve control-state space even when the regular byte budget is full.
-    this.value.incomplete = reason.slice(0, 240).replace(/[\u0000-\u001f\u007f]/g, ' ').trim() || 'Unspecified coverage loss';
+    this.value.incomplete = Array.from(reason.slice(0, 240), char => {
+      const code = char.charCodeAt(0);
+      return code <= 0x1f || code === 0x7f ? ' ' : char;
+    }).join('').trim() || 'Unspecified coverage loss';
   }
 
   checkpoint(): CompactContinuityCheckpoint { return structuredClone(this.value); }
