@@ -66,7 +66,15 @@ describeIntegration('Doc repository collaboration safety', () => {
     const ydoc = new Y.Doc();
     Y.applyUpdate(ydoc, syncState.snapshot.snapshot);
     const baselineVector = Y.encodeStateVector(ydoc);
-    Y.applyUpdate(ydoc, Y.encodeStateAsUpdate(yDocFromBlocks(changedContent)));
+    // Edit the server's existing root, as a bound editor does. Merging a freshly
+    // seeded document would insert a second root group and require schema repair.
+    const changed = yDocFromBlocks(changedContent);
+    const group = ydoc.getXmlFragment('prosemirror').get(0) as Y.XmlElement;
+    const changedGroup = changed.getXmlFragment('prosemirror').get(0) as Y.XmlElement;
+    const paragraph = changedGroup.get(0);
+    if (!(paragraph instanceof Y.XmlElement)) throw new Error('Expected paragraph container');
+    group.push([paragraph.clone()]);
+    changed.destroy();
     const update = Y.encodeStateAsUpdate(ydoc, baselineVector);
     const seq = await docCollabRepository.appendUpdate(doc.id, update, user.id);
     const canonical = await docCollabRepository.persistCanonicalSnapshot(

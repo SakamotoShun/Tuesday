@@ -3,6 +3,7 @@ import * as Y from 'yjs';
 import { blocksFromYDoc, yDocFromBlocks } from './docContent';
 import {
   applyAndValidateDocUpdate,
+  applyResolvedDocUpdate,
   decodeStrictBase64,
   deriveValidatedDocBlocks,
   DocInvalidUpdateError,
@@ -25,6 +26,58 @@ function captureNextUpdate(doc: Y.Doc, mutate: () => void): Uint8Array {
 }
 
 describe('document Yjs history validation', () => {
+  it('projects an empty baseline without repairing or replacing its history', () => {
+    const doc = yDocFromBlocks([]);
+    try {
+      const before = Y.encodeStateAsUpdate(doc);
+      expect(deriveValidatedDocBlocks(doc)).toEqual([]);
+      expect(Y.encodeStateAsUpdate(doc)).toEqual(before);
+    } finally { doc.destroy(); }
+  });
+
+  it.each(['malformed', 'missing insertion', 'missing deletion'])('rejects %s dependencies when reusing a document', kind => {
+    const source = new Y.Doc(), reused = new Y.Doc();
+    try {
+      source.getText('text').insert(0, 'source');
+      const update = kind === 'malformed' ? new Uint8Array([1, 2, 3])
+        : captureNextUpdate(source, () => {
+          if (kind === 'missing insertion') source.getText('text').insert(6, ' later');
+          else source.getText('text').delete(0, 6);
+        });
+      expect(() => applyResolvedDocUpdate(reused, update)).toThrow(DocInvalidUpdateError);
+    } finally { source.destroy(); reused.destroy(); }
+  });
+
+  it('reuses a GC-enabled preimage with the same binary history and snapshot as fresh replay', () => {
+    const source = new Y.Doc();
+    source.getText('text').insert(0, 'before TARGET after');
+    const baseline = Y.encodeStateAsUpdate(source);
+    const update = captureNextUpdate(source, () => source.transact(() => {
+      source.getText('text').delete(7, 6);
+      source.getText('text').insert(7, 'replacement', { bold: true });
+    }));
+    const reused = materializeDocHistory(baseline, []);
+    const fresh = materializeDocHistory(baseline, [update]);
+    try {
+      applyResolvedDocUpdate(reused, update);
+      expect(reused.gc).toBe(true);
+      expect(Y.encodeStateAsUpdate(reused)).toEqual(Y.encodeStateAsUpdate(fresh));
+      expect(Y.equalSnapshots(Y.snapshot(reused), Y.snapshot(fresh))).toBe(true);
+      expect(reused.getText('text').toDelta()).toEqual(fresh.getText('text').toDelta());
+    } finally { source.destroy(); reused.destroy(); fresh.destroy(); }
+  });
+
+  it('rejects updates that the canonical projector would silently rewrite', () => {
+    const source = yDocFromBlocks([{ id: 'paragraph', type: 'paragraph', props: {}, children: [], content: [] }]);
+    try {
+      const baseline = Y.encodeStateAsUpdate(source);
+      const update = captureNextUpdate(source, () => {
+        source.getXmlFragment('prosemirror').push([new Y.XmlElement('unsupported-node')]);
+      });
+      expect(() => applyAndValidateDocUpdate(baseline, [], update)).toThrow(DocInvalidUpdateError);
+    } finally { source.destroy(); }
+  });
+
   it('strictly decodes canonical base64', () => {
     expect(Array.from(decodeStrictBase64('AQID', 3))).toEqual([1, 2, 3]);
     expect(() => decodeStrictBase64('AQID\n', 10)).toThrow(DocInvalidUpdateError);

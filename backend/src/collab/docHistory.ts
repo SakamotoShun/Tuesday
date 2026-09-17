@@ -87,19 +87,27 @@ export function decodeStrictBase64(value: string, maxBytes: number): Uint8Array 
   return new Uint8Array(decoded);
 }
 
+/** Mutates a disposable document; the caller owns cleanup even on rejection. */
+export function applyResolvedDocUpdate(doc: Y.Doc, update: Uint8Array | Buffer): void {
+  applyUpdate(doc, update);
+  assertResolved(doc);
+}
+
 export function materializeDocHistory(
   baseline: Uint8Array | Buffer | null,
   updates: Array<Uint8Array | Buffer>,
 ): Y.Doc {
   const doc = new Y.Doc();
-  if (baseline) {
-    applyUpdate(doc, baseline);
-  }
-  for (const update of updates) {
-    applyUpdate(doc, update);
-  }
-  assertResolved(doc);
-  return doc;
+  try {
+    if (baseline) {
+      applyUpdate(doc, baseline);
+    }
+    for (const update of updates) {
+      applyUpdate(doc, update);
+    }
+    assertResolved(doc);
+    return doc;
+  } catch (error) { doc.destroy(); throw error; }
 }
 
 export function applyAndValidateDocUpdate(
@@ -112,12 +120,11 @@ export function applyAndValidateDocUpdate(
   }
 
   const doc = materializeDocHistory(baseline, updates);
-  applyUpdate(doc, candidate);
-  assertResolved(doc);
-
   try {
-    return { doc, blocks: blocksFromYDoc(doc) };
+    applyResolvedDocUpdate(doc, candidate);
+    return { doc, blocks: deriveValidatedDocBlocks(doc) };
   } catch (cause) {
+    doc.destroy();
     if (cause instanceof DocInvalidUpdateError) {
       throw cause;
     }
@@ -128,7 +135,12 @@ export function applyAndValidateDocUpdate(
 export function deriveValidatedDocBlocks(doc: Y.Doc): RawDocBlock[] {
   assertResolved(doc);
   try {
-    return blocksFromYDoc(doc);
+    const before = Y.encodeStateAsUpdate(doc);
+    const blocks = blocksFromYDoc(doc);
+    if (!Buffer.from(before).equals(Y.encodeStateAsUpdate(doc))) {
+      throw new DocInvalidUpdateError('Canonical projection must not change collaboration history');
+    }
+    return blocks;
   } catch (cause) {
     throw new DocInvalidUpdateError('Yjs document cannot be converted to canonical blocks', { cause });
   }

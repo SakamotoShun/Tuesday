@@ -18,6 +18,7 @@ export default defineConfig({
       : null,
   ],
   resolve: {
+    dedupe: ["zod", "yjs"],
     alias: {
       "@": path.resolve(__dirname, "./src"),
       "frappe-gantt/dist/frappe-gantt.css": path.resolve(

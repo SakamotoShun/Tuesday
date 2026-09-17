@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent, type ReactNode } from "react"
-import { BlockNoteSchema, createCodeBlockSpec, defaultBlockSpecs, type Block } from "@blocknote/core"
+import type { Block } from "@blocknote/core"
 import { blocksToYDoc } from "@blocknote/core/yjs"
-import { codeBlockOptions } from "@blocknote/code-block"
 import { SideMenuExtension } from "@blocknote/core/extensions"
 import {
   BlockColorsItem,
@@ -20,12 +19,7 @@ import "@blocknote/shadcn/style.css"
 import { useUIStore } from "@/store/ui-store"
 import { useDocCollaboration } from "@/hooks/use-doc-collaboration"
 
-const schema = BlockNoteSchema.create({
-  blockSpecs: {
-    ...defaultBlockSpecs,
-    codeBlock: createCodeBlockSpec(codeBlockOptions),
-  },
-})
+import { blockNoteSchema } from "./block-note-schema"
 
 function CopyCodeBlockItem({ children }: { children: ReactNode }) {
   const Components = useComponentsContext()
@@ -110,7 +104,7 @@ export function BlockNoteEditor({
   })
   const fragment = useMemo(() => ydoc.getXmlFragment("prosemirror"), [ydoc])
   const editor = useCreateBlockNote({
-    schema,
+    schema: blockNoteSchema,
     editable,
     collaboration: {
       fragment,

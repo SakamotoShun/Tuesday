@@ -1,13 +1,14 @@
 import { BlockNoteEditor } from '@blocknote/core';
 import { blocksToYDoc, yDocToBlocks } from '@blocknote/core/yjs';
 import * as Y from 'yjs';
+import { docSchema } from './docSchema';
 import {
   DocBlockValidationError,
   normalizeLegacyDocBlocks,
   type RawDocBlock,
 } from '../utils/doc-blocks';
 
-const editor = BlockNoteEditor.create();
+const editor = BlockNoteEditor.create({ schema: docSchema });
 
 export class DocBlockCanonicalizationError extends DocBlockValidationError {
   constructor(cause: unknown) {
@@ -24,10 +25,16 @@ function roundTripNormalizedBlocks(blocks: RawDocBlock[]): RawDocBlock[] {
     throw new DocBlockCanonicalizationError(cause);
   }
 
-  return blocksFromYDoc(ydoc);
+  try { return blocksFromYDoc(ydoc); } finally { ydoc.destroy(); }
 }
 
 export function blocksFromYDoc(doc: Y.Doc): RawDocBlock[] {
+  const fragment = doc.getXmlFragment('prosemirror');
+  const first = fragment.get(0);
+  // y-prosemirror removes an empty blockGroup while converting it. An empty
+  // document is valid canonical content; reading it must not mutate history.
+  if (fragment.length === 0 || (fragment.length === 1 && first instanceof Y.XmlElement
+    && first.nodeName === 'blockGroup' && first.length === 0)) return [];
   const blocks = yDocToBlocks(editor, doc, 'prosemirror');
   // BlockNote emits undefined table headers and widths. Match persisted JSON,
   // omitting unset properties while retaining column positions as null.
