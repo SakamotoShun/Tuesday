@@ -30,7 +30,7 @@
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.25",
-    "nodemailer": "^9.0.1",
+    "nodemailer": "^9.1.0",
     "openai": "^6.18.0",
     "parse5": "^8.0.1",
     "postgres": "^3.4.5",
@@ -54,6 +54,17 @@
     "typescript": "^5.3.3"
   },
   "overrides": {
+    "@tiptap/core": "3.30.5",
+    "@tiptap/extension-bold": "3.30.5",
+    "@tiptap/extension-code": "3.30.5",
+    "@tiptap/extension-horizontal-rule": "3.30.5",
+    "@tiptap/extension-italic": "3.30.5",
+    "@tiptap/extension-paragraph": "3.30.5",
+    "@tiptap/extension-strike": "3.30.5",
+    "@tiptap/extension-text": "3.30.5",
+    "@tiptap/extension-underline": "3.30.5",
+    "@tiptap/extensions": "3.30.5",
+    "@tiptap/pm": "3.30.5",
     "esbuild": "0.28.0"
   }
 }
