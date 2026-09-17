@@ -131,6 +131,15 @@ export class DocService {
     }
   }
 
+  /** Authorisation without projection side effects, before a caller-owned transaction. */
+  async authoriseDoc(docId: string, user: User, edit = false): Promise<Doc> {
+    if (edit) assertNotFreelancer(user, 'Freelancers cannot edit docs');
+    const doc = await docRepository.findById(docId);
+    if (!doc) throw new Error('Doc not found');
+    if (!await this.canAccessDoc(doc, user)) throw new Error('Access denied to this doc');
+    return doc;
+  }
+
   private assertValidBlocks(blocks: Array<Record<string, unknown>> | undefined): void {
     if (blocks === undefined) {
       return;

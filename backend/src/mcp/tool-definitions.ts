@@ -1,4 +1,5 @@
 import { registerTool } from './tools';
+import { createDocTargetTools } from './doc-target-tools';
 import type { McpContext } from './types';
 import {
   searchService,
@@ -346,25 +347,8 @@ registerTool({
   },
 });
 
-// ============ get_doc ============
-
-registerTool({
-  name: 'get_doc',
-  description: 'Get a single doc by ID, including canonical block content and the current version required for edits.',
-  requiredScope: 'docs:read',
-  inputSchema: {
-    type: 'object',
-    properties: { docId: { ...UUID_SCHEMA, description: 'Doc UUID' } },
-    required: ['docId'],
-    additionalProperties: false,
-  },
-  handler: async (input: unknown, ctx: McpContext) => {
-    const { docId } = input as { docId: string };
-    const doc = await docService.getDoc(docId, ctx.user);
-    if (!doc) throw new Error('Doc not found or access denied');
-    return doc;
-  },
-});
+// Current reads and same-history live span edits.
+createDocTargetTools().forEach(registerTool);
 
 // ============ create_doc ============
 

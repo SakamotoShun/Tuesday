@@ -15,7 +15,7 @@ import {
   MAX_DOC_SYNC_PAYLOAD_BYTES,
 } from '../collab/docHistory';
 import { db, type DbTransaction } from '../db/client';
-import { docs, docCollabSnapshots, docCollabUpdates, docCollabOperations } from '../db/schema';
+import { docs, docCollabSnapshots, docCollabUpdates, docCollabOperations, activityLogs } from '../db/schema';
 import {
   checkpointDocHistory, compactCurrentDocHistory, deleteStaleSnapshots, ensureBaseline,
   getDurableLatestSeq, getLatestSnapshot, loadBoundedHistory, lockDoc, readCurrentDocHistory,
@@ -24,6 +24,7 @@ import {
 } from './docCollabHistory';
 import { log } from '../utils/logger';
 import { assertCurrentDocAccess } from './docAccess';
+import { issueSpan, applySpan, DocSpanError, type SpanReference } from '../collab/docSpan';
 
 function assertDocGeneration(doc: LockedDoc, generation: string) {
   if (doc.collabGeneration !== generation) throw new DocGenerationMismatchError();
@@ -98,6 +99,42 @@ export async function appendDocUpdate(tx: DbTransaction, docId: string, update: 
     }
     return await recordOperation(result.seq);
   } finally { validated.doc.destroy(); }
+}
+
+/** Caller authorises before entering; all preparation remains in this transaction. */
+export async function issueCurrentSpan(tx: DbTransaction, docId: string, blockId: string, from: number, to: number, inlineIndex = 0) {
+  const current = await projectCurrentDocHistory(tx, docId);
+  const issued = await issueSpansAtCurrent(tx, current, [{ blockId, from, to, inlineIndex }]);
+  return { generation: issued.generation, collabSeq: issued.collabSeq, reference: issued.references[0]! };
+}
+
+export interface CurrentSpanSelection { blockId: string; from: number; to: number; inlineIndex: number }
+
+/** The caller owns the current state's document lock; all references share its exact cut. */
+export async function issueSpansAtCurrent(tx: DbTransaction, current: Awaited<ReturnType<typeof projectCurrentDocHistory>>,
+  selections: CurrentSpanSelection[]) {
+  if (selections.length > 20) throw new DocSpanError('LIMIT_EXCEEDED', 'Too many span references');
+  if (!selections.length) return { generation: current.doc.collabGeneration, collabSeq: current.collabSeq, references: [] };
+  const references = selections.map(selection => issueSpan(current.state, selection.blockId, selection.from, selection.to, selection.inlineIndex));
+  return { generation: current.doc.collabGeneration, references, collabSeq: current.collabSeq };
+}
+
+/** Compose inside runIdempotentOperation: advisory lock -> doc lock -> delta/audit/receipt. */
+export async function applyCurrentSpan(tx: DbTransaction, input: {
+  docId: string; generation: string; reference: SpanReference; text: string; actorId: string;
+}) {
+  const doc = await lockDoc(tx, input.docId);
+  assertDocGeneration(doc, input.generation);
+  const current = await projectCurrentDocHistory(tx, input.docId);
+  const result = applySpan(current.state, input.reference, input.text);
+  const seq = await appendDocUpdate(tx, input.docId, result.update, input.actorId, {
+    generation: input.generation, project: true,
+  });
+  const [updated] = await tx.select({ version: docs.version }).from(docs).where(eq(docs.id, input.docId));
+  await tx.insert(activityLogs).values({ actorId: input.actorId, action: 'doc.patched', entityType: 'doc',
+    entityId: doc.id, entityName: doc.title, projectId: doc.projectId,
+    metadata: { generation: input.generation, collabSeq: seq } });
+  return { update: result.update, response: { docId: doc.id, generation: input.generation, collabSeq: seq, version: updated!.version } };
 }
 
 export class DocCollabRepository {

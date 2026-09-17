@@ -5,6 +5,7 @@ import { mcpIdempotencyKeys } from '../db/schema';
 import type { AuthenticatedMcpUser } from '../services/mcpToken';
 import { log } from '../utils/logger';
 import { McpToolError } from './errors';
+import { principalFor } from './principal';
 
 export interface IdempotentOperationResult<T extends Record<string, unknown>> {
   response: T;
@@ -28,14 +29,6 @@ export function hashIdempotencyRequest(input: unknown): string {
     ? Object.fromEntries(Object.entries(input as Record<string, unknown>).filter(([key]) => key !== 'idempotencyKey'))
     : input;
   return createHash('sha256').update(JSON.stringify(canonicalize(request))).digest('hex');
-}
-
-function principalFor(token: AuthenticatedMcpUser) {
-  if (token.authType === 'oauth') {
-    if (!token.clientId) throw new McpToolError('INTERNAL_ERROR', 'OAuth credential identity is incomplete.');
-    return { type: 'oauth', id: `${token.userId}:${token.clientId}`, tokenId: null, userId: token.userId };
-  }
-  return { type: 'pat', id: token.tokenId, tokenId: token.tokenId, userId: null };
 }
 
 export async function runIdempotentOperation<T extends Record<string, unknown>>(
