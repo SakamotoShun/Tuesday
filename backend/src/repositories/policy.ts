@@ -58,6 +58,8 @@ export class PolicyRepository {
             schema: true,
             version: true,
             canonicalCollabSeq: true,
+            collabGeneration: true,
+            collabProjectionPendingAt: true,
             createdBy: true,
             createdAt: true,
             updatedAt: true,

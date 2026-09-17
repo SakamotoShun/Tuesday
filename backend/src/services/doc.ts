@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { docRepository } from '../repositories/doc';
+import { docCollabRepository } from '../repositories/docCollab';
 import { docShareRepository, type DocShareWithUser } from '../repositories/docShare';
 import { sharedLinkRepository } from '../repositories/sharedLink';
 import { userRepository } from '../repositories/user';
@@ -219,7 +220,8 @@ export class DocService {
       throw new Error('Access denied to this doc');
     }
 
-    return doc;
+    const current = await docCollabRepository.projectCurrent(docId, { ...doc, userId: user.id });
+    return { ...doc, ...current.doc };
   }
 
   /**

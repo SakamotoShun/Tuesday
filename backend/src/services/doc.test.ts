@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll, mock, spyOn } from 'bun:test';
 import { docRepository } from '../repositories/doc';
+import { docCollabRepository } from '../repositories/docCollab';
 import { docShareRepository } from '../repositories/docShare';
 import { sharedLinkRepository } from '../repositories/sharedLink';
 import { userRepository } from '../repositories/user';
@@ -29,6 +30,9 @@ spyOn(docRepository, 'findPersonalDocs').mockImplementation((userId) => findPers
 spyOn(docRepository, 'findByIdWithParent').mockImplementation((docId) => findByIdWithParent(docId));
 spyOn(docRepository, 'findChildren').mockImplementation((docId) => findChildren(docId));
 spyOn(docRepository, 'findById').mockImplementation((docId) => findById(docId));
+spyOn(docCollabRepository, 'projectCurrent').mockImplementation(async (docId) => ({
+  doc: await findByIdWithParent(docId), content: [], state: new Uint8Array(), collabSeq: 0,
+}));
 spyOn(docRepository, 'create').mockImplementation((data) => createDoc(data));
 spyOn(docRepository, 'update').mockImplementation((docId, data) => updateDoc(docId, data));
 spyOn(docRepository, 'updateIfVersion').mockImplementation(

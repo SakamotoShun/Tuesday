@@ -382,10 +382,15 @@ export const docs = pgTable('docs', {
   schema: jsonb('schema'),
   version: integer('version').notNull().default(1),
   canonicalCollabSeq: bigint('canonical_collab_seq', { mode: 'number' }).default(0),
+  collabGeneration: uuid('collab_generation').notNull().defaultRandom(),
+  collabProjectionPendingAt: timestamp('collab_projection_pending_at', { withTimezone: true }),
   createdBy: uuid('created_by').notNull().references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => ({
+  projectionPendingIdx: index('docs_collab_projection_pending_idx').on(table.collabProjectionPendingAt)
+    .where(sql`${table.collabProjectionPendingAt} IS NOT NULL`),
+}));
 
 // Doc shares table
 export const docShares = pgTable('doc_shares', {
@@ -436,6 +441,28 @@ export const docCollabUpdates = pgTable('doc_collab_updates', {
 }, (table) => ({
   docSeqIdx: index('doc_collab_updates_doc_seq_idx').on(table.docId, table.seq),
   updateSizeCheck: check('doc_collab_updates_update_size_check', sql`octet_length(${table.update}) <= 1048576`),
+}));
+
+// Retained for the lifetime of a generation, independently of compacted Yjs deltas.
+export const docCollabOperations = pgTable('doc_collab_operations', {
+  docId: uuid('doc_id').notNull().references(() => docs.id, { onDelete: 'cascade' }),
+  generation: uuid('generation').notNull(),
+  operationId: uuid('operation_id').notNull(),
+  actorId: uuid('actor_id').notNull(),
+  requestHash: varchar('request_hash', { length: 64 }).notNull(),
+  seq: bigint('seq', { mode: 'number' }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, table => ({ pk: primaryKey({ columns: [table.docId, table.generation, table.operationId] }) }));
+
+// Historical experiment storage; the production targeting path does not use it.
+export const docCollabContinuity = pgTable('doc_collab_continuity', {
+  docId: uuid('doc_id').primaryKey().references(() => docs.id, { onDelete: 'cascade' }),
+  generation: uuid('generation').notNull(),
+  throughSeq: bigint('through_seq', { mode: 'number' }).notNull(),
+  checkpoint: bytea('checkpoint').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  checkpointSizeCheck: check('doc_collab_continuity_size_check', sql`octet_length(${table.checkpoint}) <= 8388608`),
 }));
 
 // Activity logs table

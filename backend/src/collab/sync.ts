@@ -48,6 +48,7 @@ interface DocCollabSyncRepository {
     canonicalSeq: number | null;
     baseSnapshotId: string | null;
     baseSeq: number;
+    generation?: string;
   }>;
   createSnapshotAndCompactIfCurrent(
     docId: string,
@@ -82,6 +83,7 @@ export interface DocSyncState {
   updates: Uint8Array[];
   latestSeq: number;
   canonicalSeq: number | null;
+  generation?: string;
 }
 
 export interface WhiteboardSyncState {
@@ -270,7 +272,7 @@ export async function buildDocSyncState(repository: DocCollabSyncRepository, doc
     const latestSeq = Math.max(baseSeq, state.latestSeq);
 
     if (latestSeq <= baseSeq) {
-      return { snapshot, updates: [], latestSeq, canonicalSeq: state.canonicalSeq };
+      return { snapshot, updates: [], latestSeq, canonicalSeq: state.canonicalSeq, ...(state.generation ? { generation: state.generation } : {}) };
     }
 
     if (!state.hasMore) {
@@ -279,6 +281,7 @@ export async function buildDocSyncState(repository: DocCollabSyncRepository, doc
         updates: state.updates.map((update) => toUint8Array(update.update)),
         latestSeq,
         canonicalSeq: state.canonicalSeq,
+        ...(state.generation ? { generation: state.generation } : {}),
       };
     }
 

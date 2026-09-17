@@ -120,12 +120,26 @@ async function startServer() {
 
     emailNotificationWorker.start();
 
+    // One bounded server-owned projection worker, tracked during shutdown.
+    let projectionActive = false;
+    cleanupHandles.push(setInterval(() => {
+      if (projectionActive) return;
+      projectionActive = true;
+      const promise = (async () => {
+        try {
+          const { docCollabRepository } = await import('./repositories/docCollab');
+          await docCollabRepository.refreshProjections();
+        } catch (error) { log('warn', 'doc_collab.projection_worker_failed', { error }); }
+      })().finally(() => { projectionActive = false; cleanupPromises.delete(promise); });
+      cleanupPromises.add(promise);
+    }, 1000));
+
     const server = Bun.serve({
       port: config.port,
       fetch: (request, server) => app.fetch(request, { server }),
       websocket: {
         ...websocket,
-        maxPayloadLength: config.whiteboardMaxMessageMb * 1024 * 1024,
+        maxPayloadLength: Math.max(config.whiteboardMaxMessageMb, 3) * 1024 * 1024,
       },
     });
 

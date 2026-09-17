@@ -41,6 +41,13 @@ export class DocNotFoundError extends Error {
   }
 }
 
+export class DocGenerationMismatchError extends Error {
+  constructor() {
+    super('Document collaboration generation changed; old history cannot be replayed');
+    this.name = 'DocGenerationMismatchError';
+  }
+}
+
 type YDocWithStore = Y.Doc & {
   store: {
     pendingStructs: unknown | null;

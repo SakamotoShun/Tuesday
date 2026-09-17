@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import * as Y from "yjs"
 import {
   Awareness,
@@ -19,13 +19,14 @@ export interface DocCollaborationSyncError {
   code: DocCollaborationSyncErrorCode
   message: string
   requiresReload: true
+  pendingUpdateCount: number
 }
 
 type ServerMessage =
   | { type: "ping"; ts?: unknown }
-  | { type: "doc.sync"; snapshot?: unknown; updates?: unknown; latestSeq?: unknown }
-  | { type: "doc.update"; update?: unknown; seq?: unknown }
-  | { type: "doc.ack"; seq?: unknown }
+  | { type: "doc.sync"; snapshot?: unknown; updates?: unknown; latestSeq?: unknown; generation?: unknown; acknowledgement?: unknown; persistence?: unknown }
+  | { type: "doc.update"; update?: unknown; seq?: unknown; generation?: unknown }
+  | { type: "doc.ack"; seq?: unknown; generation?: unknown; operationId?: unknown }
   | { type: "presence.broadcast"; update?: unknown }
   | { type: "doc.snapshot.request"; seq?: unknown }
   | { type: "error"; code?: unknown; message?: unknown }
@@ -47,10 +48,10 @@ const USER_COLORS = [
 ]
 
 const FATAL_SYNC_ERROR_MESSAGES: Record<DocCollaborationSyncErrorCode, string> = {
-  invalid_update: "A document update was rejected as invalid. Reload the page to resync before editing.",
-  update_too_large: "A document update is too large to sync. Reload the page before editing again.",
-  resync_required: "This document must be resynchronized. Reload the page before editing.",
-  sync_apply_failed: "The document sync data could not be applied safely. Reload the page before editing.",
+  invalid_update: "A document update was rejected as invalid. Save a recovery copy of local work before reloading.",
+  update_too_large: "A document update is too large to sync. Save a recovery copy of local work before reloading.",
+  resync_required: "This document must be resynchronized. Save a recovery copy of local work before reloading.",
+  sync_apply_failed: "The document sync data could not be applied safely. Save a recovery copy of local work before reloading.",
 }
 
 const isFatalSyncErrorCode = (code: unknown): code is Exclude<DocCollaborationSyncErrorCode, "sync_apply_failed"> =>
@@ -97,41 +98,88 @@ export function useDocCollaboration(docId: string, options: UseDocCollaborationO
   const [initialSyncComplete, setInitialSyncComplete] = useState(false)
   const socketRef = useRef<WebSocket | null>(null)
   const reconnectRef = useRef<number | null>(null)
-  const pendingMessages = useRef<string[]>([])
-  const unacknowledgedDocUpdates = useRef<string[]>([])
-  const isCleanedUp = useRef(false)
+  const acknowledgementTimeoutRef = useRef<number | null>(null)
+  const snapshotPendingRef = useRef(false)
+  const requestedSnapshotSeqRef = useRef(0)
+  const unacknowledgedDocUpdates = useRef<Array<{ operationId: string; payload: string; sentAt: number | null }>>([])
+  const operationAcknowledgementsRef = useRef(false)
   const hasFatalErrorRef = useRef(false)
   const initialSyncCompleteRef = useRef(false)
+  const hasInitializedRef = useRef(false)
   const latestServerSeqRef = useRef(0)
+  const generationRef = useRef<string | undefined>(undefined)
   const pendingAwarenessUpdatesRef = useRef<Uint8Array[]>([])
   const onLocalChangeRef = useRef(options.onLocalChange)
+  const serverOwnedSavesRef = useRef(false)
+
+  // Export only: never feed this old-generation state into a replacement history.
+  const getRecoveryCopy = useCallback(() => ({
+    format: "tuesday-doc-recovery-v1",
+    docId,
+    generation: generationRef.current ?? null,
+    exportedAt: new Date().toISOString(),
+    snapshot: encodeBase64(Y.encodeStateAsUpdate(ydoc)),
+    pendingUpdates: unacknowledgedDocUpdates.current.map(({ operationId, payload }) => ({ operationId, payload })),
+  }), [docId, ydoc])
+
+  const clearAcknowledgementTimeout = useCallback(() => {
+    if (acknowledgementTimeoutRef.current !== null) window.clearTimeout(acknowledgementTimeoutRef.current)
+    acknowledgementTimeoutRef.current = null
+  }, [])
+  const awaitAcknowledgement = useCallback(() => {
+    if (!operationAcknowledgementsRef.current || !unacknowledgedDocUpdates.current.length
+      || acknowledgementTimeoutRef.current !== null || !initialSyncCompleteRef.current) return
+    const oldest = unacknowledgedDocUpdates.current.find(update => update.sentAt !== null)
+    if (!oldest || oldest.sentAt === null) return
+    // A live socket can lose an application ACK. Reconnect recovers durable
+    // content and retries the same operation IDs; it never invents new edits.
+    // Newer ACKs cannot postpone an older operation's monotonic deadline.
+    acknowledgementTimeoutRef.current = window.setTimeout(() => {
+      acknowledgementTimeoutRef.current = null
+      socketRef.current?.close()
+    }, Math.max(0, oldest.sentAt + 10_000 - performance.now()))
+  }, [])
 
   useEffect(() => {
     onLocalChangeRef.current = options.onLocalChange
   }, [options.onLocalChange])
 
-  const sendMessage = (message: Record<string, unknown>) => {
+  const sendMessage = useCallback((message: Record<string, unknown>) => {
     if (hasFatalErrorRef.current) return
 
     const payload = JSON.stringify(message)
     const socket = socketRef.current
     if (socket && socket.readyState === WebSocket.OPEN && initialSyncCompleteRef.current) {
-      socket.send(payload)
-    } else {
-      pendingMessages.current.push(payload)
+      try {
+        socket.send(payload)
+      } catch {
+        socket.close()
+      }
     }
-  }
+    // Presence is ephemeral; the full local state is sent after reconnect.
+  }, [])
 
-  const sendSnapshot = () => {
-    if (hasFatalErrorRef.current) return
+  const flushSnapshot = useCallback(() => {
+    const socket = socketRef.current
+    if (serverOwnedSavesRef.current || !snapshotPendingRef.current || hasFatalErrorRef.current
+      || !initialSyncCompleteRef.current || socket?.readyState !== WebSocket.OPEN
+      || unacknowledgedDocUpdates.current.length > 0
+      || requestedSnapshotSeqRef.current > latestServerSeqRef.current) return
 
     const snapshot = encodeBase64(Y.encodeStateAsUpdate(ydoc))
-    sendMessage({
-      type: "doc.snapshot",
-      snapshot,
-      seq: latestServerSeqRef.current,
-    })
-  }
+    try {
+      socket.send(JSON.stringify({ type: "doc.snapshot", snapshot, seq: latestServerSeqRef.current, generation: generationRef.current }))
+      snapshotPendingRef.current = false
+      requestedSnapshotSeqRef.current = 0
+    } catch {
+      socket.close()
+    }
+  }, [ydoc])
+
+  const sendSnapshot = useCallback(() => {
+    snapshotPendingRef.current = true
+    flushSnapshot()
+  }, [flushSnapshot])
 
   useEffect(() => {
     const name = user?.name ?? "Anonymous"
@@ -141,19 +189,24 @@ export function useDocCollaboration(docId: string, options: UseDocCollaborationO
 
   useEffect(() => {
     if (!docId) return undefined
-    isCleanedUp.current = false
+    let disposed = false
     hasFatalErrorRef.current = false
     initialSyncCompleteRef.current = false
+    hasInitializedRef.current = false
     latestServerSeqRef.current = 0
+    generationRef.current = undefined
+    operationAcknowledgementsRef.current = false
+    serverOwnedSavesRef.current = false
     pendingAwarenessUpdatesRef.current = []
-    pendingMessages.current = []
+    snapshotPendingRef.current = false
+    requestedSnapshotSeqRef.current = 0
     unacknowledgedDocUpdates.current = []
     setSyncError(null)
     setInitialSyncComplete(false)
     setHasRemoteContent(false)
 
     const connect = () => {
-      if (isCleanedUp.current || hasFatalErrorRef.current) return
+      if (disposed || hasFatalErrorRef.current) return
 
       reconnectRef.current = null
       initialSyncCompleteRef.current = false
@@ -164,7 +217,7 @@ export function useDocCollaboration(docId: string, options: UseDocCollaborationO
 
       socket.onopen = () => {
         // Don't proceed if cleaned up during connection
-        if (isCleanedUp.current || hasFatalErrorRef.current) {
+        if (disposed || socketRef.current !== socket || hasFatalErrorRef.current) {
           socket.close()
           return
         }
@@ -174,20 +227,22 @@ export function useDocCollaboration(docId: string, options: UseDocCollaborationO
         if (hasFatalErrorRef.current) return
 
         hasFatalErrorRef.current = true
+        clearAcknowledgementTimeout()
         initialSyncCompleteRef.current = false
-        pendingMessages.current = []
-        unacknowledgedDocUpdates.current = []
+        // Keep pending local work in memory; a terminal error must not erase it.
         pendingAwarenessUpdatesRef.current = []
         if (reconnectRef.current) window.clearTimeout(reconnectRef.current)
         reconnectRef.current = null
         setInitialSyncComplete(false)
         setSyncState("error")
-        setSyncError({ code, message: FATAL_SYNC_ERROR_MESSAGES[code], requiresReload: true })
+        setSyncError({ code, message: FATAL_SYNC_ERROR_MESSAGES[code], requiresReload: true,
+          pendingUpdateCount: unacknowledgedDocUpdates.current.length })
         socket.close()
       }
 
       socket.onclose = (event) => {
-        if (isCleanedUp.current || hasFatalErrorRef.current) return
+        if (disposed || socketRef.current !== socket || hasFatalErrorRef.current) return
+        clearAcknowledgementTimeout()
         if (event.code === 1009) {
           failSync("update_too_large")
           return
@@ -199,8 +254,27 @@ export function useDocCollaboration(docId: string, options: UseDocCollaborationO
         reconnectRef.current = window.setTimeout(() => connect(), 1000)
       }
 
+      const completeSync = () => {
+        initialSyncCompleteRef.current = true
+        hasInitializedRef.current = true
+        for (const update of pendingAwarenessUpdatesRef.current) {
+          try { applyAwarenessUpdate(awareness, update, "remote") } catch { /* Ephemeral presence. */ }
+        }
+        pendingAwarenessUpdatesRef.current = []
+        setInitialSyncComplete(true)
+        setSyncState("synced")
+        setSyncError(null)
+        for (const update of unacknowledgedDocUpdates.current) {
+          try { socket.send(update.payload); update.sentAt = performance.now() }
+          catch { socket.close(); return }
+        }
+        awaitAcknowledgement()
+        sendMessage({ type: "presence.update", update: encodeBase64(encodeAwarenessUpdate(awareness, [ydoc.clientID])) })
+        flushSnapshot()
+      }
+
       socket.onmessage = (event) => {
-        if (socketRef.current !== socket || hasFatalErrorRef.current || typeof event.data !== "string") return
+        if (disposed || socketRef.current !== socket || hasFatalErrorRef.current || typeof event.data !== "string") return
         let message: ServerMessage
         try {
           message = JSON.parse(event.data) as ServerMessage
@@ -222,8 +296,18 @@ export function useDocCollaboration(docId: string, options: UseDocCollaborationO
           socket.send(JSON.stringify({ type: "pong", ts: message.ts }))
           return
         }
-
         if (message.type === "doc.sync") {
+          const generation = typeof message.generation === "string" ? message.generation : undefined
+          const operationAcknowledgements = message.acknowledgement === "operation_id"
+          // Check before applying even one byte or replaying old pending work.
+          if (hasInitializedRef.current && (generation !== generationRef.current
+            || (operationAcknowledgementsRef.current && !operationAcknowledgements))) {
+            failSync("resync_required")
+            return
+          }
+          generationRef.current = generation
+          operationAcknowledgementsRef.current = operationAcknowledgements
+          serverOwnedSavesRef.current = message.persistence === "server"
           const snapshot = typeof message.snapshot === "string" ? message.snapshot : null
           const updates = Array.isArray(message.updates) ? message.updates : []
           const latestSeq = typeof message.latestSeq === "number" ? message.latestSeq : 0
@@ -235,55 +319,37 @@ export function useDocCollaboration(docId: string, options: UseDocCollaborationO
               if (!applyDocumentUpdate(update)) return
             }
           }
-          latestServerSeqRef.current = latestSeq
+          latestServerSeqRef.current = Math.max(latestServerSeqRef.current, latestSeq)
           setHasRemoteContent(Boolean(snapshot) || updates.length > 0)
-          initialSyncCompleteRef.current = true
-          for (const update of pendingAwarenessUpdatesRef.current) {
-            try {
-              applyAwarenessUpdate(awareness, update, "remote")
-            } catch {
-              // Invalid presence data does not affect the document state.
-            }
-          }
-          pendingAwarenessUpdatesRef.current = []
-          setInitialSyncComplete(true)
-          setSyncState("synced")
-          setSyncError(null)
-          const queued = pendingMessages.current
-          pendingMessages.current = []
-          for (let index = 0; index < queued.length; index += 1) {
-            try {
-              socket.send(queued[index]!)
-            } catch {
-              pendingMessages.current = queued.slice(index)
-              socket.close()
-              return
-            }
-          }
-          for (const update of unacknowledgedDocUpdates.current) {
-            try {
-              socket.send(update)
-            } catch {
-              socket.close()
-              return
-            }
-          }
-          const localAwarenessUpdate = encodeAwarenessUpdate(awareness, [ydoc.clientID])
-          sendMessage({ type: "presence.update", update: encodeBase64(localAwarenessUpdate) })
+          completeSync()
           return
         }
 
         if (message.type === "doc.update" && typeof message.update === "string") {
+          if (message.generation !== generationRef.current) { failSync("resync_required"); return }
+          if (!applyDocumentUpdate(message.update)) return
           if (typeof message.seq === "number") {
             latestServerSeqRef.current = Math.max(latestServerSeqRef.current, message.seq)
           }
-          applyDocumentUpdate(message.update)
+          flushSnapshot()
           return
         }
 
         if (message.type === "doc.ack" && typeof message.seq === "number") {
+          if (message.generation !== generationRef.current) { failSync("resync_required"); return }
+          if (operationAcknowledgementsRef.current) {
+            // A duplicate/foreign ACK must not consume another pending edit or
+            // advance the snapshot watermark. Reconnect resends identical IDs.
+            const index = unacknowledgedDocUpdates.current.findIndex(update => update.operationId === message.operationId)
+            if (index < 0) return
+            unacknowledgedDocUpdates.current.splice(index, 1)
+            clearAcknowledgementTimeout()
+            awaitAcknowledgement()
+          } else {
+            unacknowledgedDocUpdates.current.shift()
+          }
           latestServerSeqRef.current = Math.max(latestServerSeqRef.current, message.seq)
-          unacknowledgedDocUpdates.current.shift()
+          flushSnapshot()
           return
         }
 
@@ -314,7 +380,7 @@ export function useDocCollaboration(docId: string, options: UseDocCollaborationO
 
         if (message.type === "doc.snapshot.request") {
           if (typeof message.seq === "number") {
-            latestServerSeqRef.current = Math.max(latestServerSeqRef.current, message.seq)
+            requestedSnapshotSeqRef.current = Math.max(requestedSnapshotSeqRef.current, message.seq)
           }
           sendSnapshot()
         }
@@ -327,7 +393,8 @@ export function useDocCollaboration(docId: string, options: UseDocCollaborationO
       if (initialSyncCompleteRef.current) {
         sendSnapshot()
       }
-      isCleanedUp.current = true
+      disposed = true
+      clearAcknowledgementTimeout()
       if (reconnectRef.current) window.clearTimeout(reconnectRef.current)
       reconnectRef.current = null
       if (socketRef.current) {
@@ -337,22 +404,31 @@ export function useDocCollaboration(docId: string, options: UseDocCollaborationO
       awareness.destroy()
       ydoc.destroy()
     }
-  }, [awareness, docId, ydoc])
+  }, [awareness, docId, ydoc, sendMessage, sendSnapshot, flushSnapshot, clearAcknowledgementTimeout, awaitAcknowledgement])
 
   useEffect(() => {
-    const handleDocUpdate = (update: Uint8Array, origin: unknown) => {
-      if (origin === "remote" || !initialSyncCompleteRef.current) return
-      onLocalChangeRef.current?.()
-      const payload = JSON.stringify({ type: "doc.update", update: encodeBase64(update) })
-      unacknowledgedDocUpdates.current.push(payload)
+    const queueDocUpdate = (update: Uint8Array) => {
+      if (!hasInitializedRef.current || hasFatalErrorRef.current) return
+      const operationId = crypto.randomUUID()
+      const payload = JSON.stringify({ type: "doc.update", update: encodeBase64(update), generation: generationRef.current, operationId })
+      const pending = { operationId, payload, sentAt: null as number | null }
+      unacknowledgedDocUpdates.current.push(pending)
       const socket = socketRef.current
-      if (socket?.readyState === WebSocket.OPEN) {
+      if (socket?.readyState === WebSocket.OPEN && initialSyncCompleteRef.current) {
         try {
           socket.send(payload)
+          pending.sentAt = performance.now()
+          awaitAcknowledgement()
         } catch {
           socket.close()
         }
       }
+      // Retain/send the update before invoking application callbacks.
+      onLocalChangeRef.current?.()
+    }
+    const handleDocUpdate = (update: Uint8Array, origin: unknown) => {
+      if (origin === "remote" || origin === "relay") return
+      queueDocUpdate(update)
     }
 
     const handleAwarenessUpdate = (
@@ -372,7 +448,7 @@ export function useDocCollaboration(docId: string, options: UseDocCollaborationO
       ydoc.off("update", handleDocUpdate)
       awareness.off("update", handleAwarenessUpdate)
     }
-  }, [awareness, ydoc])
+  }, [awareness, ydoc, sendMessage, awaitAcknowledgement])
 
-  return { ydoc, awareness, syncState, syncError, hasRemoteContent, initialSyncComplete, sendSnapshot }
+  return { ydoc, awareness, syncState, syncError, hasRemoteContent, initialSyncComplete, sendSnapshot, getRecoveryCopy }
 }

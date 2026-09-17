@@ -1,17 +1,20 @@
 import type { User } from '../types';
 import type { WSContext } from 'hono/ws';
-import { safeCloseWebSocket, sendWebSocketMessage } from '../utils/websocket';
+import { getWebSocketIdentity, safeCloseWebSocket, sendWebSocketMessage } from '../utils/websocket';
 
 export interface CollabClient {
   ws: WSContext;
   user: User;
   lastSeenAt: number;
   awaitingPong: boolean;
+  pendingMessages?: string[];
+  pendingBytes?: number;
 }
 
 interface CollabRoom {
   clients: Set<CollabClient>;
-  lastSnapshotAt: number;
+  lastSnapshotRequestAt: number;
+  updatesSinceSnapshotRequest: number;
 }
 
 const MAX_DOC_ROOM_CLIENTS = 20;
@@ -31,7 +34,8 @@ export class DocCollabHub {
 
     const room: CollabRoom = {
       clients: new Set<CollabClient>(),
-      lastSnapshotAt: Date.now(),
+      lastSnapshotRequestAt: Date.now(),
+      updatesSinceSnapshotRequest: 0,
     };
     this.rooms.set(docId, room);
     return room;
@@ -110,7 +114,7 @@ export class DocCollabHub {
     }
 
     for (const client of room.clients) {
-      if (client.ws !== ws) {
+      if (getWebSocketIdentity(client.ws) !== getWebSocketIdentity(ws)) {
         continue;
       }
 
@@ -128,7 +132,7 @@ export class DocCollabHub {
     const room = this.rooms.get(docId);
     if (!room) return;
     for (const client of room.clients) {
-      if (client.ws === ws) {
+      if (getWebSocketIdentity(client.ws) === getWebSocketIdentity(ws)) {
         room.clients.delete(client);
         break;
       }
@@ -143,7 +147,18 @@ export class DocCollabHub {
     if (!room) return;
 
     for (const client of Array.from(room.clients)) {
-      if (exclude && client.ws === exclude) continue;
+      if (exclude && getWebSocketIdentity(client.ws) === getWebSocketIdentity(exclude)) continue;
+
+      if (client.pendingMessages) {
+        client.pendingBytes = (client.pendingBytes ?? 0) + Buffer.byteLength(message, 'utf8');
+        if (client.pendingBytes > 4 * 1024 * 1024) {
+          safeCloseWebSocket(client.ws, 1013, 'Document sync queue full. Retry shortly.');
+          room.clients.delete(client);
+          continue;
+        }
+        client.pendingMessages.push(message);
+        continue;
+      }
 
       if (!sendWebSocketMessage(client.ws, message, { hub: 'doc_collab', doc_id: docId, user_id: client.user.id })) {
         room.clients.delete(client);
@@ -153,6 +168,23 @@ export class DocCollabHub {
     if (room.clients.size === 0) {
       this.rooms.delete(docId);
     }
+  }
+
+  finishInitialSync(docId: string, ws: WSContext) {
+    const client = Array.from(this.rooms.get(docId)?.clients ?? []).find(
+      (entry) => getWebSocketIdentity(entry.ws) === getWebSocketIdentity(ws),
+    );
+    if (!client) return false;
+    const pending = client.pendingMessages ?? [];
+    delete client.pendingMessages;
+    delete client.pendingBytes;
+    for (const message of pending) {
+      if (!sendWebSocketMessage(client.ws, message, { hub: 'doc_collab', doc_id: docId })) {
+        this.leave(docId, ws);
+        return false;
+      }
+    }
+    return true;
   }
 
   closeRoom(docId: string, code: number, reason: string, message?: string) {
@@ -173,14 +205,15 @@ export class DocCollabHub {
     this.rooms.delete(docId);
   }
 
-  shouldRequestSnapshot(docId: string, seq: number) {
+  shouldRequestSnapshot(docId: string) {
     const room = this.getRoom(docId);
     const now = Date.now();
-    const shouldByCount = seq > 0 && seq % 50 === 0;
-    const shouldByTime = now - room.lastSnapshotAt > 30_000;
+    const shouldByCount = ++room.updatesSinceSnapshotRequest >= 50;
+    const shouldByTime = now - room.lastSnapshotRequestAt > 30_000;
 
     if (shouldByCount || shouldByTime) {
-      room.lastSnapshotAt = now;
+      room.lastSnapshotRequestAt = now;
+      room.updatesSinceSnapshotRequest = 0;
       return true;
     }
 

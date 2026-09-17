@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import type { WSContext } from 'hono/ws';
 import { upgradeWebSocket } from '../websocket';
 import {
   docCollabRepository as defaultDocCollabRepository,
@@ -17,6 +18,7 @@ import { config } from '../config';
 import {
   decodeStrictBase64,
   DocInvalidUpdateError,
+  DocGenerationMismatchError,
   DocNotFoundError,
   DocSyncBusyError,
   DocSyncTooLargeError,
@@ -27,8 +29,8 @@ import {
 
 type CollabMessage =
   | { type: 'pong'; ts?: number }
-  | { type: 'doc.update'; update: string }
-  | { type: 'doc.snapshot'; snapshot: string; seq?: number; content?: unknown }
+  | { type: 'doc.update'; update: string; generation?: string; operationId?: string }
+  | { type: 'doc.snapshot'; snapshot: string; seq?: number; content?: unknown; generation?: string }
   | { type: 'presence.update'; update: string };
 
 type WhiteboardUpdatePayload = {
@@ -134,6 +136,9 @@ function parseDocMessage(value: unknown): CollabMessage | null {
     return value.ts === undefined || typeof value.ts === 'number' ? value as CollabMessage : null;
   }
   if (value.type === 'doc.update' || value.type === 'presence.update') {
+    if (value.type === 'doc.update' && value.packet !== undefined) return null;
+    if (value.type === 'doc.update' && value.operationId !== undefined
+      && (typeof value.operationId !== 'string' || !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value.operationId))) return null;
     return typeof value.update === 'string' ? value as CollabMessage : null;
   }
   if (value.type === 'doc.snapshot') {
@@ -186,25 +191,51 @@ function sendInvalidWhiteboardMessage(
   );
 }
 
+// Keep commit/broadcast/ACK and initial sync in one document order. A row lock
+// alone does not order promise completion across database connections.
+const docOperations = new Map<string, Promise<void>>();
+function runDocOperation<T>(docId: string, operation: () => Promise<T>): Promise<T> {
+  const result = (docOperations.get(docId) ?? Promise.resolve()).then(operation);
+  const settled = result.then(() => {}, () => {});
+  docOperations.set(docId, settled);
+  void settled.then(() => {
+    if (docOperations.get(docId) === settled) docOperations.delete(docId);
+  });
+  return result;
+}
+
 collab.get(
   '/docs/:id',
   upgradeWebSocket((c) => {
     const docId = requireRouteParam(c, 'id');
     const sessionId = c.req.header('Cookie')?.match(/session_id=([^;]+)/)?.[1];
     let user: User | null = null;
-    let snapshotRetryCount = 0;
+    let ready = false;
+    let closed = false;
+    let halted = false;
+    let messageQueue = Promise.resolve();
+    let queuedBytes = 0;
+    let generation: string | undefined;
+    const closeSocket = (ws: WSContext, code: number, reason: string) => {
+      halted = true;
+      closed = true;
+      ready = false;
+      docCollabHub.leave(docId, ws);
+      safeCloseWebSocket(ws, code, reason);
+    };
 
     return {
       onOpen: async (_event, ws) => {
         try {
           if (!sessionId) {
-            safeCloseWebSocket(ws, 1008, 'Unauthorized');
+            closeSocket(ws, 1008, 'Unauthorized');
             return;
           }
 
           user = await validateSession(sessionId);
+          if (closed) return;
           if (!user) {
-            safeCloseWebSocket(ws, 1008, 'Unauthorized');
+            closeSocket(ws, 1008, 'Unauthorized');
             return;
           }
 
@@ -213,262 +244,255 @@ collab.get(
             doc = await getDoc(docId, user);
           } catch (error) {
             if (error instanceof Error && error.message.includes('Access denied')) {
-              safeCloseWebSocket(ws, 1008, 'Access denied');
+              closeSocket(ws, 1008, 'Access denied');
               return;
             }
             throw error;
           }
+          if (closed) return;
           if (!doc) {
-            safeCloseWebSocket(ws, 1008, 'Doc not found');
+            closeSocket(ws, 1008, 'Doc not found');
             return;
           }
 
-          const joinResult = docCollabHub.join(docId, { ws, user, lastSeenAt: Date.now(), awaitingPong: false });
-          if (joinResult !== 'joined') {
-            const reason = joinResult === 'content_mutation'
-              ? 'Document is being updated. Retry shortly.'
-              : 'Room capacity reached';
-            safeCloseWebSocket(ws, 1013, reason);
-            return;
-          }
-
-          const releaseCollabWrite = docCollabHub.beginCollabWrite(docId);
-          if (!releaseCollabWrite) {
-            docCollabHub.leave(docId, ws);
-            safeCloseWebSocket(ws, 1013, 'Document is being updated. Retry shortly.');
-            return;
-          }
-
-          let syncState: Awaited<ReturnType<typeof buildDocSyncState>>;
-          try {
-            syncState = await buildDocSyncState(docCollabRepository, docId);
-          } catch (error) {
-            docCollabHub.leave(docId, ws);
-            if (error instanceof DocSyncBusyError) {
-              safeCloseWebSocket(ws, 1013, 'Document sync busy. Retry shortly.');
-            } else if (error instanceof DocSyncTooLargeError) {
-              safeCloseWebSocket(ws, 1009, 'Document sync state too large');
-            } else if (error instanceof DocNotFoundError) {
-              safeCloseWebSocket(ws, 1008, 'Doc not found');
-            } else {
-              console.error('Initial doc collaboration sync failed:', error);
-              safeCloseWebSocket(ws, 1011, 'Doc collaboration failed');
-            }
-            return;
-          } finally {
-            releaseCollabWrite();
-          }
-
-          sendWebSocketMessage(
-            ws,
-            JSON.stringify({
-              type: 'doc.sync',
-              snapshot: syncState.snapshot ? encodeBase64(syncState.snapshot) : null,
-              updates: syncState.updates.map((update) => encodeBase64(update)),
-              latestSeq: syncState.latestSeq,
-            }),
-            { hub: 'doc_collab', event: 'sync', doc_id: docId, user_id: user.id }
-          );
-          const canonicalCollabSeq = syncState.canonicalSeq ?? 0;
-          if (!isFreelancer(user) && (syncState.canonicalSeq === null || syncState.latestSeq > canonicalCollabSeq)) {
-            sendWebSocketMessage(ws, JSON.stringify({ type: 'doc.snapshot.request', seq: syncState.latestSeq }), {
-              hub: 'doc_collab',
-              event: 'snapshot_request',
-              doc_id: docId,
-              user_id: user.id,
-            });
-          }
-        } catch (error) {
-          console.error('Doc collaboration open failed:', error);
-          docCollabHub.leave(docId, ws);
-          safeCloseWebSocket(ws, 1011, 'Doc collaboration failed');
-        }
-      },
-      onMessage: async (event, ws) => {
-        if (!user) return;
-
-        const raw = typeof event.data === 'string' ? event.data : '';
-        if (!raw) return;
-
-        if (Buffer.byteLength(raw, 'utf8') > MAX_DOC_MESSAGE_BYTES) {
-          safeCloseWebSocket(ws, 1009, 'Message too large');
-          return;
-        }
-
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(raw);
-        } catch {
-          sendDocError(ws, docId, user.id, 'invalid_update', 'unknown');
-          docCollabHub.leave(docId, ws);
-          safeCloseWebSocket(ws, 1007, 'Invalid collaboration message');
-          return;
-        }
-        const message = parseDocMessage(parsed);
-        if (!message) {
-          sendDocError(ws, docId, user.id, 'invalid_update', 'unknown');
-          docCollabHub.leave(docId, ws);
-          safeCloseWebSocket(ws, 1007, 'Invalid collaboration message');
-          return;
-        }
-
-        try {
-          if (message.type === 'pong') {
-            docCollabHub.markPong(docId, ws);
-            return;
-          }
-
-          docCollabHub.touch(docId, ws);
-
-          if (message.type === 'doc.update') {
-            if (isFreelancer(user)) {
-              sendReadOnlyError(ws, 'doc.update', { hub: 'doc_collab', doc_id: docId, user_id: user.id });
+          await runDocOperation(docId, async () => {
+            if (closed || !user) return;
+            const joinResult = docCollabHub.join(docId, { ws, user, lastSeenAt: Date.now(), awaitingPong: false, pendingMessages: [] });
+            if (joinResult !== 'joined') {
+              const reason = joinResult === 'content_mutation'
+                ? 'Document is being updated. Retry shortly.'
+                : 'Room capacity reached';
+              closeSocket(ws, 1013, reason);
               return;
             }
 
             const releaseCollabWrite = docCollabHub.beginCollabWrite(docId);
             if (!releaseCollabWrite) {
-              safeCloseWebSocket(ws, 1013, 'Document is being updated. Retry shortly.');
+              closeSocket(ws, 1013, 'Document is being updated. Retry shortly.');
               return;
             }
 
+            let syncState: Awaited<ReturnType<typeof buildDocSyncState>>;
             try {
-              const update = decodeStrictBase64(message.update, MAX_DOC_UPDATE_BYTES);
-              const seq = await docCollabRepository.appendUpdate(docId, update, user.id);
-              docCollabHub.broadcast(
-                docId,
-                JSON.stringify({
-                  type: 'doc.update',
-                  update: message.update,
-                  seq,
-                  actorId: user.id,
-                }),
-                ws
-              );
-
-              if (docCollabHub.shouldRequestSnapshot(docId, seq)) {
-                snapshotRetryCount = 0;
-                sendWebSocketMessage(ws, JSON.stringify({ type: 'doc.snapshot.request', seq }), {
-                  hub: 'doc_collab',
-                  event: 'snapshot_request',
-                  doc_id: docId,
-                  user_id: user.id,
-                });
-              }
-
-              sendWebSocketMessage(ws, JSON.stringify({ type: 'doc.ack', seq }), {
-                hub: 'doc_collab',
-                event: 'ack',
-                doc_id: docId,
-                user_id: user.id,
-              });
+              syncState = await buildDocSyncState(docCollabRepository, docId);
             } finally {
               releaseCollabWrite();
             }
-            return;
-          }
 
-          if (message.type === 'presence.update') {
-            if (isFreelancer(user)) {
-              sendReadOnlyError(ws, 'presence.update', { hub: 'doc_collab', doc_id: docId, user_id: user.id });
-              return;
-            }
-
-            docCollabHub.broadcast(
-              docId,
-              JSON.stringify({ type: 'presence.broadcast', update: message.update }),
-              ws
+            if (closed) return;
+            generation = syncState.generation;
+            const sent = sendWebSocketMessage(
+              ws,
+              JSON.stringify({
+                type: 'doc.sync',
+                acknowledgement: 'operation_id',
+                persistence: 'server',
+                snapshot: syncState.snapshot ? encodeBase64(syncState.snapshot) : null,
+                updates: syncState.updates.map((update) => encodeBase64(update)),
+                latestSeq: syncState.latestSeq,
+                generation,
+              }),
+              { hub: 'doc_collab', event: 'sync', doc_id: docId, user_id: user.id }
             );
+            if (!sent || !docCollabHub.finishInitialSync(docId, ws)) {
+              closeSocket(ws, 1011, 'Document sync delivery failed');
+              return;
+            }
+            ready = true;
+          });
+        } catch (error) {
+          // Current reads can fail before buildDocSyncState. Preserve the same
+          // terminal/retryable classification across the entire initial read.
+          if (error instanceof DocSyncBusyError) {
+            closeSocket(ws, 1013, 'Document sync busy. Retry shortly.');
+          } else if (error instanceof DocSyncTooLargeError) {
+            closeSocket(ws, 1009, 'Document sync state too large');
+          } else if (error instanceof DocNotFoundError) {
+            closeSocket(ws, 1008, 'Doc not found');
+          } else {
+            console.error('Doc collaboration open failed:', error);
+            closeSocket(ws, 1011, 'Doc collaboration failed');
+          }
+        }
+      },
+      onMessage: (event, ws) => {
+        if (!ready || closed || typeof event.data !== 'string' || !event.data) return;
+        const raw = event.data;
+        const bytes = Buffer.byteLength(raw, 'utf8');
+        const messageLimit = MAX_DOC_MESSAGE_BYTES;
+        if (bytes > messageLimit) {
+          closeSocket(ws, 1009, 'Message too large');
+          return;
+        }
+        if (queuedBytes + bytes > messageLimit * 2) {
+          closeSocket(ws, 1013, 'Document update queue full. Retry shortly.');
+          return;
+        }
+        // Admitted edits must finish even if the user navigates away before
+        // their ACK. Keep content replacement blocked until this queue drains.
+        const releaseQueuedOperation = docCollabHub.beginCollabWrite(docId);
+        if (!releaseQueuedOperation) {
+          closeSocket(ws, 1013, 'Document is being updated. Retry shortly.');
+          return;
+        }
+        queuedBytes += bytes;
+        messageQueue = messageQueue.then(() => runDocOperation(docId, async () => {
+          if (halted || !user) return;
+
+          let parsed: unknown;
+          try {
+            parsed = JSON.parse(raw);
+          } catch {
+            sendDocError(ws, docId, user.id, 'invalid_update', 'unknown');
+            closeSocket(ws, 1007, 'Invalid collaboration message');
+            return;
+          }
+          const message = parseDocMessage(parsed);
+          if (!message) {
+            sendDocError(ws, docId, user.id, 'invalid_update', 'unknown');
+            closeSocket(ws, 1007, 'Invalid collaboration message');
             return;
           }
 
-          if (message.type === 'doc.snapshot') {
-            if (isFreelancer(user)) {
-              sendReadOnlyError(ws, 'doc.snapshot', { hub: 'doc_collab', doc_id: docId, user_id: user.id });
+          try {
+            if (message.type === 'pong') {
+              docCollabHub.markPong(docId, ws);
               return;
             }
 
-            const releaseCollabWrite = docCollabHub.beginCollabWrite(docId);
-            if (!releaseCollabWrite) {
-              safeCloseWebSocket(ws, 1013, 'Document is being updated. Retry shortly.');
-              return;
-            }
+            docCollabHub.touch(docId, ws);
+            if ((message.type === 'doc.update' || message.type === 'doc.snapshot')
+              && generation !== undefined && message.generation !== generation) throw new DocGenerationMismatchError();
 
-            try {
-              const snapshot = decodeStrictBase64(message.snapshot, MAX_DOC_SYNC_PAYLOAD_BYTES);
-              const latestSeq = await docCollabRepository.getLatestSeq(docId);
-              const snapshotSeq = resolveDocSnapshotSeq(message.seq, latestSeq);
-
-              if (snapshotSeq === null) {
-                sendDocError(ws, docId, user.id, 'invalid_update', 'doc.snapshot');
-                docCollabHub.leave(docId, ws);
-                safeCloseWebSocket(ws, 1007, 'Invalid document snapshot');
+            if (message.type === 'doc.update') {
+              if (isFreelancer(user)) {
+                sendReadOnlyError(ws, 'doc.update', { hub: 'doc_collab', doc_id: docId, user_id: user.id });
                 return;
               }
 
-              if (snapshotSeq === latestSeq) {
-                const persisted = await docCollabRepository.persistCanonicalSnapshot(
+              const releaseCollabWrite = docCollabHub.beginCollabWrite(docId);
+              if (!releaseCollabWrite) {
+                closeSocket(ws, 1013, 'Document is being updated. Retry shortly.');
+                return;
+              }
+
+              try {
+                const update = decodeStrictBase64(message.update, MAX_DOC_UPDATE_BYTES);
+                if (generation !== undefined && !message.operationId) throw new DocInvalidUpdateError('Operation identity is required');
+                const currentUser = sessionId ? await validateSession(sessionId) : null;
+                if (!currentUser || isFreelancer(currentUser)) { closeSocket(ws, 1008, 'Access denied'); return; }
+                const seq = await docCollabRepository.appendUpdate(docId, update, user.id, {
+                  generation, operationId: message.operationId, recheckAccess: true,
+                });
+                docCollabHub.broadcast(
                   docId,
-                  snapshot,
-                  snapshotSeq,
+                  JSON.stringify({ type: 'doc.update', update: message.update, seq, actorId: user.id, generation,
+                    operationId: message.operationId }),
+                  ws
                 );
-                if (persisted.status === 'persisted') {
-                  snapshotRetryCount = 0;
-                } else if (persisted.status === 'stale_seq' && snapshotRetryCount < 1) {
-                  snapshotRetryCount += 1;
-                  sendWebSocketMessage(ws, JSON.stringify({ type: 'doc.snapshot.request', seq: persisted.currentSeq }), {
+                if (!closed) {
+                  sendWebSocketMessage(ws, JSON.stringify({ type: 'doc.ack', seq, generation, operationId: message.operationId }), {
                     hub: 'doc_collab',
-                    event: 'snapshot_request',
+                    event: 'ack',
                     doc_id: docId,
                     user_id: user.id,
                   });
-                } else {
-                  sendDocError(ws, docId, user.id, 'resync_required', 'doc.snapshot');
-                  docCollabHub.leave(docId, ws);
-                  safeCloseWebSocket(ws, 1013, 'Document resynchronization required');
                 }
-              } else if (snapshotSeq < latestSeq && snapshotRetryCount < 1) {
-                snapshotRetryCount += 1;
-                sendWebSocketMessage(ws, JSON.stringify({ type: 'doc.snapshot.request', seq: latestSeq }), {
-                  hub: 'doc_collab',
-                  event: 'snapshot_request',
-                  doc_id: docId,
-                  user_id: user.id,
-                });
-              } else if (snapshotSeq < latestSeq) {
-                sendDocError(ws, docId, user.id, 'resync_required', 'doc.snapshot');
-                docCollabHub.leave(docId, ws);
-                safeCloseWebSocket(ws, 1013, 'Document resynchronization required');
+              } finally {
+                releaseCollabWrite();
               }
-            } finally {
-              releaseCollabWrite();
+              return;
             }
+
+            if (message.type === 'presence.update') {
+              if (isFreelancer(user)) {
+                sendReadOnlyError(ws, 'presence.update', { hub: 'doc_collab', doc_id: docId, user_id: user.id });
+                return;
+              }
+
+              docCollabHub.broadcast(
+                docId,
+                JSON.stringify({ type: 'presence.broadcast', update: message.update }),
+                ws
+              );
+              return;
+            }
+
+            if (message.type === 'doc.snapshot') {
+              if (isFreelancer(user)) {
+                sendReadOnlyError(ws, 'doc.snapshot', { hub: 'doc_collab', doc_id: docId, user_id: user.id });
+                return;
+              }
+
+              const releaseCollabWrite = docCollabHub.beginCollabWrite(docId);
+              if (!releaseCollabWrite) {
+                closeSocket(ws, 1013, 'Document is being updated. Retry shortly.');
+                return;
+              }
+
+              try {
+                const snapshot = decodeStrictBase64(message.snapshot, MAX_DOC_SYNC_PAYLOAD_BYTES);
+                const latestSeq = await docCollabRepository.getLatestSeq(docId);
+                const snapshotSeq = resolveDocSnapshotSeq(message.seq, latestSeq);
+
+                if (snapshotSeq === null) {
+                  sendDocError(ws, docId, user.id, 'invalid_update', 'doc.snapshot');
+                  closeSocket(ws, 1007, 'Invalid document snapshot');
+                  return;
+                }
+
+                if (snapshotSeq === latestSeq) {
+                  const persisted = await docCollabRepository.persistCanonicalSnapshot(docId, snapshot, snapshotSeq, generation);
+                  if (persisted.status === 'not_found') {
+                    sendDocError(ws, docId, user.id, 'resync_required', 'doc.snapshot');
+                    closeSocket(ws, 1013, 'Document resynchronization required');
+                  }
+                }
+                // A stale checkpoint is normal contention. The next edit/flush
+                // can offer a fresh one; never disconnect or spin on retries.
+              } finally {
+                releaseCollabWrite();
+              }
+            }
+          } catch (error) {
+            if (error instanceof Error && (error.message.includes('Access denied') || error.message.includes('Freelancers cannot'))) {
+              closeSocket(ws, 1008, 'Access denied');
+              return;
+            }
+            if (error instanceof DocInvalidUpdateError) {
+              sendDocError(ws, docId, user.id, 'invalid_update', message.type);
+              closeSocket(ws, 1007, 'Invalid document update');
+              return;
+            }
+            if (error instanceof DocUpdateTooLargeError || error instanceof DocSyncTooLargeError) {
+              sendDocError(ws, docId, user.id, 'update_too_large', message.type);
+              closeSocket(ws, 1009, 'Document update too large');
+              return;
+            }
+            if (error instanceof DocSyncBusyError) {
+              closeSocket(ws, 1013, 'Document sync busy. Retry shortly.');
+              return;
+            }
+            if (error instanceof DocNotFoundError || error instanceof DocGenerationMismatchError) {
+              sendDocError(ws, docId, user.id, 'resync_required', message.type);
+              closeSocket(ws, 1013, 'Document resynchronization required');
+              return;
+            }
+            console.error('Doc collab message failed:', error);
+            closeSocket(ws, 1011, 'Doc collaboration failed');
           }
-        } catch (error) {
-          if (error instanceof DocInvalidUpdateError) {
-            sendDocError(ws, docId, user.id, 'invalid_update', message.type);
-            docCollabHub.leave(docId, ws);
-            safeCloseWebSocket(ws, 1007, 'Invalid document update');
-            return;
-          }
-          if (error instanceof DocUpdateTooLargeError || error instanceof DocSyncTooLargeError) {
-            sendDocError(ws, docId, user.id, 'update_too_large', message.type);
-            docCollabHub.leave(docId, ws);
-            safeCloseWebSocket(ws, 1009, 'Document update too large');
-            return;
-          }
-          if (error instanceof DocSyncBusyError || error instanceof DocNotFoundError) {
-            sendDocError(ws, docId, user.id, 'resync_required', message.type);
-            docCollabHub.leave(docId, ws);
-            safeCloseWebSocket(ws, 1013, 'Document resynchronization required');
-            return;
-          }
-          console.error('Doc collab message failed:', error);
-          docCollabHub.leave(docId, ws);
-          safeCloseWebSocket(ws, 1011, 'Doc collaboration failed');
-        }
+        })).catch((error) => {
+          console.error('Doc collaboration queue failed:', error);
+          closeSocket(ws, 1011, 'Doc collaboration failed');
+        }).finally(() => {
+          queuedBytes -= bytes;
+          releaseQueuedOperation();
+        });
+        return messageQueue;
       },
       onClose: (_event, ws) => {
+        closed = true;
+        ready = false;
         docCollabHub.leave(docId, ws);
       },
     };

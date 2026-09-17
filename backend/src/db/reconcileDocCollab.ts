@@ -13,7 +13,7 @@ import { yDocFromBlocks } from '../collab/docContent';
 import { docCollabRepository } from '../repositories/docCollab';
 import { log } from '../utils/logger';
 import { db } from './client';
-import { docs, docCollabSnapshots, docCollabUpdates } from './schema';
+import { docs, docCollabSnapshots, docCollabUpdates, docCollabContinuity, docCollabOperations } from './schema';
 
 const DOC_BATCH_SIZE = 100;
 
@@ -111,7 +111,10 @@ async function resetInvalidHistory(docId: string, error: unknown): Promise<'rese
     await tx.delete(docCollabUpdates).where(eq(docCollabUpdates.docId, docId));
     await tx.delete(docCollabSnapshots).where(eq(docCollabSnapshots.docId, docId));
     await tx.insert(docCollabSnapshots).values({ docId, seq: 0, snapshot: Buffer.from(baseline) });
-    await tx.update(docs).set({ canonicalCollabSeq: 0 }).where(eq(docs.id, docId));
+    await tx.delete(docCollabContinuity).where(eq(docCollabContinuity.docId, docId));
+    await tx.delete(docCollabOperations).where(eq(docCollabOperations.docId, docId));
+    await tx.update(docs).set({ canonicalCollabSeq: 0, collabGeneration: sql`gen_random_uuid()`, collabProjectionPendingAt: null })
+      .where(eq(docs.id, docId));
 
     return {
       status: 'reset' as const,

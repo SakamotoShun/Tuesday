@@ -5,6 +5,12 @@ interface SendWebSocketMessageOptions {
   closeOnFailure?: boolean;
 }
 
+// Hono creates a new WSContext for each Bun callback. The native socket is
+// stable across open/message/close and retains Bun's delivery status.
+export function getWebSocketIdentity(ws: WSContext): unknown {
+  return ws.raw ?? ws;
+}
+
 export function sendWebSocketMessage(
   ws: WSContext,
   payload: string,
@@ -14,7 +20,8 @@ export function sendWebSocketMessage(
   const closeOnFailure = options.closeOnFailure ?? true;
 
   try {
-    const result = ws.send(payload) as number | void;
+    const raw = ws.raw as { send?: (data: string) => number; readyState?: number } | undefined;
+    const result = raw?.send ? raw.send(payload) : ws.send(payload) as number | void;
 
     if (typeof result === 'number' && result === -1) {
       log('warn', 'websocket.backpressure', context);

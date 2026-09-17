@@ -1,7 +1,7 @@
 import { eq, and, isNull, desc, exists, max, or, sql } from 'drizzle-orm';
 import { assertDocBlocksCanonicalizable } from '../collab/docContent';
 import { db, type DbExecutor } from '../db/client';
-import { docs, docCollabSnapshots, docCollabUpdates, docShares, type Doc, type NewDoc } from '../db/schema';
+import { docs, docCollabSnapshots, docCollabUpdates, docCollabContinuity, docCollabOperations, docShares, type Doc, type NewDoc } from '../db/schema';
 
 export class DocCollabPendingError extends Error {
   readonly code = 'DOC_COLLAB_PENDING';
@@ -16,15 +16,6 @@ export class DocRepository {
   async findById(id: string, executor: DbExecutor = db): Promise<Doc | null> {
     const result = await executor.query.docs.findFirst({
       where: eq(docs.id, id),
-      with: {
-        createdBy: {
-          columns: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-      },
     });
     return result || null;
   }
@@ -33,13 +24,6 @@ export class DocRepository {
     const result = await db.query.docs.findFirst({
       where: eq(docs.id, id),
       with: {
-        createdBy: {
-          columns: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
         parent: {
           columns: {
             id: true,
@@ -54,6 +38,8 @@ export class DocRepository {
             schema: true,
             version: true,
             canonicalCollabSeq: true,
+            collabGeneration: true,
+            collabProjectionPendingAt: true,
             createdBy: true,
             createdAt: true,
             updatedAt: true,
@@ -184,6 +170,8 @@ export class DocRepository {
         .set({
           ...data,
           canonicalCollabSeq: 0,
+          collabGeneration: sql`gen_random_uuid()`,
+          collabProjectionPendingAt: null,
           updatedAt: new Date(),
           version: sql`${docs.version} + 1`,
         })
@@ -196,6 +184,8 @@ export class DocRepository {
 
       await tx.delete(docCollabUpdates).where(eq(docCollabUpdates.docId, id));
       await tx.delete(docCollabSnapshots).where(eq(docCollabSnapshots.docId, id));
+      await tx.delete(docCollabContinuity).where(eq(docCollabContinuity.docId, id));
+      await tx.delete(docCollabOperations).where(eq(docCollabOperations.docId, id));
       return doc;
     });
   }
@@ -241,6 +231,8 @@ export class DocRepository {
         .set({
           ...data,
           canonicalCollabSeq: 0,
+          collabGeneration: sql`gen_random_uuid()`,
+          collabProjectionPendingAt: null,
           updatedAt: new Date(),
           version: sql`${docs.version} + 1`,
         })
@@ -253,6 +245,8 @@ export class DocRepository {
 
       await tx.delete(docCollabUpdates).where(eq(docCollabUpdates.docId, id));
       await tx.delete(docCollabSnapshots).where(eq(docCollabSnapshots.docId, id));
+      await tx.delete(docCollabContinuity).where(eq(docCollabContinuity.docId, id));
+      await tx.delete(docCollabOperations).where(eq(docCollabOperations.docId, id));
       return doc;
     });
   }
