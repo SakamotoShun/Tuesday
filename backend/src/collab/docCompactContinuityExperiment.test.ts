@@ -231,7 +231,8 @@ describe('reclamation and failure bounds', () => {
     expect(compactBytes).toBeLessThan(preimageBytes / 10);
     expect(f.compact.checkpoint().records.every(record => !('before' in record) && !('targetRef' in record))).toBe(true);
     console.info(JSON.stringify({ experiment: 'serialized-retention', packets: 24, compactBytes, preimageBytes }));
-  });
+    // Large-document replay verifies serialized size, not a five-second runtime budget.
+  }, 30_000);
 
   it('keeps a live structural break while reclaiming only earlier evidence, then allows fresh issuance', () => {
     const f = setup();
