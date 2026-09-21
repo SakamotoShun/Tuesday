@@ -4,6 +4,11 @@ import { exportColor, exportUrl, inlineText, tableGrid, type DocumentSnapshot, t
 
 const PAGE_WIDTH = 499 // A4 minus 48pt margins
 
+function isLatin1(text: string) {
+  for (const character of text) if (character.charCodeAt(0) > 255) return false
+  return true
+}
+
 function blockStyle(props: { textAlignment?: string; textColor?: string; backgroundColor?: string; [key: string]: unknown }): Style {
   return {
     alignment: ["left", "center", "right", "justify"].includes(props.textAlignment ?? "") ? props.textAlignment as Style["alignment"] : "left",
@@ -24,7 +29,7 @@ function pdfInline(content: ExportInline, baseUrl: string): ContentText[] {
     if (s.strike) decoration.push("lineThrough")
     return [{ text: item.text, bold: s.bold, italics: s.italic, decoration,
       color: exportColor(s.textColor, "text"), background: exportColor(s.backgroundColor, "background") ?? (s.code ? "#f1f5f9" : undefined),
-      font: s.code && /^[\u0000-\u00ff]*$/.test(item.text) ? "RobotoMono" : undefined,
+      font: s.code && isLatin1(item.text) ? "RobotoMono" : undefined,
     }]
   })
 }
@@ -49,7 +54,7 @@ export function createPdfDefinition(snapshot: DocumentSnapshot, baseUrl: string,
           const code = inlineText(block.content)
           // A splittable table cell keeps shading and whitespace across page breaks.
           result.push({ table: { widths: [Math.max(10, width - 16)], body: [[{
-            text: code || " ", font: /^[\u0000-\u00ff]*$/.test(code) ? "RobotoMono" : "Roboto", fontSize: 9,
+            text: code || " ", font: isLatin1(code) ? "RobotoMono" : "Roboto", fontSize: 9,
             preserveLeadingSpaces: true, preserveTrailingSpaces: true, fillColor: "#f1f5f9", margin: [4, 4, 4, 4],
           }]] }, layout: "noBorders", margin: [0, 0, 0, 9] })
           break

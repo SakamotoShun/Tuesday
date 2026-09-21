@@ -10,7 +10,11 @@ export interface DocumentSnapshot { title: string; blocks: Block[] }
 export interface ExportResult { blob: Blob; warnings: string[] }
 
 export function exportFilename(title: string, extension: "md" | "pdf") {
-  const name = Array.from(title.normalize("NFC").replace(/[\u0000-\u001f\u007f/\\:*?"<>|]/g, "-").trim())
+  const sanitized = Array.from(title.normalize("NFC"), (character) => {
+    const code = character.charCodeAt(0)
+    return code < 32 || code === 127 || /[/\\:*?"<>|]/.test(character) ? "-" : character
+  }).join("").trim()
+  const name = Array.from(sanitized)
     .slice(0, 120).join("").replace(/[. ]+$/g, "") || "Untitled"
   return `${/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name) ? `_${name}` : name}.${extension}`
 }
