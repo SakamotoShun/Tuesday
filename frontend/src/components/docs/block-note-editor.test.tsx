@@ -1,4 +1,5 @@
-import type { ReactNode } from "react"
+import { createRef, type ReactNode } from "react"
+import type { BlockNoteEditorHandle } from "./block-note-editor"
 import "@/test/setup"
 import { beforeEach, describe, expect, it, mock, spyOn } from "bun:test"
 import { Window } from "happy-dom"
@@ -110,6 +111,33 @@ describe("BlockNoteEditor", () => {
     )
 
     expect(getByTestId("blocknote-view")).toBeDefined()
+  })
+
+  it("exports current read-only editor content only after initial sync and isolates the snapshot", async () => {
+    const { BlockNoteEditor } = await import("./block-note-editor")
+    const exportRef = createRef<BlockNoteEditorHandle>()
+    const readiness = mock(() => {})
+    collabState.initialSyncComplete = false
+    collabState.hasRemoteContent = false
+    const view = render(<BlockNoteEditor docId="live-doc" initialContent={[]} editable={false} exportRef={exportRef} onReadyChange={readiness} />)
+    expect(exportRef.current?.getBlocks()).toBeNull()
+    collabState.initialSyncComplete = true
+    collabState.hasRemoteContent = true
+    view.rerender(<BlockNoteEditor docId="live-doc" initialContent={[]} editable={false} exportRef={exportRef} onReadyChange={readiness} />)
+    const original = editorState.document
+    try {
+      // Remote changes need not trigger the local onChange callback or a React render.
+      editorState.document = [{ id: "received-remote-block", type: "paragraph", props: {}, content: [] }]
+      const snapshot = exportRef.current!.getBlocks()!
+      expect(snapshot[0]!.id).toBe("received-remote-block")
+      editorState.document[0]!.id = "newer-local-edit"
+      expect(snapshot[0]!.id).toBe("received-remote-block")
+      expect(exportRef.current!.getBlocks()![0]!.id).toBe("newer-local-edit")
+      expect(readiness).toHaveBeenCalledWith("live-doc", true)
+    } finally { editorState.document = original }
+    view.unmount()
+    expect(readiness).toHaveBeenLastCalledWith("live-doc", false)
+    expect(exportRef.current).toBeNull()
   })
 
   it("should call onChange with document blocks", async () => {

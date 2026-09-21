@@ -15,7 +15,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { BlockNoteEditor } from "@/components/docs/block-note-editor"
+import { BlockNoteEditor, type BlockNoteEditorHandle } from "@/components/docs/block-note-editor"
+import { DocExportMenu } from "@/components/docs/doc-export-menu"
 import { DatabaseView } from "@/components/docs/database-view"
 import { PropertiesPanel } from "@/components/docs/properties-panel"
 import { DocToolbar } from "@/components/docs/doc-toolbar"
@@ -50,6 +51,11 @@ export function DocPage() {
   const { data: doc, isLoading, error } = useDocWithChildren(docId || "")
   const { createDoc, updateDoc, deleteDoc } = useDocs(projectId)
   const [titleDraft, setTitleDraft] = useState("")
+  const exportEditorRef = useRef<BlockNoteEditorHandle>(null)
+  const [exportReadyDocId, setExportReadyDocId] = useState<string | null>(null)
+  const handleExportReady = useCallback((id: string, ready: boolean) => {
+    setExportReadyDocId((current) => ready ? id : current === id ? null : current)
+  }, [])
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [titleError, setTitleError] = useState<string | null>(null)
   const [saveState, setSaveState] = useState<"connecting" | "saved" | "saving" | "error">("connecting")
@@ -376,6 +382,18 @@ export function DocPage() {
         canDelete={canDeleteDoc}
         onOpenShare={canManageShares ? () => setShareDialogOpen(true) : undefined}
         onOpenChat={projectId ? () => setIsChatOpen(true) : undefined}
+        exportControl={!doc.isDatabase && (
+          <DocExportMenu
+            key={doc.id}
+            ready={exportReadyDocId === doc.id}
+            getSnapshot={() => {
+              const editor = exportEditorRef.current
+              if (!editor || editor.docId !== doc.id) return null
+              const blocks = editor.getBlocks()
+              return blocks ? { title: isEditingTitle ? titleDraft.trim() || doc.title : doc.title, blocks } : null
+            }}
+          />
+        )}
       />
 
       <div className="space-y-2">
@@ -469,6 +487,8 @@ export function DocPage() {
               initialContent={doc.content ?? []}
               onSyncStateChange={handleSyncStateChange}
               editable={!isProjectFreelancer}
+              exportRef={exportEditorRef}
+              onReadyChange={handleExportReady}
             />
           </ErrorBoundary>
         </div>

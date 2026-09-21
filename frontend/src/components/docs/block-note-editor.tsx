@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type ReactNode } from "react"
+import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type ReactNode, type Ref } from "react"
 import type { Block } from "@blocknote/core"
 import { blocksToYDoc } from "@blocknote/core/yjs"
 import { SideMenuExtension, TableHandlesExtension } from "@blocknote/core/extensions"
@@ -68,6 +68,11 @@ function CustomDragHandleMenu() {
   )
 }
 
+export interface BlockNoteEditorHandle {
+  docId: string
+  getBlocks: () => Block[] | null
+}
+
 interface BlockNoteEditorProps {
   docId: string
   initialContent: Block[]
@@ -75,6 +80,8 @@ interface BlockNoteEditorProps {
   onBlur?: () => void
   onSyncStateChange?: (state: "connecting" | "synced" | "error") => void
   editable?: boolean
+  exportRef?: Ref<BlockNoteEditorHandle>
+  onReadyChange?: (docId: string, ready: boolean) => void
 }
 
 export function BlockNoteEditor({
@@ -84,6 +91,8 @@ export function BlockNoteEditor({
   onBlur,
   onSyncStateChange,
   editable = true,
+  exportRef,
+  onReadyChange,
 }: BlockNoteEditorProps) {
   const editorRef = useRef<{ document: Block[] } | null>(null)
   const isEditorReadyRef = useRef(false)
@@ -136,6 +145,15 @@ export function BlockNoteEditor({
 
   const isEditorEditable = editable && initialSyncComplete && !syncError
   const isEditorReady = isInitialDocumentReady
+  useImperativeHandle(exportRef, () => ({
+    docId,
+    getBlocks: () => isEditorReadyRef.current ? structuredClone(editor.document) : null,
+  }), [docId, editor])
+
+  useEffect(() => {
+    onReadyChange?.(docId, isEditorReady)
+    return () => onReadyChange?.(docId, false)
+  }, [docId, isEditorReady, onReadyChange])
   // Read-only documents remain selectable and accessible. Inert is only a
   // temporary interaction lock for writable editors during transport recovery.
   const isTransportLocked = editable && !syncError && !initialSyncComplete

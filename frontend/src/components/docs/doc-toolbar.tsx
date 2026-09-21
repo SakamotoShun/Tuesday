@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { Link } from "react-router-dom"
 import { AlertTriangle, Check, CloudOff, Loader2, MessageSquare, Trash2 } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
@@ -23,6 +23,7 @@ interface DocToolbarProps {
   canDelete?: boolean
   onOpenShare?: () => void
   onOpenChat?: () => void
+  exportControl?: ReactNode
 }
 
 export function DocToolbar({
@@ -34,6 +35,7 @@ export function DocToolbar({
   canDelete = true,
   onOpenShare,
   onOpenChat,
+  exportControl,
 }: DocToolbarProps) {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -83,6 +85,8 @@ export function DocToolbar({
           {saveState === "error" && <CloudOff className="h-3.5 w-3.5 text-destructive" />}
           <span>{saveLabel}</span>
         </div>
+
+        {exportControl}
 
         {onOpenChat && (
           <Button variant="outline" size="sm" onClick={onOpenChat}>
