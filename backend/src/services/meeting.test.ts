@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, mock, spyOn } from 'bun:test';
 import { db, type DbTransaction } from '../db/client';
+import { settingsRepository } from '../repositories/settings';
 
 const transaction = {} as DbTransaction;
 const spies: Array<{ mockRestore(): void }> = [];
@@ -37,13 +38,6 @@ mock.module('../repositories/meetingAttendee', () => ({
   meetingAttendeeRepository: {
     setAttendees: (...args: any[]) => setAttendees(...args),
     findByMeetingId: (...args: any[]) => findAttendees(...args),
-  },
-}));
-
-mock.module('../repositories/settings', () => ({
-  SettingsRepository: class {},
-  settingsRepository: {
-    get: (key: string) => getSetting(key),
   },
 }));
 
@@ -95,6 +89,8 @@ describe('MeetingService', () => {
     createDelivery = async () => {};
     commitError = null;
     committed = false;
+    // Preserve the shared repository's other methods for setup and auth tests.
+    spies.push(spyOn(settingsRepository, 'get').mockImplementation((key) => getSetting(key)));
     spies.push(spyOn(db, 'transaction').mockImplementation(async (callback) => {
       const result = await callback(transaction);
       if (commitError) throw commitError;
