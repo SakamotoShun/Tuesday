@@ -1,14 +1,14 @@
-import { useState } from "react"
+import { useId, useState } from "react"
+import { ApiErrorResponse } from "@/api/client"
 import { useMcpTokens } from "@/hooks/use-mcp-tokens"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Separator } from "@/components/ui/separator"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Trash, Plus, CopySimple, Check } from "@/lib/icons"
-import type { McpScope, CreateMcpTokenInput } from "@/api/types"
+import type { McpScope, McpTokenListItem } from "@/api/types"
 
 const ALL_SCOPES: McpScope[] = [
   "projects:read",
@@ -97,6 +97,21 @@ export function McpTokenSection() {
   const [newName, setNewName] = useState("")
   const [selectedScopes, setSelectedScopes] = useState<Set<McpScope>>(new Set())
   const [createdToken, setCreatedToken] = useState<string | null>(null)
+  const [tokenToDelete, setTokenToDelete] = useState<McpTokenListItem | null>(null)
+  const deleteDialogId = useId()
+  const deleteError = revokeToken.isError
+    ? revokeToken.error instanceof ApiErrorResponse
+      ? revokeToken.error.message
+      : "Failed to delete token. Please try again."
+    : null
+
+  const handleDelete = () => {
+    if (!tokenToDelete || revokeToken.isPending) return
+
+    revokeToken.mutate(tokenToDelete.id, {
+      onSuccess: () => setTokenToDelete(null),
+    })
+  }
 
   const handleCreate = async () => {
     if (!newName.trim() || selectedScopes.size === 0) return
@@ -144,23 +159,26 @@ export function McpTokenSection() {
             MCP tokens allow AI agents to access Tuesday as a tool server. Each token is scoped to specific capabilities.
           </p>
 
+          {deleteError && !tokenToDelete && (
+            <p role="alert" className="text-sm text-destructive mb-4">{deleteError}</p>
+          )}
+
           {isLoading ? (
             <p className="text-sm text-muted-foreground">Loading tokens...</p>
           ) : tokens.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No tokens created yet. Create one to let an AI agent access Tuesday.
+              No access tokens. Create one to let an AI agent access Tuesday.
             </p>
           ) : (
             <div className="space-y-3">
               {tokens.map((token) => (
                 <div
                   key={token.id}
-                  className="flex items-center justify-between p-3 border rounded-md"
+                  className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 border rounded-md"
                 >
                   <div className="space-y-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-medium">{token.name}</span>
-                      {token.revokedAt && <Badge variant="destructive">Revoked</Badge>}
                     </div>
                     <div className="flex flex-wrap gap-1">
                       {token.scopes.map((s) => (
@@ -179,22 +197,57 @@ export function McpTokenSection() {
                       )}
                     </div>
                   </div>
-                  {!token.revokedAt && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-destructive shrink-0 ml-2"
-                      onClick={() => revokeToken.mutate(token.id)}
-                    >
-                      <Trash className="h-4 w-4" />
-                    </Button>
-                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive hover:text-destructive shrink-0 self-start sm:self-center"
+                    aria-label={`Delete token ${token.name}`}
+                    disabled={revokeToken.isPending}
+                    onClick={() => {
+                      revokeToken.reset()
+                      setTokenToDelete(token)
+                    }}
+                  >
+                    <Trash className="h-4 w-4 mr-1" aria-hidden="true" />
+                    Delete token
+                  </Button>
                 </div>
               ))}
             </div>
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={tokenToDelete !== null} onOpenChange={(open) => {
+        if (!open) setTokenToDelete(null)
+      }}>
+        <DialogContent
+          className="max-w-md space-y-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={`${deleteDialogId}-title`}
+          aria-describedby={`${deleteDialogId}-description`}
+        >
+          <DialogHeader>
+            <DialogTitle id={`${deleteDialogId}-title`}>Delete token</DialogTitle>
+            <DialogDescription id={`${deleteDialogId}-description`}>
+              Delete <strong>{tokenToDelete?.name}</strong>? This immediately revokes its access
+              and removes it from this list. Any clients using it will need a new token.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteError && (
+            <p role="alert" className="text-sm text-destructive">{deleteError}</p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTokenToDelete(null)} disabled={revokeToken.isPending}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={revokeToken.isPending}>
+              {revokeToken.isPending ? "Deleting..." : "Delete token"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
         <DialogContent className="max-w-md">
